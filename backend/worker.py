@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from typing import Callable
 
 from . import db, queue
 from .middleware import AbortTask, WorkerPipeline, build_default_pipeline

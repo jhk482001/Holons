@@ -32,7 +32,9 @@ and `search(asset, query, top_k)` interface so `rag.py` can dispatch blindly.
 """
 from __future__ import annotations
 
+import json
 import logging
+from typing import Any
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError

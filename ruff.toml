@@ -1,0 +1,31 @@
+# Ruff config — keep lint narrow for now. The codebase hasn't been
+# blanket-ruffed, so enforcing everything would churn every commit. The
+# subset below catches real mistakes (syntax errors, obviously dead code,
+# undefined names) without fighting the existing style.
+
+line-length = 200
+target-version = "py39"
+
+[lint]
+# E402 (imports not at top) — backend/app.py and services do deliberate
+# late imports to avoid circular dependencies at boot.
+# F401 (unused import) — handled per-file below; many modules re-export
+# symbols for their public API.
+# E501 (line too long) — existing SQL strings and prompt literals are
+# naturally long; 200-col limit is the compromise for now.
+ignore = ["E402", "F401", "E501"]
+
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes (real bugs: undefined names, unused vars)
+    "W",     # pycodestyle warnings
+]
+
+[lint.per-file-ignores]
+# Re-export facades — these "unused imports" are the module's public API.
+"backend/db.py" = ["F401"]
+"backend/__init__.py" = ["F401"]
+"backend/services/__init__.py" = ["F401"]
+"backend/llm_clients/__init__.py" = ["F401"]
+# Tests use star imports + fixtures that look unused to ruff.
+"tests/*" = ["F401", "F811"]

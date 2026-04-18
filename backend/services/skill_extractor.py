@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Any
 
 from .. import db
 from ..llm_clients import invoke_for_agent as llm_invoke

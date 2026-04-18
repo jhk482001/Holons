@@ -8,6 +8,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: ankane/pgvector:latest
+        env:
+          POSTGRES_DB: agent_company
+          POSTGRES_USER: agent_company
+          POSTGRES_PASSWORD: devpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,13 +32,13 @@ jobs:
       - run: pip install pytest ruff
       - name: Lint
         run: ruff check backend
-      - name: Test (SQLite subset)
+      - name: Test (Postgres)
         env:
-          DB_BACKEND: sqlite
-        # Only run SQLite-compatible tests. test_e2e.py needs a live server
-        # + Playwright; test_services.py and test_v2.py use Postgres-only
-        # context-manager idioms (documented as Postgres-only).
-        run: pytest tests/test_api_crud.py tests/test_projects.py -v
+          DATABASE_URL: postgresql://agent_company:devpassword@localhost:5432/agent_company
+          DB_BACKEND: postgres
+        # Run unit-level tests only. test_e2e.py needs a live Flask server
+        # + Playwright browsers and is exercised by the release pipeline.
+        run: pytest tests/test_api_crud.py tests/test_projects.py tests/test_services.py tests/test_v2.py -v
 
   frontend:
     runs-on: ubuntu-latest

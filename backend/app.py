@@ -20,7 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db, engine, queue, worker
 from .bedrock_client import list_models
-from .config import PORT, SECRET_KEY
+from .config import PORT, SECRET_KEY, UPLOAD_FOLDER
 from . import tools as tools_registry
 from .services import (
     assets as assets_service, avatar, escalation, feature_flags, lead_agent,
@@ -57,8 +57,8 @@ CORS(app, origins=_cors_origins, supports_credentials=True)
 # Structured logging — JSON format with request_id
 # ============================================================================
 
-import uuid as _uuid  # noqa: E402 — placed after CORS setup by design
-import logging as _logging  # noqa: E402
+import uuid as _uuid
+import logging as _logging
 
 class _JSONFormatter(_logging.Formatter):
     def format(self, record):
@@ -79,7 +79,7 @@ class _JSONFormatter(_logging.Formatter):
             return f"{record.levelname} {record.name}: {record.getMessage()}"
 
 # Only apply JSON formatting when running as the main app, not during tests
-import sys as _sys  # noqa: E402
+import sys as _sys
 if "pytest" not in _sys.modules:
     _handler = _logging.StreamHandler()
     _handler.setFormatter(_JSONFormatter())
@@ -225,7 +225,7 @@ def _shutdown() -> None:
 atexit.register(_shutdown)
 
 # Graceful signal handling — catch SIGTERM/SIGINT and trigger clean shutdown
-import signal  # noqa: E402
+import signal
 
 def _signal_handler(signum, frame):
     log.info("Received signal %s, initiating graceful shutdown", signum)
@@ -1661,6 +1661,7 @@ def delete_group(gid: int):
 # Projects — long-lived goals wrapping runs + agents + a coordinator.
 # ============================================================================
 
+from .services import quotas as _quotas  # noqa: E402
 
 
 def _fetch_project_with_members(pid: int, user_id: int) -> dict | None:
@@ -3702,7 +3703,7 @@ def dashboard_agent_load():
 # Avatar composer (public — used by <img> tags, no auth required)
 # ============================================================================
 
-from flask import Response as FlaskResponse  # noqa: E402
+from flask import Response as FlaskResponse
 
 
 @app.route("/api/avatar/parts")

@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
 
+permissions:
+  # softprops/action-gh-release needs contents:write to create/update the
+  # release and upload artifacts. Default GITHUB_TOKEN on repos created
+  # after 2023-02 is read-only for workflows, so this must be explicit.
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -61,11 +67,17 @@ jobs:
 
       - name: Tauri build
         shell: bash
+        working-directory: desktop
+        # `npm --prefix` sets npm's package dir but doesn't change cwd, so
+        # tauri's beforeBuildCommand ("npm run build") resolves against the
+        # repo root and ends up rebuilding frontend/ instead of desktop/.
+        # Switching cwd to desktop/ makes both the tauri CLI lookup and its
+        # beforeBuildCommand unambiguous.
         run: |
           if [ -n "${{ matrix.tauri-target }}" ]; then
-            npm --prefix desktop exec -- tauri build --target ${{ matrix.tauri-target }}
+            npx tauri build --target ${{ matrix.tauri-target }}
           else
-            npm --prefix desktop exec -- tauri build
+            npx tauri build
           fi
 
       - name: Upload artifact to release

@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from types import ModuleType
 from typing import Any, Callable
 
 

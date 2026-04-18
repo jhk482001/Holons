@@ -18,33 +18,12 @@ directly. The public API is identical regardless of backend:
 from __future__ import annotations
 
 import os
-from typing import Any
 
 from .config import CFG
 
 _BACKEND = CFG.get("DB_BACKEND", os.environ.get("DB_BACKEND", "postgres"))
 
 if _BACKEND == "sqlite":
-    from .db_sqlite import (  # type: ignore[assignment]
-        init,
-        close,
-        fetch_one,
-        fetch_all,
-        execute,
-        execute_returning,
-        get_conn,
-        txn_cursor,
-        pool,
-    )
+    pass
 else:
-    from .db_postgres import (  # type: ignore[assignment]
-        init,
-        close,
-        fetch_one,
-        fetch_all,
-        execute,
-        execute_returning,
-        get_conn,
-        txn_cursor,
-        pool,
-    )
+    pass

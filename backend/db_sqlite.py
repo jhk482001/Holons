@@ -27,7 +27,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 _db_path: str | None = None
 _local = threading.local()

@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from typing import Any
 
 from .. import db, queue
 from ..llm_clients import invoke_for_agent as llm_invoke

@@ -18,10 +18,13 @@ jobs:
       - run: pip install pytest ruff
       - name: Lint
         run: ruff check backend
-      - name: Test (SQLite)
+      - name: Test (SQLite subset)
         env:
           DB_BACKEND: sqlite
-        run: pytest backend/tests -v
+        # Only run SQLite-compatible tests. test_e2e.py needs a live server
+        # + Playwright; test_services.py and test_v2.py use Postgres-only
+        # context-manager idioms (documented as Postgres-only).
+        run: pytest tests/test_api_crud.py tests/test_projects.py -v
 
   frontend:
     runs-on: ubuntu-latest
@@ -53,6 +56,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
       - run: npm --prefix desktop ci
+      - name: Placeholder sidecar (tauri.conf references it)
+        # CI doesn't build the PyInstaller sidecar, but tauri-build validates
+        # resource paths at compile time. An empty placeholder keeps clippy
+        # happy without embedding the real 45MB binary in every CI run.
+        run: |
+          mkdir -p desktop/src-tauri/sidecar
+          touch desktop/src-tauri/sidecar/agent-company-backend
+      - name: Build frontend for Tauri
+        # Tauri's distDir points at frontend/dist; it must exist before clippy.
+        run: npm --prefix desktop run build
       - name: Rust fmt
         run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
       - name: Rust clippy

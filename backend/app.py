@@ -20,7 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db, engine, queue, worker
 from .bedrock_client import list_models
-from .config import PORT, SECRET_KEY, UPLOAD_FOLDER
+from .config import PORT, SECRET_KEY
 from . import tools as tools_registry
 from .services import (
     assets as assets_service, avatar, escalation, feature_flags, lead_agent,
@@ -57,8 +57,8 @@ CORS(app, origins=_cors_origins, supports_credentials=True)
 # Structured logging — JSON format with request_id
 # ============================================================================
 
-import uuid as _uuid
-import logging as _logging
+import uuid as _uuid  # noqa: E402 — placed after CORS setup by design
+import logging as _logging  # noqa: E402
 
 class _JSONFormatter(_logging.Formatter):
     def format(self, record):
@@ -79,7 +79,7 @@ class _JSONFormatter(_logging.Formatter):
             return f"{record.levelname} {record.name}: {record.getMessage()}"
 
 # Only apply JSON formatting when running as the main app, not during tests
-import sys as _sys
+import sys as _sys  # noqa: E402
 if "pytest" not in _sys.modules:
     _handler = _logging.StreamHandler()
     _handler.setFormatter(_JSONFormatter())
@@ -225,7 +225,7 @@ def _shutdown() -> None:
 atexit.register(_shutdown)
 
 # Graceful signal handling — catch SIGTERM/SIGINT and trigger clean shutdown
-import signal
+import signal  # noqa: E402
 
 def _signal_handler(signum, frame):
     log.info("Received signal %s, initiating graceful shutdown", signum)
@@ -335,7 +335,6 @@ _LAST_SEEN_DEBOUNCE_SECS = 60.0
 
 
 def _touch_last_seen(uid: int) -> None:
-    import time
     now = time.time()
     prev = _LAST_SEEN_CACHE.get(uid, 0.0)
     if now - prev < _LAST_SEEN_DEBOUNCE_SECS:
@@ -491,7 +490,6 @@ def login_desktop():
     throttle_err = _check_login_throttle()
     if throttle_err:
         return jsonify({"error": throttle_err}), 429
-    import secrets
     data = request.get_json() or {}
     u = db.fetch_one("SELECT * FROM as_users WHERE username = %s", (data.get("username"),))
     if not u or not check_password_hash(u["password_hash"], data.get("password") or ""):
@@ -1663,7 +1661,6 @@ def delete_group(gid: int):
 # Projects — long-lived goals wrapping runs + agents + a coordinator.
 # ============================================================================
 
-from .services import quotas as _quotas  # noqa: E402
 
 
 def _fetch_project_with_members(pid: int, user_id: int) -> dict | None:
@@ -2253,7 +2250,7 @@ def my_api_tokens():
         )
         return jsonify(rows)
     # Create
-    import secrets, hashlib
+    import hashlib
     d = request.get_json() or {}
     name = (d.get("name") or "Unnamed token").strip()[:100]
     raw = "hlns_" + secrets.token_urlsafe(32)
@@ -3705,7 +3702,7 @@ def dashboard_agent_load():
 # Avatar composer (public — used by <img> tags, no auth required)
 # ============================================================================
 
-from flask import Response as FlaskResponse
+from flask import Response as FlaskResponse  # noqa: E402
 
 
 @app.route("/api/avatar/parts")

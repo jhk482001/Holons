@@ -12,7 +12,6 @@ when agents are shared/rented).
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from .. import db, queue
 from . import notifications

@@ -23,7 +23,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any
 
 from . import db, queue
 from .llm_clients import invoke_for_agent as llm_invoke
@@ -341,7 +340,7 @@ def _gather_agent_assets(agent_id: int) -> dict:
     `mcp_client.gather_agent_tools()` so the existing engine loop keeps
     working — we just merge into that list.
     """
-    from .services import assets as assets_service, asset_crypto, mcp_client
+    from .services import asset_crypto, mcp_client
 
     rows = db.fetch_all(
         """

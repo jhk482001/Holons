@@ -4,7 +4,6 @@ A model registry lets the UI expose friendly names. Cost is computed per
 model based on published on-demand pricing (USD per 1K tokens). Prices
 can drift, so treat the numbers as a close estimate, not an invoice.
 """
-import base64
 import time
 from typing import List, Dict, Any, Optional
 

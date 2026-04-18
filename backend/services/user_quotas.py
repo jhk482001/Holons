@@ -23,7 +23,6 @@ means "no limits at all".
 """
 from __future__ import annotations
 
-from typing import Any
 
 from .. import db
 

@@ -15,7 +15,7 @@ tool call) via `record_usage()`.
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
+from typing import Any
 
 from .. import db
 from . import asset_crypto

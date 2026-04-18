@@ -107,7 +107,6 @@ fn start_sidecar(app_handle: tauri::AppHandle) -> Result<u16, String> {
     Err("Sidecar did not report a port".to_string())
 }
 
-
 fn dirs_home() -> std::path::PathBuf {
     if let Ok(h) = std::env::var("HOME") {
         return std::path::PathBuf::from(h);
@@ -189,14 +188,9 @@ pub fn run() {
 
             // Language submenu
             let lang_en = MenuItem::with_id(app, "lang_en", "English", true, None::<&str>)?;
-            let lang_zh =
-                MenuItem::with_id(app, "lang_zh_tw", "繁體中文", true, None::<&str>)?;
-            let lang_menu = tauri::menu::Submenu::with_items(
-                app,
-                "Language",
-                true,
-                &[&lang_en, &lang_zh],
-            )?;
+            let lang_zh = MenuItem::with_id(app, "lang_zh_tw", "繁體中文", true, None::<&str>)?;
+            let lang_menu =
+                tauri::menu::Submenu::with_items(app, "Language", true, &[&lang_en, &lang_zh])?;
 
             let sep = PredefinedMenuItem::separator(app)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

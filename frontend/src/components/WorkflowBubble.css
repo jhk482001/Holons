@@ -1,0 +1,215 @@
+.wf-bubble {
+  margin-top: 12px;
+  background: rgba(250, 247, 241, 0.92);
+  border: 1px dashed var(--border-strong);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.wf-bubble-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--accent);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.wf-bubble-name {
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 14px;
+  font-weight: 700;
+}
+
+.wf-bubble-canvas {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background-image: radial-gradient(circle, #d4cdbc 0.8px, transparent 1px);
+  background-size: 14px 14px;
+  overflow-x: auto;
+}
+
+.wf-bubble-empty {
+  color: var(--ink-4);
+  font-size: 12px;
+  padding: 10px;
+}
+
+.wf-bubble-chain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wf-bubble-node {
+  background: white;
+  border: 1.5px solid var(--accent-line);
+  border-radius: 999px;
+  padding: 6px 12px 6px 7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(60, 45, 20, 0.05);
+  flex-shrink: 0;
+}
+
+.wf-bubble-node.group {
+  border-style: dashed;
+  background: rgba(255, 232, 224, 0.4);
+}
+
+.wf-node-text { min-width: 0; }
+.wf-node-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.wf-node-agent {
+  font-size: 9px;
+  color: var(--ink-3);
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.wf-arrow {
+  color: var(--accent-line);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.wf-bubble-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--ink-3);
+  gap: 8px;
+}
+
+.wf-bubble-meta strong { color: var(--ink); }
+
+.wf-bubble-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.wf-btn {
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.wf-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.wf-btn.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.wf-btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.wf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.wf-run-notice {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--good-soft);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--good);
+  font-weight: 600;
+}
+
+/* Persistent run history rendered inside the bubble */
+.wf-run-history {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.wf-run-history-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 6px;
+}
+.wf-run-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+.wf-run-row:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.wf-run-row.active { border-color: var(--accent-line); background: var(--accent-soft); }
+.wf-run-row.done { border-color: rgba(95, 181, 126, 0.35); }
+.wf-run-row.error { border-color: rgba(232, 100, 80, 0.35); background: rgba(232, 100, 80, 0.04); }
+.wf-run-id {
+  font-weight: 800;
+  color: var(--ink-3);
+  min-width: 36px;
+}
+.wf-run-pill {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.wf-run-pill.active { background: var(--accent-soft); color: var(--accent); }
+.wf-run-pill.done { background: var(--good-soft); color: var(--good); }
+.wf-run-pill.error { background: var(--danger-soft); color: var(--danger); }
+.wf-run-time {
+  flex: 1;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.wf-run-go {
+  color: var(--accent);
+  font-weight: 700;
+}
+.wf-run-notice .wf-link-btn {
+  color: var(--good);
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+}
+.wf-run-notice .wf-link-btn:hover { opacity: 0.8; }

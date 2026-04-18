@@ -1,0 +1,295 @@
+use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter, Manager,
+};
+
+use std::io::BufRead;
+use std::sync::Mutex;
+
+static SIDECAR_PORT: Mutex<Option<u16>> = Mutex::new(None);
+
+#[tauri::command]
+fn start_sidecar(app_handle: tauri::AppHandle) -> Result<u16, String> {
+    // Check if already running
+    if let Ok(guard) = SIDECAR_PORT.lock() {
+        if let Some(port) = *guard {
+            return Ok(port);
+        }
+    }
+
+    // Try to find the bundled sidecar binary first (production).
+    // Fall back to python3 -m backend.standalone (dev mode).
+    let resource_dir = app_handle.path().resource_dir().unwrap_or_default();
+    let bundled_sidecar = resource_dir.join("agent-company-backend");
+
+    let child = if bundled_sidecar.exists() {
+        // Production: use bundled binary
+        std::process::Command::new(&bundled_sidecar)
+            .args(["--port", "0"])
+            .env("DB_BACKEND", "sqlite")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start bundled sidecar: {}", e))?
+    } else {
+        // Dev mode: find the project root (desktop/src-tauri → ../../)
+        // and run python3 -m backend.standalone
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let project_root = cwd
+            .parent() // desktop/
+            .and_then(|p| p.parent()) // agent_company/
+            .unwrap_or(&cwd);
+
+        std::process::Command::new("python3")
+            .args(["-m", "backend.standalone", "--port", "0"])
+            .current_dir(project_root)
+            .env("DB_BACKEND", "sqlite")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start python sidecar: {}", e))?
+    };
+
+    // Read stdout line by line to find PORT=XXXX. Tee everything (pre- and
+    // post-PORT) to ~/.agent_company/sidecar.log so a user can see why the
+    // backend is silent when the app misbehaves.
+    let log_path = dirs_home().join(".agent_company").join("sidecar.log");
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut logfile = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .ok();
+
+    let stdout = child.stdout.ok_or("No stdout")?;
+    let mut reader = std::io::BufReader::new(stdout);
+    let mut line_buf = String::new();
+    loop {
+        line_buf.clear();
+        let n = reader
+            .read_line(&mut line_buf)
+            .map_err(|e| format!("Read error: {}", e))?;
+        if n == 0 {
+            break; // EOF
+        }
+        if let Some(f) = logfile.as_mut() {
+            use std::io::Write;
+            let _ = f.write_all(line_buf.as_bytes());
+        }
+        let line = line_buf.trim();
+        if let Some(rest) = line.strip_prefix("PORT=") {
+            let port: u16 = rest.parse().map_err(|e| format!("Invalid port: {}", e))?;
+            if let Ok(mut guard) = SIDECAR_PORT.lock() {
+                *guard = Some(port);
+            }
+            // Drain remaining stdout in background, teeing to the log.
+            let mut tail_file = logfile;
+            std::thread::spawn(move || {
+                let mut buf = String::new();
+                loop {
+                    buf.clear();
+                    let n = reader.read_line(&mut buf).unwrap_or(0);
+                    if n == 0 {
+                        break;
+                    }
+                    if let Some(f) = tail_file.as_mut() {
+                        use std::io::Write;
+                        let _ = f.write_all(buf.as_bytes());
+                    }
+                }
+            });
+            return Ok(port);
+        }
+    }
+    Err("Sidecar did not report a port".to_string())
+}
+
+
+fn dirs_home() -> std::path::PathBuf {
+    if let Ok(h) = std::env::var("HOME") {
+        return std::path::PathBuf::from(h);
+    }
+    std::env::temp_dir()
+}
+
+#[tauri::command]
+fn set_click_through(window: tauri::WebviewWindow, ignore: bool) {
+    let _ = window.set_ignore_cursor_events(ignore);
+}
+
+#[tauri::command]
+fn focus_window(window: tauri::WebviewWindow) {
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    open::that(&url).map_err(|e| format!("open failed: {}", e))
+}
+
+fn show_and_focus(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
+        .invoke_handler(tauri::generate_handler![
+            start_sidecar,
+            set_click_through,
+            focus_window,
+            open_url,
+        ])
+        .setup(|app| {
+            let show_i = MenuItem::with_id(app, "show", "Show Holons", true, None::<&str>)?;
+
+            // Bust size submenu
+            let size_small = MenuItem::with_id(app, "size_small", "Small", true, None::<&str>)?;
+            let size_medium =
+                MenuItem::with_id(app, "size_medium", "Medium ✓", true, None::<&str>)?;
+            let size_large = MenuItem::with_id(app, "size_large", "Large", true, None::<&str>)?;
+            let size_menu = tauri::menu::Submenu::with_items(
+                app,
+                "Character size",
+                true,
+                &[&size_small, &size_medium, &size_large],
+            )?;
+
+            let reset_pos_i = MenuItem::with_id(
+                app,
+                "reset_positions",
+                "Reset character positions",
+                true,
+                None::<&str>,
+            )?;
+            let connection_i = MenuItem::with_id(
+                app,
+                "connection_settings",
+                "Connection settings…",
+                true,
+                None::<&str>,
+            )?;
+            let open_web_i =
+                MenuItem::with_id(app, "open_web", "Open web settings", true, None::<&str>)?;
+
+            // Language submenu
+            let lang_en = MenuItem::with_id(app, "lang_en", "English", true, None::<&str>)?;
+            let lang_zh =
+                MenuItem::with_id(app, "lang_zh_tw", "繁體中文", true, None::<&str>)?;
+            let lang_menu = tauri::menu::Submenu::with_items(
+                app,
+                "Language",
+                true,
+                &[&lang_en, &lang_zh],
+            )?;
+
+            let sep = PredefinedMenuItem::separator(app)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &show_i,
+                    &size_menu,
+                    &reset_pos_i,
+                    &lang_menu,
+                    &connection_i,
+                    &open_web_i,
+                    &sep,
+                    &quit_i,
+                ],
+            )?;
+
+            let icon = app.default_window_icon().cloned().expect("default icon");
+
+            let _tray = TrayIconBuilder::new()
+                .icon(icon)
+                .icon_as_template(true)
+                .menu(&menu)
+                .tooltip("Holons")
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "show" => {
+                        show_and_focus(app);
+                    }
+                    "size_small" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("set-bust-size", "small");
+                        }
+                    }
+                    "size_medium" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("set-bust-size", "medium");
+                        }
+                    }
+                    "size_large" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("set-bust-size", "large");
+                        }
+                    }
+                    "reset_positions" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("reset-cast-positions", ());
+                        }
+                    }
+                    "lang_en" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("set-lang", "en");
+                        }
+                    }
+                    "lang_zh_tw" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("set-lang", "zh-TW");
+                        }
+                    }
+                    "connection_settings" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("reset-connection", ());
+                        }
+                    }
+                    "open_web" => {
+                        if let Some(port) = SIDECAR_PORT.lock().ok().and_then(|g| *g) {
+                            let _ = open::that(format!("http://localhost:{}/settings", port));
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_and_focus(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
+            // Maximize on launch
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.maximize();
+            }
+
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

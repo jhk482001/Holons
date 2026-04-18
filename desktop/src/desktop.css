@@ -1,0 +1,614 @@
+/* ============================================================================
+   Desktop App — transparent overlay + cast bar + chat panel
+   ============================================================================ */
+
+:root {
+  --desktop-bg: rgba(30, 28, 25, 0.85);
+  --desktop-glass: rgba(255, 255, 255, 0.08);
+  --desktop-border: rgba(255, 255, 255, 0.12);
+  --desktop-text: #f0ece6;
+  --desktop-text-dim: rgba(240, 236, 230, 0.5);
+  --desktop-accent: #ff8a65;
+  --desktop-shadow: none;
+}
+
+.desktop-root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* ============================================================================
+   Cast Bar — bottom of screen
+   ============================================================================ */
+
+.cast-bar {
+  width: 100%;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+/* Freeform layout — agents positioned absolutely within the full-screen area */
+.cast-bar-freeform {
+  position: fixed;
+  inset: 0;
+  overflow: visible;
+}
+
+.cast-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.25s, filter 0.3s, opacity 0.3s;
+  flex-shrink: 0;
+  position: relative;
+  opacity: 1;
+}
+.cast-member-abs {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.cast-member:hover {
+  filter: brightness(1.15);
+}
+.cast-member-abs:hover {
+  transform: translate(-50%, -50%) translateY(-6px);
+}
+.cast-member.dragging {
+  cursor: grabbing;
+  transition: none;
+}
+/* Dimmed state — when another agent is selected */
+.cast-member.dimmed {
+  opacity: 0.35;
+  filter: saturate(0.3) brightness(0.8);
+}
+.cast-member.dimmed:hover {
+  opacity: 0.75;
+  filter: saturate(0.7) brightness(1.05);
+}
+/* Active agent — subtle glow, no heavy shadow */
+.cast-member.active {
+  filter: brightness(1.15);
+}
+.cast-member-abs.active {
+  transform: translate(-50%, -50%) translateY(-10px);
+}
+.cast-member.active::after {
+  content: "";
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--desktop-accent);
+}
+
+/* ---- Cast action buttons (3 icons above bust on hover) ---- */
+.cast-actions {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 11;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.cast-member:hover .cast-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.cast-actions > :nth-child(1) { --arc-y: 3px; }
+.cast-actions > :nth-child(2) { --arc-y: -5px; }
+.cast-actions > :nth-child(3) { --arc-y: 3px; }
+.cast-action-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--desktop-text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.18s, filter 0.18s, background 0.15s;
+  transform: translateY(var(--arc-y, 0));
+}
+.cast-action-btn:hover {
+  color: var(--desktop-accent);
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(var(--arc-y, 0)) scale(1.18);
+}
+
+.cast-bust {
+  overflow: visible;
+}
+.cast-bust img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+}
+
+.cast-name {
+  font-size: 10px;
+  color: var(--desktop-text);
+  text-align: center;
+  font-weight: 700;
+  text-shadow: none;
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cast-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+.cast-status.active { background: #4caf50; }
+.cast-status.paused { background: #ff9800; }
+.cast-status.offline { background: #999; }
+.cast-status.off_duty { background: #607d8b; }
+
+/* ---- Right-click context menu ---- */
+.cast-ctx-menu {
+  position: fixed;
+  z-index: 200;
+  background: rgba(40, 36, 32, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--desktop-border);
+  border-radius: 10px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  animation: ctx-in 0.12s ease-out;
+}
+@keyframes ctx-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.cast-ctx-item {
+  background: none;
+  border: none;
+  color: var(--desktop-text);
+  font-size: 12px;
+  padding: 7px 12px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cast-ctx-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.cast-ctx-item.active {
+  color: var(--desktop-accent);
+  font-weight: 700;
+}
+
+
+/* ============================================================================
+   Chat Panel — centered above cast bar
+   ============================================================================ */
+
+.chat-panel {
+  position: fixed;
+  width: min(520px, 90vw);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--desktop-bg);
+  border: 1px solid var(--desktop-border);
+  border-radius: 18px;
+  box-shadow: var(--desktop-shadow);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  overflow: hidden;
+  animation: panel-in 0.2s ease-out;
+}
+.chat-panel-centered {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-height: 70vh;
+  z-index: 100;
+}
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translate(-50%, -50%) translateY(16px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) translateY(0); }
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--desktop-border);
+}
+.chat-header-name {
+  flex: 1;
+  min-width: 0;
+}
+.chat-header-name strong {
+  display: block;
+  font-size: 14px;
+  color: var(--desktop-text);
+}
+.chat-header-name span {
+  font-size: 11px;
+  color: var(--desktop-text-dim);
+}
+.chat-close {
+  background: none;
+  border: none;
+  color: var(--desktop-text-dim);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.chat-close:hover {
+  color: var(--desktop-text);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 200px;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.chat-bubble.user {
+  align-self: flex-end;
+  background: var(--desktop-accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble.bot {
+  align-self: flex-start;
+  background: var(--desktop-glass);
+  color: var(--desktop-text);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-composer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--desktop-border);
+  align-items: flex-end;
+}
+.chat-composer textarea {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--desktop-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--desktop-text);
+  font: inherit;
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  min-height: 36px;
+  max-height: 120px;
+}
+.chat-composer textarea::placeholder {
+  color: var(--desktop-text-dim);
+}
+.chat-composer button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--desktop-accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chat-composer button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   Floating Info Panel (settings / log)
+   ============================================================================ */
+
+.floating-info-panel {
+  max-height: 50vh;
+}
+.floating-info-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+.floating-info-scroll {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fi-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--desktop-text);
+}
+.fi-label {
+  font-size: 11px;
+  color: var(--desktop-text-dim);
+  min-width: 48px;
+  flex-shrink: 0;
+}
+.fi-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fi-text {
+  font-size: 12px;
+  color: var(--desktop-text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.fi-hint {
+  font-size: 10px;
+  color: var(--desktop-text-dim);
+  text-align: center;
+  padding: 8px 0;
+}
+.cast-status-text {
+  font-size: 11px;
+  font-weight: 700;
+}
+.cast-status-text.active { color: #4caf50; }
+.cast-status-text.paused { color: #ff9800; }
+.cast-status-text.offline { color: #999; }
+.cast-status-text.done { color: #4caf50; }
+.cast-status-text.error { color: #f44336; }
+.cast-status-text.running { color: #2196f3; }
+.cast-status-text.queued { color: #ff9800; }
+
+
+/* ============================================================================
+   Login overlay
+   ============================================================================ */
+
+.desktop-login-overlay {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.desktop-login-card {
+  position: relative;
+  width: 320px;
+  background: var(--desktop-bg);
+  border: 1px solid var(--desktop-border);
+  border-radius: 18px;
+  padding: 32px 28px;
+  box-shadow: var(--desktop-shadow);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lang-switcher {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--desktop-text-dim);
+  user-select: none;
+}
+.lang-btn {
+  background: transparent;
+  border: none;
+  color: var(--desktop-text-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  transition: color 0.15s, background 0.15s;
+}
+.lang-btn:hover { color: var(--desktop-text); }
+.lang-btn.active {
+  color: var(--desktop-text);
+  font-weight: 700;
+}
+.lang-sep { opacity: 0.4; }
+
+.desktop-login-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--desktop-text);
+  text-align: center;
+}
+.desktop-login-sub {
+  font-size: 12px;
+  color: var(--desktop-text-dim);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.desktop-login-card input {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--desktop-border);
+  border-radius: 10px;
+  color: var(--desktop-text);
+  font-size: 14px;
+  outline: none;
+}
+.desktop-login-card input::placeholder {
+  color: var(--desktop-text-dim);
+}
+
+.desktop-login-card button {
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--desktop-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.desktop-login-card button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.desktop-login-error {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff6b6b;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: center;
+}
+
+
+/* ============================================================================
+   Connection Setup (first-run)
+   ============================================================================ */
+
+.setup-card {
+  position: relative;
+  width: 380px;
+  background: var(--desktop-bg);
+  border: 1px solid var(--desktop-border);
+  border-radius: 18px;
+  padding: 32px 28px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.setup-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--desktop-text);
+  text-align: center;
+}
+.setup-sub {
+  font-size: 12px;
+  color: var(--desktop-text-dim);
+  text-align: center;
+  margin-bottom: 8px;
+}
+.setup-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--desktop-border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+}
+.setup-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--desktop-accent);
+}
+.setup-option-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.setup-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setup-option-text strong {
+  font-size: 14px;
+  color: var(--desktop-text);
+}
+.setup-option-text span {
+  font-size: 11px;
+  color: var(--desktop-text-dim);
+}
+.setup-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.setup-btn.primary {
+  background: var(--desktop-accent);
+  color: #fff;
+}
+.setup-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.setup-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--desktop-text);
+}
+.setup-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--desktop-border);
+  border-top-color: var(--desktop-accent);
+  border-radius: 50%;
+  margin: 0 auto;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

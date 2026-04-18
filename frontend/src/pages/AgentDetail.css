@@ -1,0 +1,192 @@
+.agent-detail {
+  max-width: 900px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.back-btn:hover { background: var(--surface-hover); color: var(--ink); }
+
+.agent-head {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.avatar-large {
+  border: 3px solid var(--border) !important;
+}
+.agent-head h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.agent-head .subtitle {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lead-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.meta-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.meta-row strong { color: var(--ink); }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 20px;
+  max-width: fit-content;
+}
+.tabs button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button.active {
+  background: var(--accent);
+  color: white;
+}
+
+.tab-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.overview-card section { margin-bottom: 20px; }
+.overview-card h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  letter-spacing: 1px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.overview-card p {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.7;
+}
+.overview-card pre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.avatar-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding: 12px 18px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.avatar-save-bar button {
+  padding: 7px 16px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.avatar-save-bar button:disabled { opacity: 0.5; }
+
+/* Skills tab */
+.skills-tab .extract-btn {
+  padding: 10px 16px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+.skills-tab .extract-btn:hover:not(:disabled) { background: var(--accent); color: white; }
+.skills-tab .empty { color: var(--ink-4); font-size: 13px; padding: 30px 10px; text-align: center; }
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.skill-row.approved {
+  background: var(--good-soft);
+  border-color: rgba(95, 181, 126, 0.3);
+}
+.skill-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.skill-info {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.skill-main { flex: 1; }
+.approve-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+}

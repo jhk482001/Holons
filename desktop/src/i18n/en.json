@@ -1,0 +1,61 @@
+{
+  "setup": {
+    "title": "Holons",
+    "subtitle": "Choose how to use this app",
+    "enterprise": "Enterprise",
+    "enterpriseDesc": "Connect to your company's server",
+    "personal": "Personal",
+    "personalDesc": "Run everything locally on this Mac",
+    "back": "Back",
+    "connect": "Connect",
+    "testing": "Testing…",
+    "start": "Start",
+    "retry": "Retry",
+    "ready": "Ready!",
+    "enterpriseTitle": "Enterprise Setup",
+    "enterpriseHint": "Enter your Holons server URL",
+    "personalTitle": "Personal Setup",
+    "personalHint": "Starting a local backend on this Mac. No server needed.",
+    "personalBody": "This will start a lightweight server on your Mac that manages your agents, workflows, and chat history. Everything stays on your machine.",
+    "starting": "Starting local backend…",
+    "errTimeout": "Connection timed out — check the URL and network",
+    "errCannotConnect": "Cannot connect: {{message}}",
+    "errServerStatus": "Server returned {{status}}",
+    "errStartTimeout": "Backend did not start within 30 seconds",
+    "errStartFailed": "Failed to start local backend"
+  },
+  "login": {
+    "title": "Holons",
+    "subtitle": "Log in to continue",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Log In",
+    "submitting": "Logging in…",
+    "genericError": "Login failed",
+    "noToken": "Login succeeded but no token in response",
+    "unexpectedResponse": "Unexpected {{status}} response ({{ct}}): {{body}}"
+  },
+  "dialog": {
+    "faceRight": "→ Face right",
+    "faceLeft": "← Face left",
+    "hide": "Hide this character",
+    "actionLog": "Log",
+    "actionChat": "Chat",
+    "actionSettings": "Settings",
+    "composerPlaceholder": "Message {{name}}…",
+    "settings": "Settings",
+    "log": "Log",
+    "name": "Name",
+    "role": "Role",
+    "status": "Status",
+    "model": "Model",
+    "description": "Description",
+    "settingsHint": "Full settings: open web → Employees → {{name}}",
+    "noRuns": "This agent has no runs yet.",
+    "logHint": "Full log: open web → Records"
+  },
+  "common": {
+    "language": "Language",
+    "startingBackend": "Starting local backend…"
+  }
+}

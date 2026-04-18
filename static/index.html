@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AgentStudio — 劇本生成與評鑑</title>
+<link rel="stylesheet" href="/static/style.css?v=20260411b">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+</head>
+<body>
+
+<div id="app">
+  <!-- top nav -->
+  <nav id="topnav">
+    <div class="brand">🎬 AgentStudio</div>
+    <div class="tabs">
+      <button data-view="agents">Agents</button>
+      <button data-view="groups">群組</button>
+      <button data-view="workflows">工作流</button>
+      <button data-view="runs">紀錄</button>
+      <button data-view="stage" class="stage-btn">舞台</button>
+    </div>
+    <div class="who">
+      <span id="who-label"></span>
+      <button id="btn-logout">登出</button>
+    </div>
+  </nav>
+
+  <!-- login view -->
+  <section id="view-login" class="view">
+    <div class="login-card">
+      <h2>登入 AgentStudio</h2>
+      <label>帳號<input id="li-username" type="text" autocomplete="username"></label>
+      <label>密碼<input id="li-password" type="password" autocomplete="current-password"></label>
+      <div class="row">
+        <button id="btn-login">登入</button>
+        <button id="btn-register" class="ghost">註冊</button>
+      </div>
+      <div id="login-msg" class="msg"></div>
+    </div>
+  </section>
+
+  <!-- agents view -->
+  <section id="view-agents" class="view hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Agents (角色員工)</h3>
+        <button id="btn-new-agent" class="primary">＋ 新 Agent</button>
+      </div>
+      <div id="agents-list" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- groups view -->
+  <section id="view-groups" class="view hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>工作群組</h3>
+        <button id="btn-new-group" class="primary">＋ 新群組</button>
+      </div>
+      <div id="groups-list" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- workflows view -->
+  <section id="view-workflows" class="view hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>工作流</h3>
+        <button id="btn-new-workflow" class="primary">＋ 新工作流</button>
+      </div>
+      <div id="workflows-list" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- runs view -->
+  <section id="view-runs" class="view hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>執行紀錄 / 全域日誌</h3>
+        <div class="filters">
+          <select id="run-filter-wf"><option value="">全部工作流</option></select>
+          <select id="run-filter-agent"><option value="">全部 Agent</option></select>
+        </div>
+      </div>
+      <div id="runs-list"></div>
+      <div id="run-detail" class="hidden"></div>
+    </div>
+  </section>
+
+  <!-- stage (the theatrical view) -->
+  <section id="view-stage" class="view hidden">
+    <div class="stage-picker">
+      <label>選擇要檢視的工作流 / 群組
+        <select id="stage-scope"></select>
+      </label>
+      <div class="stage-actions">
+        <input id="stage-input" placeholder="輸入初始 prompt，例如：劇本大綱…">
+        <button id="btn-stage-run" class="primary">執行</button>
+      </div>
+    </div>
+    <div id="stage-output" class="stage-output markdown"></div>
+    <div id="stage-bust-row" class="bust-row"></div>
+    <div id="stage-overlay" class="overlay hidden">
+      <div class="overlay-card">
+        <div class="overlay-head">
+          <div id="overlay-name"></div>
+          <div>
+            <button data-tab="chat" class="tabbtn active">對話</button>
+            <button data-tab="history" class="tabbtn">歷史</button>
+            <button id="overlay-close">×</button>
+          </div>
+        </div>
+        <div id="overlay-body" class="overlay-body"></div>
+        <div id="overlay-compose" class="overlay-compose">
+          <textarea id="overlay-msg" rows="2" placeholder="對他/她說話…（支援 Markdown）"></textarea>
+          <input type="file" id="overlay-file" accept="image/*" style="display:none">
+          <button id="overlay-attach" title="附圖">📎</button>
+          <button id="overlay-send" class="primary">送出</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- visual workflow editor (full screen) -->
+  <section id="view-wf-editor" class="view hidden">
+    <div class="editor-toolbar">
+      <button id="wfed-back" class="ghost">← 返回</button>
+      <input id="wfed-name" placeholder="工作流名稱" />
+      <label class="inline"><input type="checkbox" id="wfed-loop"> Loop</label>
+      <label class="inline">最多次數 <input type="number" id="wfed-maxloops" min="1" max="10" value="1" style="width:60px"></label>
+      <button id="wfed-add-agent" class="ghost">＋ Agent 節點</button>
+      <button id="wfed-add-group" class="ghost">＋ Group 節點</button>
+      <button id="wfed-edit-loop" class="ghost">⟳ Loop 設定</button>
+      <button id="wfed-save" class="primary">💾 儲存</button>
+      <button id="wfed-run" class="primary" style="background:#7aa2ff">▶ 執行</button>
+    </div>
+    <div id="wfed-canvas-wrap">
+      <div id="wfed-canvas">
+        <svg id="wfed-svg"></svg>
+      </div>
+    </div>
+    <div id="wfed-side" class="hidden">
+      <div class="side-head"><span id="wfed-side-title"></span><button id="wfed-side-close">×</button></div>
+      <div id="wfed-side-body"></div>
+    </div>
+  </section>
+
+  <!-- visual group editor (full screen) -->
+  <section id="view-group-editor" class="view hidden">
+    <div class="editor-toolbar">
+      <button id="ged-back" class="ghost">← 返回</button>
+      <input id="ged-name" placeholder="群組名稱" />
+      <label class="inline">模式
+        <select id="ged-mode">
+          <option value="parallel">parallel 並行</option>
+          <option value="sequential">sequential 依序</option>
+        </select>
+      </label>
+      <button id="ged-save" class="primary">💾 儲存</button>
+    </div>
+    <div id="ged-stage">
+      <div id="ged-palette">
+        <div class="palette-head">所有 Agent <span class="dim">(拖入右側加入群組)</span></div>
+        <div id="ged-palette-list"></div>
+      </div>
+      <div id="ged-board">
+        <div class="board-head">
+          <div class="aggregator-slot" id="ged-agg">
+            <div class="agg-label">👑 彙整 Aggregator</div>
+            <div class="agg-empty">把一位 agent 拖到這裡</div>
+          </div>
+        </div>
+        <div class="board-arrow">↓ 成員 (output 會送給彙整 agent)</div>
+        <div id="ged-members" class="members-zone"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- modal for edit/create (agents only now) -->
+  <div id="modal-root" class="modal-root hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <div id="modal-title"></div>
+        <button id="modal-close">×</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-foot" class="modal-foot">
+        <button id="modal-save" class="primary">儲存</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/app.js?v=20260411b"></script>
+</body>
+</html>

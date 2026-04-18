@@ -1,0 +1,151 @@
+.run-flow-diagram {
+  margin-bottom: 24px;
+}
+.run-flow-skel {
+  padding: 20px;
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 12px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+.run-flow-heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  letter-spacing: 1px;
+  font-weight: 800;
+  margin: 0 0 10px 0;
+}
+.run-flow-label {
+  font-size: 11px;
+  color: var(--ink-4);
+}
+
+.run-flow-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 2px 10px 2px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 14px;
+}
+.run-flow-row::-webkit-scrollbar { height: 6px; }
+.run-flow-row::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+.run-flow-node-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.run-flow-node {
+  min-width: 160px;
+  max-width: 200px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.run-flow-node:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(60, 45, 20, 0.08);
+}
+.run-flow-node:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.run-flow-node-done {
+  border-color: var(--good);
+  background: var(--good-soft);
+}
+.run-flow-node-error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.run-flow-node-pending {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.run-flow-node-pos {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--ink-4);
+  letter-spacing: 0.5px;
+}
+.run-flow-node-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.run-flow-node-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+.run-flow-stat-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 8px;
+  color: var(--ink-4);
+  letter-spacing: 0.5px;
+  margin-right: 3px;
+}
+.run-flow-turns {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--accent);
+  color: white;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  margin-top: 2px;
+  align-self: flex-start;
+}
+.run-flow-pending {
+  font-size: 10px;
+  color: var(--ink-4);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.run-flow-arrow {
+  font-size: 20px;
+  color: var(--ink-4);
+  font-weight: 400;
+  margin: 0 6px;
+  display: flex;
+  align-items: center;
+}
+
+/* Brief highlight flash when a node click scrolls to a step row below */
+.step-row-flash {
+  animation: step-flash 1.5s ease-out;
+}
+@keyframes step-flash {
+  0%   { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent); }
+  100% { background: transparent; box-shadow: none; }
+}

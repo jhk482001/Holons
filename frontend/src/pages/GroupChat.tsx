@@ -1,0 +1,413 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import {
+  GroupChatAPI,
+  GroupChatMessage,
+  GroupMember,
+  GroupsAPI,
+} from "../api/client";
+import Avatar from "../components/Avatar";
+
+export default function GroupChat() {
+  const { t } = useTranslation();
+  const { id } = useParams<{ id: string }>();
+  const groupId = Number(id);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const { data: group, isLoading: loadingGroup } = useQuery({
+    queryKey: ["group", groupId],
+    queryFn: () => GroupsAPI.get(groupId),
+    enabled: !!groupId,
+  });
+
+  const { data: threadData } = useQuery({
+    queryKey: ["group-chat-thread", groupId],
+    queryFn: () => GroupsAPI.chatThread(groupId),
+    enabled: !!groupId,
+  });
+  const threadId = threadData?.thread_id;
+
+  const { data: msgData } = useQuery({
+    queryKey: ["group-chat-messages", threadId],
+    queryFn: () => GroupChatAPI.messages(threadId!),
+    enabled: !!threadId,
+  });
+  const messages = msgData?.messages ?? [];
+
+  const [input, setInput] = useState("");
+  const [rounds, setRounds] = useState(1);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages.length]);
+
+  const sending = useMutation({
+    mutationFn: async (text: string) => {
+      if (!threadId) return;
+      return GroupChatAPI.send(threadId, text);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
+    },
+  });
+
+  const continuing = useMutation({
+    mutationFn: async (n: number) => {
+      if (!threadId) return;
+      return GroupChatAPI.continueRounds(threadId, n);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
+    },
+  });
+
+  const busy = sending.isPending || continuing.isPending;
+
+  const members: GroupMember[] = group?.members ?? [];
+  const agentById = useMemo(() => {
+    const m = new Map<number, GroupMember>();
+    for (const x of members) m.set(x.agent_id, x);
+    return m;
+  }, [members]);
+
+  // Show a "waiting to reply" indicator for each member whose last contribution
+  // in the current round hasn't arrived yet after the user's latest turn.
+  const lastUserIdx = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") return i;
+    }
+    return -1;
+  })();
+  const pendingAfterUser = new Set<number>();
+  if (busy && lastUserIdx >= 0) {
+    const replied = new Set<number>();
+    for (let i = lastUserIdx + 1; i < messages.length; i++) {
+      const aid = messages[i].agent_id;
+      if (aid) replied.add(aid);
+    }
+    for (const m of members) {
+      if (!replied.has(m.agent_id)) pendingAfterUser.add(m.agent_id);
+    }
+  }
+
+  const send = () => {
+    const t = input.trim();
+    if (!t || busy || !threadId) return;
+    setInput("");
+    sending.mutate(t);
+  };
+
+  if (loadingGroup) {
+    return <div className="page" style={{ padding: 40, textAlign: "center", color: "var(--ink-3)" }}>{t("btn.loading")}</div>;
+  }
+  if (!group) {
+    return (
+      <div className="page" style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ marginBottom: 12 }}>{t("groupChat.groupNotFound")}</div>
+        <button className="mbtn" onClick={() => navigate("/groups")}>{t("groupChat.backToGroups")}</button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="page"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "calc(100vh - 40px)",
+        maxWidth: 900,
+        margin: "0 auto",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 4px",
+          borderBottom: "1px solid var(--border)",
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button className="mbtn" onClick={() => navigate("/groups")} style={{ padding: "4px 10px", fontSize: 12 }}>
+            {t("groupChat.backToGroups")}
+          </button>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>{group.name}</div>
+            <div style={{ fontSize: 11, color: "var(--ink-4)" }}>
+              {t("groupChat.modePrefix")} {group.mode === "parallel" ? t("groupChat.parallelMode") : t("groupChat.sequentialMode")}
+              {" · "}{members.length} {t("common.members")}
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: 1.2,
+            background: group.mode === "parallel" ? "var(--accent-soft)" : "var(--surface-2)",
+            color: group.mode === "parallel" ? "var(--accent)" : "var(--ink-3)",
+            padding: "3px 10px",
+            borderRadius: 999,
+          }}
+        >
+          {group.mode === "parallel" ? t("groupChat.parallel") : t("groupChat.sequential")}
+        </span>
+      </div>
+
+      {/* Friendly hint */}
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--ink-3)",
+          background: "var(--surface-2)",
+          border: "1px dashed var(--border)",
+          borderRadius: 10,
+          padding: "8px 12px",
+          marginBottom: 10,
+        }}
+      >
+        {t("groupChat.hint")}
+      </div>
+
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "4px 2px 12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        {messages.length === 0 && (
+          <div style={{ textAlign: "center", color: "var(--ink-4)", padding: 40 }}>
+            {t("groupChat.empty")}
+          </div>
+        )}
+        {messages.map((m) => (
+          <MessageRow key={m.id} m={m} agent={m.agent_id ? agentById.get(m.agent_id) : undefined} />
+        ))}
+        {busy && pendingAfterUser.size > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+            {[...pendingAfterUser].map((aid) => {
+              const a = agentById.get(aid);
+              return (
+                <div
+                  key={aid}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    padding: "4px 10px 4px 4px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    color: "var(--ink-3)",
+                  }}
+                >
+                  <Avatar cfg={a?.avatar_config} size={22} title={a?.agent_name} />
+                  <span>{t("groupChat.thinking", { name: a?.agent_name || `agent#${aid}` })}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Composer */}
+      <div
+        style={{
+          borderTop: "1px solid var(--border)",
+          paddingTop: 10,
+          display: "flex",
+          gap: 8,
+          alignItems: "flex-end",
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder={busy ? t("groupChat.waitingForReplies") : t("groupChat.placeholder")}
+          disabled={busy}
+          style={{
+            flex: 1,
+            resize: "none",
+            minHeight: 42,
+            maxHeight: 140,
+            padding: "10px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            fontSize: 13,
+            fontFamily: "inherit",
+            background: "var(--surface)",
+          }}
+          rows={2}
+        />
+        <button
+          className="mbtn primary"
+          onClick={send}
+          disabled={busy || !input.trim()}
+          style={{ padding: "10px 16px", fontSize: 13 }}
+        >
+          {sending.isPending ? t("btn.sending") : t("btn.send")}
+        </button>
+        <ContinueButton
+          rounds={rounds}
+          onRoundsChange={setRounds}
+          disabled={busy || messages.length === 0}
+          running={continuing.isPending}
+          onClick={() => continuing.mutate(rounds)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MessageRow({ m, agent }: { m: GroupChatMessage; agent?: GroupMember }) {
+  const { t } = useTranslation();
+  const isUser = m.role === "user";
+  const name = isUser ? t("groupChat.you") : (m.agent_name || agent?.agent_name || `agent#${m.agent_id}`);
+  const avatarCfg = isUser ? undefined : (m.avatar_config || agent?.avatar_config);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: isUser ? "row-reverse" : "row",
+        gap: 10,
+        alignItems: "flex-start",
+      }}
+    >
+      {isUser ? (
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 999,
+            background: "var(--accent)",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 700,
+            fontSize: 13,
+            flexShrink: 0,
+          }}
+        >
+          {t("groupChat.you")}
+        </div>
+      ) : (
+        <Avatar cfg={avatarCfg} size={32} title={name} />
+      )}
+      <div style={{ maxWidth: "72%" }}>
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--ink-4)",
+            marginBottom: 2,
+            textAlign: isUser ? "right" : "left",
+          }}
+        >
+          {name}
+        </div>
+        <div
+          style={{
+            background: isUser ? "var(--accent-soft)" : "var(--surface-2)",
+            color: "var(--ink-1)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "8px 12px",
+            fontSize: 13,
+            lineHeight: 1.55,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {m.content}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContinueButton({
+  rounds,
+  onRoundsChange,
+  disabled,
+  running,
+  onClick,
+}: {
+  rounds: number;
+  onRoundsChange: (n: number) => void;
+  disabled: boolean;
+  running: boolean;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "stretch",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        overflow: "hidden",
+        height: 42,
+      }}
+      title={t("groupChat.continueTitle")}
+    >
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          padding: "0 12px",
+          background: disabled ? "var(--surface-2)" : "var(--surface)",
+          color: "var(--ink-2)",
+          border: "none",
+          borderRight: "1px solid var(--border)",
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        {running ? t("groupChat.running") : t("groupChat.continue")}
+      </button>
+      <select
+        value={rounds}
+        disabled={disabled}
+        onChange={(e) => onRoundsChange(Number(e.target.value))}
+        style={{
+          border: "none",
+          padding: "0 8px",
+          background: "var(--surface)",
+          fontSize: 12,
+          outline: "none",
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+          <option key={n} value={n}>
+            {t("groupChat.rounds", { count: n })}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}

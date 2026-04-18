@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            tauri-target: "aarch64-apple-darwin"
+            asset-glob: "desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg"
+          - os: macos-13                 # Intel runner for x86_64
+            tauri-target: "x86_64-apple-darwin"
+            asset-glob: "desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg"
+          - os: windows-latest
+            tauri-target: ""
+            asset-glob: "desktop/src-tauri/target/release/bundle/msi/*.msi"
+          - os: ubuntu-latest
+            tauri-target: ""
+            asset-glob: "desktop/src-tauri/target/release/bundle/appimage/*.AppImage"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.tauri-target }}
+
+      - name: Install Linux system deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install Python deps
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build sidecar
+        shell: bash
+        run: bash build/build_sidecar.sh
+
+      - name: Install frontend deps
+        run: npm --prefix desktop ci
+
+      - name: Tauri build
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.tauri-target }}" ]; then
+            npm --prefix desktop exec -- tauri build --target ${{ matrix.tauri-target }}
+          else
+            npm --prefix desktop exec -- tauri build
+          fi
+
+      - name: Upload artifact to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset-glob }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

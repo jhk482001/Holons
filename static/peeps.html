@@ -1,0 +1,2037 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Peeps 呈現風格範例</title>
+<link rel="stylesheet" href="https://unpkg.com/css-peeps@1/css-peeps.css">
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1f2630;
+    --ink: #e6edf3;
+    --ink-dim: #8b949e;
+    --accent: #ff7a59;
+    --accent-2: #7aa2ff;
+    --good: #3fb950;
+    --danger: #f85149;
+    --border: #30363d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent-2); }
+  header {
+    padding: 64px 24px 28px;
+    text-align: center;
+    background: linear-gradient(180deg, #17202d, #0e1116);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0 0 10px; font-size: 30px; font-weight: 700; }
+  header .lead { margin: 0; color: var(--ink-dim); font-size: 15px; }
+  header .source { margin-top: 14px; font-size: 12px; color: var(--ink-dim); }
+  main {
+    max-width: 1300px; margin: 0 auto; padding: 28px 24px 80px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+    position: relative; overflow: hidden;
+  }
+  .card .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .card .name { font-weight: 700; font-size: 15px; }
+  .card .en { color: var(--ink-dim); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .card .num { color: var(--accent); font-size: 11px; font-weight: 700; }
+  .card .demo {
+    background: var(--panel-2); border-radius: 10px; padding: 22px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 190px; position: relative; overflow: hidden;
+  }
+  .card .desc { color: var(--ink-dim); font-size: 13px; margin: 0; }
+  .card .desc code { background: #0b0f14; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: var(--accent-2); }
+
+  /* ---- 1. circle ---- */
+  .s-circle img { width: 112px; height: 112px; border-radius: 50%; background: #2b3340; display: block; }
+
+  /* ---- 2. rounded square ---- */
+  .s-rounded img { width: 112px; height: 112px; border-radius: 18px; background: #2b3340; display: block; }
+
+  /* ---- 3. hard square ---- */
+  .s-square img { width: 112px; height: 112px; border-radius: 0; background: #2b3340; display: block; }
+
+  /* ---- 4. solid badge ---- */
+  .s-badge img { width: 112px; height: 112px; border-radius: 50%; display: block; }
+
+  /* ---- 5. gradient badge ---- */
+  .s-gradient img { width: 112px; height: 112px; border-radius: 50%; display: block; }
+
+  /* ---- 6. avatar stack ---- */
+  .s-stack { display: flex; }
+  .s-stack img {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: #2b3340; border: 3px solid var(--panel-2);
+    margin-right: -22px; box-shadow: 0 4px 10px rgba(0,0,0,.5);
+  }
+  .s-stack img:last-child { margin-right: 0; }
+  .s-stack .more {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: #2b3340; border: 3px solid var(--panel-2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--ink); font-weight: 600;
+  }
+
+  /* ---- 7. bust row (desk) ---- */
+  .s-bust { display: flex; gap: 14px; align-items: flex-end; width: 100%; justify-content: center; }
+  .s-bust .bust { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .s-bust .bust img {
+    width: 74px; height: 74px; border-radius: 50% 50% 38% 38%;
+    background: #2b3340; border: 2px solid var(--border); display: block;
+    box-shadow: 0 8px 18px rgba(0,0,0,.6);
+  }
+  .s-bust .bust .n { font-size: 10px; color: var(--ink-dim); }
+
+  /* ---- 8. hero card ---- */
+  .s-hero {
+    background: linear-gradient(135deg, #2a3a52, #1a2436);
+    border-radius: 14px; padding: 16px; display: flex; gap: 14px;
+    align-items: center; width: 100%;
+  }
+  .s-hero img { width: 88px; height: 88px; border-radius: 50%; background: rgba(255,255,255,.05); }
+  .s-hero .meta strong { display: block; font-size: 16px; margin-bottom: 4px; }
+  .s-hero .meta small { color: var(--ink-dim); font-size: 11px; display: block; margin-bottom: 8px; }
+  .s-hero .meta .tag { display: inline-block; background: var(--accent); color: #111; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+
+  /* ---- 9. chat message ---- */
+  .s-chat { display: flex; gap: 10px; align-items: flex-start; width: 100%; }
+  .s-chat img { width: 44px; height: 44px; border-radius: 50%; background: #2b3340; flex-shrink: 0; }
+  .s-chat .msg { background: #22303a; padding: 10px 12px; border-radius: 4px 12px 12px 12px; flex: 1; font-size: 13px; }
+  .s-chat .msg .who { font-weight: 600; font-size: 11px; color: var(--accent-2); display: block; margin-bottom: 2px; }
+
+  /* ---- 10. speech bubble ---- */
+  .s-speech { display: flex; align-items: flex-end; gap: 16px; width: 100%; justify-content: center; }
+  .s-speech img { width: 90px; height: 90px; border-radius: 50%; background: #2b3340; }
+  .s-speech .bubble {
+    position: relative; background: var(--panel); border: 2px solid var(--border);
+    border-radius: 16px; padding: 10px 14px; font-size: 13px; max-width: 160px;
+  }
+  .s-speech .bubble::after {
+    content: ""; position: absolute; left: -10px; bottom: 14px;
+    width: 0; height: 0; border: 8px solid transparent;
+    border-right-color: var(--border);
+  }
+  .s-speech .bubble::before {
+    content: ""; position: absolute; left: -7px; bottom: 14px;
+    width: 0; height: 0; border: 8px solid transparent;
+    border-right-color: var(--panel); z-index: 1;
+  }
+
+  /* ---- 11. thought bubble ---- */
+  .s-thought { display: flex; align-items: flex-end; gap: 16px; width: 100%; justify-content: center; position: relative; }
+  .s-thought img { width: 90px; height: 90px; border-radius: 50%; background: #2b3340; }
+  .s-thought .cloud {
+    background: var(--panel); border: 2px solid var(--border);
+    border-radius: 28px; padding: 12px 18px; font-size: 18px; position: relative;
+  }
+  .s-thought .cloud::after, .s-thought .cloud::before {
+    content: ""; position: absolute; background: var(--panel);
+    border: 2px solid var(--border); border-radius: 50%;
+  }
+  .s-thought .cloud::after { width: 12px; height: 12px; left: -12px; bottom: -4px; }
+  .s-thought .cloud::before { width: 8px; height: 8px; left: -20px; bottom: -14px; }
+
+  /* ---- 12. empty state ---- */
+  .s-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+  .s-empty img {
+    width: 140px; height: 140px; border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(122,162,255,.15), transparent 70%);
+  }
+  .s-empty .title { font-weight: 600; font-size: 14px; }
+  .s-empty .sub { color: var(--ink-dim); font-size: 11px; }
+
+  /* ---- 13. list row ---- */
+  .s-list { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+  .s-list .row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--panel); padding: 8px 12px; border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .s-list .row img { width: 40px; height: 40px; border-radius: 50%; background: #2b3340; flex-shrink: 0; }
+  .s-list .row .nm { font-size: 13px; font-weight: 600; flex: 1; }
+  .s-list .row .rl { font-size: 11px; color: var(--ink-dim); }
+
+  /* ---- 14. notification dot ---- */
+  .s-notify { position: relative; display: inline-block; }
+  .s-notify img { width: 100px; height: 100px; border-radius: 50%; background: #2b3340; display: block; }
+  .s-notify .dot {
+    position: absolute; top: 2px; right: 2px;
+    background: var(--danger); color: #fff;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; border: 3px solid var(--panel-2);
+    box-shadow: 0 3px 8px rgba(0,0,0,.5);
+  }
+
+  /* ---- 15. peek from corner ---- */
+  .s-peek {
+    width: 100%; min-height: 180px; background: linear-gradient(135deg, #ff7a59, #ff49a0);
+    border-radius: 10px; padding: 16px 20px; position: relative; overflow: hidden;
+    display: flex; align-items: center;
+  }
+  .s-peek .title { color: #fff; font-weight: 700; font-size: 15px; max-width: 60%; }
+  .s-peek img {
+    position: absolute; right: -16px; bottom: -20px;
+    width: 150px; height: 150px; border-radius: 50%;
+    transform: rotate(-8deg);
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,.3));
+  }
+
+  /* ---- 16. tilted sticker ---- */
+  .s-sticker {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .s-sticker img {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: #fff; border: 4px solid #fff;
+    filter: drop-shadow(0 6px 18px rgba(0,0,0,.5));
+  }
+  .s-sticker img:nth-child(1) { transform: rotate(-12deg); }
+  .s-sticker img:nth-child(2) { transform: rotate(6deg) translateX(-8px); }
+  .s-sticker img:nth-child(3) { transform: rotate(-3deg) translateX(-16px); }
+
+  /* ---- 17. team grid ---- */
+  .s-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  .s-grid .cell {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .s-grid .cell img { width: 48px; height: 48px; border-radius: 50%; background: #2b3340; }
+  .s-grid .cell small { color: var(--ink-dim); font-size: 10px; }
+
+  /* ---- 18. loading spinner ---- */
+  .s-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .s-loading img {
+    width: 110px; height: 110px; border-radius: 50%; background: #2b3340;
+    animation: bob 1.6s ease-in-out infinite;
+  }
+  .s-loading .dots { display: flex; gap: 6px; }
+  .s-loading .dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); opacity: .3; animation: blink 1.2s infinite; }
+  .s-loading .dots span:nth-child(2) { animation-delay: .2s; }
+  .s-loading .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes blink { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+
+  /* ---- 19. duo conversation ---- */
+  .s-duo { display: flex; align-items: center; justify-content: center; gap: 24px; }
+  .s-duo .p { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .s-duo .p img { width: 82px; height: 82px; border-radius: 50%; background: #2b3340; }
+  .s-duo .p:last-child img { transform: scaleX(-1); }  /* face each other */
+  .s-duo .vs { color: var(--accent); font-weight: 700; font-size: 14px; }
+
+  /* ---- 20. frame portrait ---- */
+  .s-frame img {
+    width: 120px; height: 120px; border-radius: 6px;
+    background: #2b3340;
+    border: 6px solid #d4a64a;
+    box-shadow: 0 0 0 2px #7a5d1f, 0 12px 24px rgba(0,0,0,.6);
+  }
+
+  /* ---- full-body / half-body pose sections ---- */
+  .pose-section {
+    grid-column: 1 / -1;
+    background: linear-gradient(180deg, #17202d, #12171f);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; margin-top: 12px;
+  }
+  .pose-section h2 {
+    margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 10px;
+  }
+  .pose-section h2 .badge {
+    background: var(--accent); color: #111; padding: 2px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .pose-section .lead {
+    color: var(--ink-dim); font-size: 13px; margin: 0 0 18px;
+  }
+  .pose-grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+  .pose-tile {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 10px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .pose-tile .img {
+    width: 100%; aspect-ratio: 850/1200; display: flex;
+    align-items: flex-end; justify-content: center;
+    background: radial-gradient(circle at 50% 85%, rgba(255,122,89,.12), transparent 60%);
+    border-radius: 10px;
+  }
+  .pose-tile .img img { width: 95%; height: 95%; object-fit: contain; }
+  .pose-tile.bust .img { aspect-ratio: 850/900; }
+  .pose-tile .label { font-size: 12px; color: var(--ink); font-weight: 600; }
+  .pose-tile .sub { font-size: 10px; color: var(--ink-dim); }
+
+  /* css-peeps (uses the library stylesheet) */
+  .csspeep-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .csspeep-tile {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .csspeep-tile .peep-wrap {
+    width: 100%; aspect-ratio: 317/343; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 70%, rgba(122,162,255,.12), transparent 60%);
+    border-radius: 10px; overflow: hidden;
+  }
+  .csspeep-tile .css-peeps {
+    width: 150px; height: 162px;
+  }
+  .csspeep-tile .label { font-size: 12px; font-weight: 600; }
+  .csspeep-tile .sub { font-size: 10px; color: var(--ink-dim); font-family: ui-monospace, Menlo, monospace; }
+  .answer-note {
+    background: linear-gradient(135deg, rgba(255,122,89,.1), rgba(122,162,255,.08));
+    border: 1px solid rgba(255,122,89,.3);
+    border-radius: 10px; padding: 14px 16px; margin: 12px 0 18px;
+    color: var(--ink); font-size: 13px; line-height: 1.6;
+  }
+  .answer-note strong { color: var(--accent); }
+  .answer-note code { background: #0b0f14; padding: 2px 6px; border-radius: 4px; color: var(--accent-2); }
+
+  /* body-swap animation */
+  .anim-stage {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center;
+  }
+  .anim-stage .peep-stack {
+    position: relative;
+    width: 100%; max-width: 320px; height: 340px;
+    margin: 0 auto;
+    background: radial-gradient(circle at 50% 80%, rgba(255,122,89,.12), transparent 60%);
+    border-radius: 14px;
+  }
+  .anim-stage .peep-stack img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity .45s ease;
+    filter: drop-shadow(0 12px 24px rgba(0,0,0,.5));
+  }
+  .anim-stage .peep-stack img.on { opacity: 1; }
+  .anim-stage .status {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; min-height: 120px;
+  }
+  .anim-stage .status .step {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    color: var(--ink-dim); font-size: 13px; opacity: .4;
+    transition: opacity .3s, color .3s;
+  }
+  .anim-stage .status .step.on { color: var(--ink); opacity: 1; font-weight: 600; }
+  .anim-stage .status .step .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+  .anim-stage .status .step.on .dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(255,122,89,.25); }
+  .anim-controls { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .anim-controls button {
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .anim-controls button:hover { background: var(--accent); color: #111; border-color: var(--accent); }
+  .anim-controls button.active { background: var(--accent); color: #111; border-color: var(--accent); }
+
+  /* humaaans layered character */
+  .humaaan {
+    position: relative;
+    width: 260px;
+    height: 480px;
+    margin: 0 auto;
+  }
+  .humaaan img {
+    position: absolute;
+    image-rendering: -webkit-optimize-contrast;
+    transition: opacity .45s ease;
+  }
+  .humaaan .h-head { left: 78px; top: 26px; width: 120px; z-index: 3; }
+  .humaaan .h-body { left: 48px; top: 120px; width: 180px; z-index: 2; }
+  .humaaan .h-legs { left: 38px; top: 270px; width: 200px; z-index: 1; }
+
+  .humaaan .h-body { opacity: 0; }
+  .humaaan .h-body.on { opacity: 1; }
+
+  .humaaans-stage {
+    display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center;
+  }
+  .humaaans-stage .narr {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; min-height: 120px;
+  }
+  .humaaans-stage .narr .step {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+    color: var(--ink-dim); font-size: 13px; opacity: .4;
+    transition: opacity .3s, color .3s;
+  }
+  .humaaans-stage .narr .step.on { color: var(--ink); opacity: 1; font-weight: 600; }
+  .humaaans-stage .narr .step .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .humaaans-stage .narr .step.on .dot { background: var(--accent-2); box-shadow: 0 0 0 3px rgba(122,162,255,.25); }
+  .humaaans-stage .narr .time { font-size: 11px; color: var(--ink-dim); font-family: ui-monospace, Menlo, monospace; margin-right: 4px; }
+
+  @media (max-width: 720px) {
+    .humaaans-stage { grid-template-columns: 1fr; }
+  }
+
+  /* mixer */
+  .mixer {
+    display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center;
+  }
+  .mixer .preview {
+    position: relative;
+    width: 100%; max-width: 280px; height: 300px;
+    margin: 0 auto;
+    background: radial-gradient(circle at 50% 70%, rgba(122,162,255,.12), transparent 60%);
+    border-radius: 14px;
+  }
+  .mixer .preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .3s; }
+  .mixer .preview img.on { opacity: 1; }
+  .mixer .controls { display: flex; flex-direction: column; gap: 10px; min-width: 180px; }
+  .mixer .controls label { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .5px; }
+  .mixer .controls select {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font-family: inherit; font-size: 13px;
+  }
+  @media (max-width: 720px) {
+    .anim-stage, .mixer { grid-template-columns: 1fr; }
+  }
+
+  /* ===== character builder ===== */
+  .builder-grid {
+    display: flex; flex-direction: column; gap: 20px; max-width: 820px; margin: 0 auto;
+  }
+  .builder-controls {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px;
+  }
+  .builder-controls label {
+    display: block; margin-bottom: 12px; color: var(--ink-dim); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+  }
+  .builder-controls select,
+  .builder-controls input[type="text"] {
+    display: block; width: 100%; margin-top: 4px;
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 10px; font-family: inherit; font-size: 13px;
+    text-transform: none;
+  }
+  .builder-controls .seed-row { display: flex; gap: 6px; margin-top: 4px; }
+  .builder-controls .seed-row input { flex: 1; margin-top: 0; }
+  .builder-controls .seed-row button {
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; cursor: pointer; font-size: 14px;
+  }
+  .builder-controls .seed-row button:hover { background: var(--accent); color: #111; }
+  .builder-controls .with-prob { display: grid; grid-template-columns: 1fr; gap: 4px; }
+  .builder-controls .with-prob .prob-row { display: flex; align-items: center; gap: 8px; }
+  .builder-controls .with-prob .prob-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .builder-controls .with-prob .prob-row .pct { font-size: 10px; color: var(--accent-2); width: 34px; text-align: right; font-family: ui-monospace, Menlo, monospace; }
+
+  /* thumbnail pickers */
+  .thumb-strip {
+    display: flex; gap: 6px;
+    overflow-x: auto; overflow-y: hidden;
+    padding: 6px 2px 10px;
+    margin-top: 6px;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .thumb-strip::-webkit-scrollbar { height: 6px; }
+  .thumb-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .thumb-strip::-webkit-scrollbar-thumb:hover { background: var(--accent-2); }
+  .thumb-btn {
+    width: 58px; height: 58px;
+    flex-shrink: 0;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: #0b0f14;
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+  }
+  .thumb-btn:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-2);
+  }
+  .thumb-btn.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255,122,89,.35);
+    transform: translateY(-2px);
+  }
+  .thumb-btn img {
+    width: 100%; height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+  .thumb-btn.face-crop img { object-fit: cover; object-position: center 10%; transform: scale(1.75); transform-origin: center 20%; }
+  .thumb-btn.bust-crop img { object-fit: cover; object-position: center 40%; transform: scale(1.05); transform-origin: center 42%; }
+  .thumb-btn.action-crop img { object-fit: cover; object-position: center 38%; transform: scale(1.02); transform-origin: center 38%; }
+  .thumb-btn.none {
+    background: var(--panel-2);
+    color: var(--ink-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+  }
+  .thumb-btn.none:hover { color: var(--ink); }
+  .thumb-btn.none.auto::after { content: "?"; }
+  .thumb-btn.none.off::after  { content: "✕"; }
+  .thumb-btn.none::after { font-size: 18px; }
+  .thumb-btn.none.active { background: var(--accent); color: #111; }
+  .builder-controls .part-row { display: none; margin-bottom: 0; }
+  .builder-controls .part-row.open { display: block; margin-bottom: 6px; }
+  .builder-controls .part-row > label { display: none; }
+  .part-tabs {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .part-tab {
+    padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--ink-dim); cursor: pointer;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+    transition: all .15s; position: relative;
+  }
+  .part-tab:hover { color: var(--ink); border-color: var(--accent-2); }
+  .part-tab.active { background: var(--accent); color: #111; border-color: var(--accent); }
+  .part-tab .tab-val {
+    display: block; font-size: 9px; font-weight: 400; opacity: .7; margin-top: 1px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .bw-note {
+    background: rgba(63,185,80,.08);
+    border: 1px solid rgba(63,185,80,.35);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 11px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .bw-note strong { color: var(--good); }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .swatches button {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--border); cursor: pointer; padding: 0;
+  }
+  .swatches button.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  .builder-reset {
+    width: 100%; margin-top: 10px;
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px; cursor: pointer; font-size: 12px; text-transform: none;
+    font-weight: 600;
+  }
+  .builder-reset:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+  .builder-preview {
+    order: -1;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .builder-preview .char-big {
+    width: 100%; max-width: 360px; aspect-ratio: 1;
+    background: #0b0f14; border-radius: 14px;
+  }
+  .builder-preview .url-box {
+    width: 100%; background: #0b0f14; border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px; color: var(--accent-2); word-break: break-all; line-height: 1.6;
+    max-height: 120px; overflow-y: auto;
+  }
+  .copy-url {
+    background: var(--accent); color: #111; border: none; border-radius: 6px;
+    padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+    text-transform: none;
+  }
+
+  /* ===== DiceBear style comparison ===== */
+  .style-compare {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    margin-top: 16px;
+  }
+  .style-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: border-color .2s;
+  }
+  .style-card:hover { border-color: var(--accent-2); }
+  .style-card .style-name { font-size: 13px; font-weight: 700; }
+  .style-card .style-tags { font-size: 10px; color: var(--ink-dim); text-align: center; }
+  .style-card .style-tags span {
+    display: inline-block; background: var(--panel-2); border-radius: 4px;
+    padding: 1px 6px; margin: 1px; font-size: 9px;
+  }
+  .style-card .style-tags .tag-bust { color: var(--accent); }
+  .style-card .style-tags .tag-bw { color: var(--good); }
+  .style-card .style-demo {
+    display: flex; gap: 8px; align-items: center; justify-content: center;
+  }
+  .style-card .style-demo img {
+    width: 80px; height: 80px; border-radius: 12px; background: #2b3340;
+  }
+
+  /* showcase of the built character in multiple UI contexts */
+  .showcase {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    margin-top: 20px;
+  }
+  .showcase-tile {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; display: flex; flex-direction: column; gap: 8px;
+    min-height: 200px;
+  }
+  .showcase-tile .tile-label { font-size: 12px; font-weight: 700; }
+  .showcase-tile .tile-sub { font-size: 10px; color: var(--ink-dim); }
+  .showcase-tile .tile-demo {
+    background: var(--panel-2); border-radius: 8px; padding: 14px;
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    min-height: 150px;
+  }
+  .showcase .char-preview { background: #2b3340; }
+
+  .tile-demo .frame-circle { width: 110px; height: 110px; border-radius: 50%; overflow: hidden; }
+  .tile-demo .frame-circle img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-rounded { width: 110px; height: 110px; border-radius: 18px; overflow: hidden; }
+  .tile-demo .frame-rounded img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-square { width: 110px; height: 110px; border-radius: 0; overflow: hidden; }
+  .tile-demo .frame-square img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-bust { width: 150px; height: 150px; border-radius: 12px; overflow: hidden; }
+  .tile-demo .frame-bust img { width: 100%; height: 100%; }
+
+  .tile-demo .frame-stack { display: flex; }
+  .tile-demo .frame-stack .s {
+    width: 62px; height: 62px; border-radius: 50%; overflow: hidden;
+    border: 3px solid var(--panel-2); margin-right: -20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.5); background: #2b3340;
+  }
+  .tile-demo .frame-stack .s img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-stack .s:last-child { margin-right: 0; }
+
+  .tile-demo .frame-hero {
+    background: linear-gradient(135deg, #2a3a52, #1a2436);
+    border-radius: 12px; padding: 10px; display: flex; gap: 10px; align-items: center;
+    width: 100%;
+  }
+  .tile-demo .frame-hero .av { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #2b3340; }
+  .tile-demo .frame-hero .av img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-hero .meta strong { display: block; font-size: 12px; }
+  .tile-demo .frame-hero .meta small { font-size: 10px; color: var(--ink-dim); display: block; }
+  .tile-demo .frame-hero .tag { display: inline-block; background: var(--accent); color: #111; padding: 1px 7px; border-radius: 999px; font-size: 9px; font-weight: 700; margin-top: 4px; }
+
+  .tile-demo .frame-chat { display: flex; gap: 8px; align-items: flex-start; width: 100%; }
+  .tile-demo .frame-chat .av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #2b3340; }
+  .tile-demo .frame-chat .av img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-chat .msg {
+    background: #22303a; padding: 8px 10px; border-radius: 4px 12px 12px 12px;
+    font-size: 11px; flex: 1; color: var(--ink);
+  }
+
+  .tile-demo .frame-notify { position: relative; }
+  .tile-demo .frame-notify .av { width: 90px; height: 90px; border-radius: 50%; overflow: hidden; background: #2b3340; }
+  .tile-demo .frame-notify .av img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-notify .dot {
+    position: absolute; top: 2px; right: 2px;
+    background: var(--danger); color: #fff;
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; border: 2px solid var(--panel-2);
+  }
+
+  .tile-demo .frame-list { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+  .tile-demo .frame-list .row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .tile-demo .frame-list .row .av { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: #2b3340; flex-shrink: 0; }
+  .tile-demo .frame-list .row .av img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-list .row .txt { font-size: 11px; }
+  .tile-demo .frame-list .row .txt small { display: block; color: var(--ink-dim); font-size: 9px; }
+
+  .tile-demo .frame-sticker img {
+    width: 110px; height: 110px; border-radius: 50%;
+    background: #fff; border: 4px solid #fff;
+    transform: rotate(-8deg);
+    filter: drop-shadow(0 6px 14px rgba(0,0,0,.5));
+    object-fit: cover; object-position: center 18%;
+  }
+
+  .tile-demo .frame-frame img {
+    width: 120px; height: 120px; border-radius: 6px;
+    background: #2b3340;
+    border: 6px solid #d4a64a;
+    box-shadow: 0 0 0 2px #7a5d1f, 0 12px 24px rgba(0,0,0,.6);
+    object-fit: cover; object-position: center 18%;
+  }
+
+  .tile-demo .frame-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .tile-demo .frame-empty .big {
+    width: 120px; height: 120px; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at center, rgba(122,162,255,.18), transparent 70%);
+  }
+  .tile-demo .frame-empty .big img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+  .tile-demo .frame-empty .t { font-size: 11px; font-weight: 600; }
+  .tile-demo .frame-empty .s { font-size: 9px; color: var(--ink-dim); }
+
+  .tile-demo .frame-badge {
+    width: 110px; height: 110px; border-radius: 50%; overflow: hidden;
+    box-shadow: 0 6px 18px rgba(0,0,0,.5);
+  }
+  .tile-demo .frame-badge img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; }
+
+  .tile-demo .frame-anim {
+    position: relative; width: 150px; height: 150px; border-radius: 12px; overflow: hidden;
+  }
+  .tile-demo .frame-anim img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; transition: opacity .4s ease;
+  }
+  .tile-demo .frame-anim img.on { opacity: 1; }
+
+  @media (max-width: 720px) {
+    .builder-grid { grid-template-columns: 1fr; }
+  }
+
+  footer {
+    max-width: 1300px; margin: 0 auto; padding: 24px;
+    color: var(--ink-dim); font-size: 12px; text-align: center;
+  }
+  footer code { background: #0b0f14; padding: 2px 6px; border-radius: 4px; color: var(--accent-2); }
+
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; padding: 16px; }
+    header { padding: 40px 16px 20px; }
+    header h1 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎨 Open Peeps 常見呈現方式</h1>
+  <p class="lead">20 種把 Open Peeps 角色放進介面的常用 pattern — 每張卡片都是真實可複製的做法</p>
+  <p class="source">
+    插圖來源：<a href="https://www.openpeeps.com/" target="_blank">openpeeps.com</a>（Pablo Stanley, CC0）
+    · 動態頭像 API：<a href="https://www.dicebear.com/styles/open-peeps/" target="_blank">DiceBear</a>
+  </p>
+</header>
+
+<main>
+
+  <!-- ========== THE ANSWER: DiceBear notionists ========== -->
+  <section class="pose-section" style="border:2px solid var(--accent)">
+    <h2>🎯 真正的答案：DiceBear 的 <code>notionists</code> style<span class="badge" style="background:var(--good)">完美解</span></h2>
+    <p class="lead">
+      一路走過 react-peeps、css-peeps、Humaaans 之後發現——<strong>我們要的答案從頭到尾都在 DiceBear 裡面</strong>。
+      `notionists` 這個 style 原本就是黑白線稿的 bust 角色，提供 <code>body</code> 和 <code>gesture</code> <em>兩個獨立參數</em>：
+    </p>
+    <ul style="color:var(--ink-dim);font-size:13px;line-height:1.8;margin:0 0 14px">
+      <li><code>body</code>：25 種服裝（西裝、襯衫、外套、洋裝、和服…）</li>
+      <li><code>gesture</code>：10 種手勢，其中 6 種是「LongArms / LongArm」變體，<strong>會真的長出手臂</strong>做動作</li>
+      <li><code>hair</code> 64 種、<code>lips</code> 30、<code>nose</code> 20、<code>brows</code> 13、<code>beard</code> 12、<code>glasses</code> 11、<code>eyes</code> 5 — 捏臉細節超越 open-peeps</li>
+      <li>本身就是<strong>黑白線稿</strong>，加 <code>backgroundColor=ff7a59</code> 即可得到「黑白角色 + 彩色背景」——你要的風格</li>
+      <li>URL-based，不用下載檔、不用 compose、不用 bundle。每幀就是換個 URL 參數而已</li>
+    </ul>
+
+    <!-- all 10 gestures -->
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin:16px 0">
+      <div style="color:var(--accent-2);font-size:12px;margin-bottom:10px;font-weight:600">同一個人 (seed=Maya, body=variant05, hair 自動)，10 種 gesture：</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=wavePointLongArms&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">wavePointLongArms</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=waveOkLongArms&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">waveOkLongArms</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=waveLongArms&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">waveLongArms</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=waveLongArm&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">waveLongArm</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=pointLongArm&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">pointLongArm</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=okLongArm&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">okLongArm</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=point&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">point</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=ok&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">ok</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=hand&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">hand</div></div>
+        <div style="text-align:center"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Maya&body=variant05&gesture=handPhone&gestureProbability=100&backgroundColor=ff7a59" style="width:100%;max-width:140px;border-radius:8px"><div style="font-size:10px;color:var(--ink-dim);margin-top:4px">handPhone 📱</div></div>
+      </div>
+      <div style="color:var(--ink-dim);font-size:11px;margin-top:10px">↑ 仔細看：衣領、領帶、扣子、陰影、鬍鬚、髮型全部一致。只有手臂和手部在變。</div>
+    </div>
+
+    <!-- animation -->
+    <h3 style="margin:22px 0 10px">🎬 動畫：同一人、同一件衣服、切換動作</h3>
+    <div class="anim-stage">
+      <div class="peep-stack" id="noti-anim" style="width:280px;height:280px">
+        <img data-frame="0" class="on" src="https://api.dicebear.com/7.x/notionists/svg?seed=Jordan&body=variant05&gesture=handPhone&gestureProbability=100&backgroundColor=ff7a59">
+        <img data-frame="1" src="https://api.dicebear.com/7.x/notionists/svg?seed=Jordan&body=variant05&gesture=ok&gestureProbability=100&backgroundColor=7aa2ff">
+        <img data-frame="2" src="https://api.dicebear.com/7.x/notionists/svg?seed=Jordan&body=variant05&gesture=waveLongArm&gestureProbability=100&backgroundColor=3fb950">
+        <img data-frame="3" src="https://api.dicebear.com/7.x/notionists/svg?seed=Jordan&body=variant05&gesture=pointLongArm&gestureProbability=100&backgroundColor=d29922">
+        <img data-frame="4" src="https://api.dicebear.com/7.x/notionists/svg?seed=Jordan&body=variant05&gesture=wavePointLongArms&gestureProbability=100&backgroundColor=ff49a0">
+      </div>
+      <div>
+        <div class="status" id="noti-status">
+          <div class="step" data-step="0"><span class="dot"></span><span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink-dim);margin-right:4px">09:00</span>滑手機看 Slack 📱</div>
+          <div class="step" data-step="1"><span class="dot"></span><span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink-dim);margin-right:4px">10:30</span>同事提出好點子，比個 OK 👌</div>
+          <div class="step" data-step="2"><span class="dot"></span><span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink-dim);margin-right:4px">14:00</span>跟遠方同事打招呼 👋</div>
+          <div class="step" data-step="3"><span class="dot"></span><span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink-dim);margin-right:4px">16:30</span>發現盲點！指向白板 👆</div>
+          <div class="step" data-step="4"><span class="dot"></span><span style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--ink-dim);margin-right:4px">18:00</span>demo 成功！舉手慶祝 🎉</div>
+        </div>
+        <div class="anim-controls">
+          <button data-noti-action="play" class="active">▶ 自動循環 (2s)</button>
+          <button data-noti-action="pause">⏸ 暫停</button>
+          <button data-noti-action="prev">← 上一幕</button>
+          <button data-noti-action="next">下一幕 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- URL cheatsheet -->
+    <div style="background:#0b0f14;border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:16px">
+      <div style="color:var(--accent);font-size:12px;font-weight:700;margin-bottom:8px">👇 實際 URL 模板（直接拿去用）</div>
+      <pre style="margin:0;color:var(--ink);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-all">
+https://api.dicebear.com/7.x/notionists/svg
+  ?seed=<span style="color:var(--accent-2)">Jordan</span>                      <span style="color:#666"># 角色 ID（任意字串）</span>
+  &body=<span style="color:var(--accent-2)">variant05</span>                 <span style="color:#666"># 固定衣服（variant01-25）</span>
+  &gesture=<span style="color:var(--accent-2)">handPhone</span>             <span style="color:#666"># 動作（10 選 1，這個就換）</span>
+  &gestureProbability=<span style="color:var(--accent-2)">100</span>        <span style="color:#666"># 一定要出現指定的 gesture</span>
+  &backgroundColor=<span style="color:var(--accent-2)">ff7a59</span>        <span style="color:#666"># 彩色背景（hex 不用 #）</span></pre>
+    </div>
+  </section>
+
+  <!-- ========== Character Builder ========== -->
+  <section class="pose-section" id="builder-section">
+    <h2>🎨 試著捏一個角色 — 看看他在各種 UI 中的樣子</h2>
+    <p class="lead">上方即時預覽，點選部位分頁來調整細節。下方展示同一個角色在 13 種常見 UI 場景下的渲染。</p>
+
+    <div class="builder-grid">
+      <div class="builder-controls" id="builder-controls">
+        <div class="bw-note">
+          <strong>✓ notionists 的角色永遠是黑白線稿</strong>——不管你選哪個背景色，25 種衣服、64 種髮型、所有捏臉選項都完全一樣，不會因為「黑白」而少任何選擇。背景色是獨立的一層。
+        </div>
+
+        <label>Seed (角色 ID)
+          <div class="seed-row">
+            <input type="text" id="b-seed" value="Kai">
+            <button type="button" id="b-random" title="隨機">🎲</button>
+          </div>
+        </label>
+
+        <div class="part-tabs" id="part-tabs">
+          <button class="part-tab active" data-target="body">衣服<span class="tab-val" data-tab-val="body"></span></button>
+          <button class="part-tab" data-target="gesture">手勢<span class="tab-val" data-tab-val="gesture"></span></button>
+          <button class="part-tab" data-target="hair">頭髮<span class="tab-val" data-tab-val="hair"></span></button>
+          <button class="part-tab" data-target="brows">眉毛<span class="tab-val" data-tab-val="brows"></span></button>
+          <button class="part-tab" data-target="eyes">眼睛<span class="tab-val" data-tab-val="eyes"></span></button>
+          <button class="part-tab" data-target="nose">鼻子<span class="tab-val" data-tab-val="nose"></span></button>
+          <button class="part-tab" data-target="lips">嘴唇<span class="tab-val" data-tab-val="lips"></span></button>
+          <button class="part-tab" data-target="beard">鬍子<span class="tab-val" data-tab-val="beard"></span></button>
+          <button class="part-tab" data-target="glasses">眼鏡<span class="tab-val" data-tab-val="glasses"></span></button>
+        </div>
+
+        <div class="part-row open">
+          <label>衣服 Body <span class="current-val" data-val-for="body"></span></label>
+          <div class="thumb-strip" data-part="body"></div>
+        </div>
+
+        <div class="part-row">
+          <label>手勢 Gesture <span class="current-val" data-val-for="gesture"></span></label>
+          <div class="thumb-strip" data-part="gesture"></div>
+        </div>
+
+        <div class="part-row">
+          <label>頭髮 Hair <span class="current-val" data-val-for="hair"></span></label>
+          <div class="thumb-strip" data-part="hair"></div>
+        </div>
+
+        <div class="part-row">
+          <label>眉毛 Brows <span class="current-val" data-val-for="brows"></span></label>
+          <div class="thumb-strip" data-part="brows"></div>
+        </div>
+
+        <div class="part-row">
+          <label>眼睛 Eyes <span class="current-val" data-val-for="eyes"></span></label>
+          <div class="thumb-strip" data-part="eyes"></div>
+        </div>
+
+        <div class="part-row">
+          <label>鼻子 Nose <span class="current-val" data-val-for="nose"></span></label>
+          <div class="thumb-strip" data-part="nose"></div>
+        </div>
+
+        <div class="part-row">
+          <label>嘴唇 Lips <span class="current-val" data-val-for="lips"></span></label>
+          <div class="thumb-strip" data-part="lips"></div>
+        </div>
+
+        <div class="part-row">
+          <label>鬍子 Beard <span class="current-val" data-val-for="beard"></span></label>
+          <div class="thumb-strip" data-part="beard"></div>
+        </div>
+
+        <div class="part-row">
+          <label>眼鏡 Glasses <span class="current-val" data-val-for="glasses"></span></label>
+          <div class="thumb-strip" data-part="glasses"></div>
+        </div>
+
+        <label style="margin-top:10px">背景色 Background
+          <div class="swatches" id="b-swatches">
+            <button type="button" data-color="ff7a59" style="background:#ff7a59" class="active"></button>
+            <button type="button" data-color="7aa2ff" style="background:#7aa2ff"></button>
+            <button type="button" data-color="3fb950" style="background:#3fb950"></button>
+            <button type="button" data-color="d29922" style="background:#d29922"></button>
+            <button type="button" data-color="ff49a0" style="background:#ff49a0"></button>
+            <button type="button" data-color="9d4edd" style="background:#9d4edd"></button>
+            <button type="button" data-color="ffffff" style="background:#ffffff"></button>
+            <button type="button" data-color="" title="透明" style="background:repeating-conic-gradient(#444 0 90deg,#222 90deg 180deg) 0 0/10px 10px"></button>
+          </div>
+        </label>
+
+        <button type="button" class="builder-reset" id="b-reset">↻ 重設所有選項</button>
+      </div>
+
+      <div class="builder-preview">
+        <img class="char-preview char-big" src="">
+        <div style="display:flex;gap:8px;align-items:center;width:100%">
+          <button class="copy-url" id="b-copy">📋 複製 URL</button>
+          <div style="font-size:10px;color:var(--ink-dim);flex:1;text-align:right" id="b-copy-status"></div>
+        </div>
+        <div class="url-box" id="b-url"></div>
+      </div>
+    </div>
+
+    <h3 style="margin:28px 0 12px">👇 同一個角色在 13 種 UI 場景下</h3>
+    <div class="showcase">
+
+      <div class="showcase-tile">
+        <div class="tile-label">1. 完整 Bust（原生）</div>
+        <div class="tile-sub">notionists 預設渲染</div>
+        <div class="tile-demo"><div class="frame-bust"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">2. 圓形大頭</div>
+        <div class="tile-sub">Circle Avatar — 最通用</div>
+        <div class="tile-demo"><div class="frame-circle"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">3. 圓角方形</div>
+        <div class="tile-sub">Rounded Square — Material 風</div>
+        <div class="tile-demo"><div class="frame-rounded"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">4. 直角方形</div>
+        <div class="tile-sub">Hard Square — 編輯器表格</div>
+        <div class="tile-demo"><div class="frame-square"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">5. 徽章</div>
+        <div class="tile-sub">Circle Badge — 加陰影</div>
+        <div class="tile-demo"><div class="frame-badge"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">6. 堆疊頭像</div>
+        <div class="tile-sub">Avatar Stack — 團隊</div>
+        <div class="tile-demo">
+          <div class="frame-stack">
+            <div class="s"><img class="char-preview"></div>
+            <div class="s"><img class="char-preview"></div>
+            <div class="s"><img class="char-preview"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">7. 角色資料卡</div>
+        <div class="tile-sub">Hero Card — profile</div>
+        <div class="tile-demo">
+          <div class="frame-hero">
+            <div class="av"><img class="char-preview"></div>
+            <div class="meta"><strong>Kai Chen</strong><small>Senior Producer</small><span class="tag">FEATURED</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">8. 訊息氣泡</div>
+        <div class="tile-sub">Chat Message</div>
+        <div class="tile-demo">
+          <div class="frame-chat">
+            <div class="av"><img class="char-preview"></div>
+            <div class="msg">這個案子我覺得可以再加快一點，明天 demo 給客戶看看。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">9. 通知徽章</div>
+        <div class="tile-sub">Notification Dot</div>
+        <div class="tile-demo">
+          <div class="frame-notify">
+            <div class="av"><img class="char-preview"></div>
+            <div class="dot">3</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">10. 清單列</div>
+        <div class="tile-sub">List Row — 成員</div>
+        <div class="tile-demo">
+          <div class="frame-list">
+            <div class="row"><div class="av"><img class="char-preview"></div><div class="txt"><strong>Kai Chen</strong><small>online · 3 個任務</small></div></div>
+            <div class="row"><div class="av"><img class="char-preview"></div><div class="txt"><strong>Kai Chen</strong><small>away · 1 個任務</small></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">11. 拍立得貼紙</div>
+        <div class="tile-sub">Tilted Sticker</div>
+        <div class="tile-demo"><div class="frame-sticker"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">12. 畫框肖像</div>
+        <div class="tile-sub">Framed Portrait</div>
+        <div class="tile-demo"><div class="frame-frame"><img class="char-preview"></div></div>
+      </div>
+
+      <div class="showcase-tile">
+        <div class="tile-label">13. 動畫切換手勢</div>
+        <div class="tile-sub">Gesture Cycle — 自動循環</div>
+        <div class="tile-demo">
+          <div class="frame-anim" id="builder-anim">
+            <img class="gesture-frame on" data-gesture="handPhone">
+            <img class="gesture-frame" data-gesture="ok">
+            <img class="gesture-frame" data-gesture="waveLongArm">
+            <img class="gesture-frame" data-gesture="pointLongArm">
+            <img class="gesture-frame" data-gesture="wavePointLongArms">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- /Builder -->
+
+  <!-- ========== DiceBear Style Comparison ========== -->
+  <section class="pose-section" id="style-compare-section">
+    <h2>DiceBear 風格比較 — 同一個 Seed，不同風格</h2>
+    <p class="lead">DiceBear 提供 ~30 種風格，以下挑出最實用的幾種做比較。每張圖都是同一個 seed（Kai / Bob），方便看出風格差異。</p>
+
+    <div class="style-compare" id="style-compare-grid">
+
+      <div class="style-card">
+        <div class="style-name">notionists</div>
+        <div class="style-tags"><span class="tag-bust">半身 Bust</span> <span class="tag-bw">黑白線稿</span> <span>手勢可選</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/notionists/svg?seed=Kai&backgroundColor=ff7a59">
+          <img src="/peeps-proxy/9.x/notionists/svg?seed=Bob&backgroundColor=7aa2ff">
+        </div>
+        <div class="style-tags">我們目前使用的風格</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">avataaars</div>
+        <div class="style-tags"><span class="tag-bust">半身 Bust</span> <span>彩色</span> <span>最熱門</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/avataaars/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/avataaars/svg?seed=Bob">
+        </div>
+        <div class="style-tags">類似 Bitmoji 風格，可調膚色/衣服/配件</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">open-peeps</div>
+        <div class="style-tags"><span>頭像</span> <span class="tag-bw">黑白線稿</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/open-peeps/svg?seed=Kai&backgroundColor=ff7a59">
+          <img src="/peeps-proxy/9.x/open-peeps/svg?seed=Bob&backgroundColor=7aa2ff">
+        </div>
+        <div class="style-tags">原版 Open Peeps，僅圓形大頭</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">adventurer</div>
+        <div class="style-tags"><span>頭像</span> <span>彩色</span> <span>圓潤可愛</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/adventurer/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/adventurer/svg?seed=Bob">
+        </div>
+        <div class="style-tags">適合遊戲、社群類應用</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">big-ears</div>
+        <div class="style-tags"><span>頭像</span> <span>彩色</span> <span>卡通</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/big-ears/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/big-ears/svg?seed=Bob">
+        </div>
+        <div class="style-tags">大耳朵卡通風，很有辨識度</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">lorelei</div>
+        <div class="style-tags"><span>頭像</span> <span>線條風</span> <span>優雅</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/lorelei/svg?seed=Kai&backgroundColor=ff7a59">
+          <img src="/peeps-proxy/9.x/lorelei/svg?seed=Bob&backgroundColor=7aa2ff">
+        </div>
+        <div class="style-tags">柔和線條，適合文青/設計類</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">micah</div>
+        <div class="style-tags"><span>頭像</span> <span>彩色</span> <span>幾何風</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/micah/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/micah/svg?seed=Bob">
+        </div>
+        <div class="style-tags">幾何色塊拼接，現代感</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">personas</div>
+        <div class="style-tags"><span class="tag-bust">半身 Bust</span> <span>彩色</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/personas/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/personas/svg?seed=Bob">
+        </div>
+        <div class="style-tags">扁平風半身插畫</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">pixel-art</div>
+        <div class="style-tags"><span>頭像</span> <span>彩色</span> <span>復古</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/pixel-art/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/pixel-art/svg?seed=Bob">
+        </div>
+        <div class="style-tags">8-bit 像素風，適合遊戲</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">bottts</div>
+        <div class="style-tags"><span>機器人</span> <span>彩色</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/bottts/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/bottts/svg?seed=Bob">
+        </div>
+        <div class="style-tags">機器人風格，適合 AI/Bot 角色</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">fun-emoji</div>
+        <div class="style-tags"><span>表情</span> <span>彩色</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/fun-emoji/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/fun-emoji/svg?seed=Bob">
+        </div>
+        <div class="style-tags">有趣的 Emoji 風格</div>
+      </div>
+
+      <div class="style-card">
+        <div class="style-name">thumbs</div>
+        <div class="style-tags"><span>手勢</span> <span>彩色</span></div>
+        <div class="style-demo">
+          <img src="/peeps-proxy/9.x/thumbs/svg?seed=Kai">
+          <img src="/peeps-proxy/9.x/thumbs/svg?seed=Bob">
+        </div>
+        <div class="style-tags">比讚手勢，適合反饋/投票</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 1 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">圓形大頭照</div><div class="en">Circle Avatar</div></div>
+      <div class="num">01</div>
+    </div>
+    <div class="demo">
+      <div class="s-circle"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Alice"></div>
+    </div>
+    <p class="desc">最通用的頭像，出現在留言、作者、登入按鈕、會員中心。圓形自然把注意力集中在臉。</p>
+  </div>
+
+  <!-- 2 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">圓角方形</div><div class="en">Rounded Square</div></div>
+      <div class="num">02</div>
+    </div>
+    <div class="demo">
+      <div class="s-rounded"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Bob"></div>
+    </div>
+    <p class="desc">Material / 現代 SaaS 常用。比圓形更正式，適合工具型產品的使用者列表與設定頁。</p>
+  </div>
+
+  <!-- 3 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">直角方形</div><div class="en">Hard Square Tile</div></div>
+      <div class="num">03</div>
+    </div>
+    <div class="demo">
+      <div class="s-square"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Carol"></div>
+    </div>
+    <p class="desc">編輯器、CMS、資料表格常用的硬邊格。拼在一起像是貼磚，效率感強。</p>
+  </div>
+
+  <!-- 4 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">單色徽章</div><div class="en">Solid Color Badge</div></div>
+      <div class="num">04</div>
+    </div>
+    <div class="demo">
+      <div class="s-badge"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Dan&backgroundColor=ff7a59&backgroundType=solid"></div>
+    </div>
+    <p class="desc">透過 <code>backgroundColor</code> 填色，讓角色融入品牌色系。搭配品牌主視覺很有記憶點。</p>
+  </div>
+
+  <!-- 5 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">漸層徽章</div><div class="en">Gradient Badge</div></div>
+      <div class="num">05</div>
+    </div>
+    <div class="demo">
+      <div class="s-gradient"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Eve&backgroundColor=ff7a59,7aa2ff&backgroundType=gradientLinear&backgroundRotation=45"></div>
+    </div>
+    <p class="desc">使用 <code>backgroundType=gradientLinear</code> 加雙色 <code>backgroundColor</code>，適合 hero 區塊或關鍵 CTA 圖案。</p>
+  </div>
+
+  <!-- 6 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">堆疊頭像</div><div class="en">Avatar Stack</div></div>
+      <div class="num">06</div>
+    </div>
+    <div class="demo">
+      <div class="s-stack">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Alice">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Bob">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Carol">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Dan">
+        <div class="more">+3</div>
+      </div>
+    </div>
+    <p class="desc">團隊、協作者、閱讀者的常見表達。用負 margin 製造重疊感，每個頭像加白色/底色外框做分離。</p>
+  </div>
+
+  <!-- 7 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">半身像排（桌前）</div><div class="en">Bust Row</div></div>
+      <div class="num">07</div>
+    </div>
+    <div class="demo">
+      <div class="s-bust">
+        <div class="bust"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=writer"><span class="n">編劇</span></div>
+        <div class="bust"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=director"><span class="n">導演</span></div>
+        <div class="bust"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=critic"><span class="n">影評</span></div>
+        <div class="bust"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=officer"><span class="n">官員</span></div>
+      </div>
+    </div>
+    <p class="desc">用 50% 上圓 + 38% 下弧的 border-radius 模擬半身像貼在桌前的感覺，適合 stage 模式或「員工排排坐」介面。</p>
+  </div>
+
+  <!-- 8 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">角色資料卡</div><div class="en">Hero Card</div></div>
+      <div class="num">08</div>
+    </div>
+    <div class="demo">
+      <div class="s-hero">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Sophia">
+        <div class="meta">
+          <strong>Sophia Chen</strong>
+          <small>Product Lead · 11 年經驗</small>
+          <span class="tag">FEATURED</span>
+        </div>
+      </div>
+    </div>
+    <p class="desc">Profile / team page / case study 的 header card。頭像 + 姓名 + 角色 + 標籤，一組資訊單元。</p>
+  </div>
+
+  <!-- 9 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">訊息旁頭像</div><div class="en">Chat Message</div></div>
+      <div class="num">09</div>
+    </div>
+    <div class="demo" style="align-items:flex-start">
+      <div class="s-chat">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Kevin">
+        <div class="msg"><span class="who">Kevin</span>這個 Cold Open 的節奏我覺得可以再快一點，Kevin 那句 WiFi 笑話可以更早出現。</div>
+      </div>
+    </div>
+    <p class="desc">IM、留言、AI chat history 的標準配置：頭像在左，訊息在右上的氣泡。</p>
+  </div>
+
+  <!-- 10 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">對話泡泡</div><div class="en">Speech Bubble</div></div>
+      <div class="num">10</div>
+    </div>
+    <div class="demo">
+      <div class="s-speech">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Linda">
+        <div class="bubble">歡迎回來！今天想寫什麼？</div>
+      </div>
+    </div>
+    <p class="desc">歡迎頁、onboarding、AI 介紹詞的常用版面。用 CSS <code>::before/::after</code> 畫三角形做泡泡的尖角。</p>
+  </div>
+
+  <!-- 11 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">思考泡泡</div><div class="en">Thought Bubble</div></div>
+      <div class="num">11</div>
+    </div>
+    <div class="demo">
+      <div class="s-thought">
+        <div class="cloud">💭 思考中...</div>
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Mark">
+      </div>
+    </div>
+    <p class="desc">AI loading / streaming 時很適合。用兩個小圓點當泡泡尾巴，表達「思考」而非「說話」。</p>
+  </div>
+
+  <!-- 12 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">空狀態插圖</div><div class="en">Empty State</div></div>
+      <div class="num">12</div>
+    </div>
+    <div class="demo">
+      <div class="s-empty">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Nora">
+        <div class="title">還沒有任何訊息</div>
+        <div class="sub">開始對話或建立第一個工作流</div>
+      </div>
+    </div>
+    <p class="desc">用大尺寸頭像配模糊光暈，加上標題+副標，把「空無一物」變成一個邀請。常見於 empty list、404、剛建立的專案。</p>
+  </div>
+
+  <!-- 13 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">清單列</div><div class="en">List Row</div></div>
+      <div class="num">13</div>
+    </div>
+    <div class="demo" style="padding:14px">
+      <div class="s-list">
+        <div class="row"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=row1"><div class="nm">資深編劇 A<div class="rl">sonnet 4.6</div></div></div>
+        <div class="row"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=row2"><div class="nm">編劇 B<div class="rl">haiku 4.5</div></div></div>
+        <div class="row"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=row3"><div class="nm">導演 D<div class="rl">sonnet 4.6</div></div></div>
+      </div>
+    </div>
+    <p class="desc">設定頁、成員管理、模型清單的標準配置。小尺寸頭像 + 兩行文字。</p>
+  </div>
+
+  <!-- 14 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">通知徽章</div><div class="en">Notification Dot</div></div>
+      <div class="num">14</div>
+    </div>
+    <div class="demo">
+      <div class="s-notify">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=Oliver">
+        <div class="dot">3</div>
+      </div>
+    </div>
+    <p class="desc">頭像右上角帶數字或紅點，表示有未讀訊息、新任務、通知。Toolbar / dock 必備。</p>
+  </div>
+
+  <!-- 15 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">角落偷看</div><div class="en">Peek from Corner</div></div>
+      <div class="num">15</div>
+    </div>
+    <div class="demo" style="padding:0">
+      <div class="s-peek">
+        <div class="title">新功能上線！<br>快來試試自動劇本生成</div>
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=promo">
+      </div>
+    </div>
+    <p class="desc">橫幅、banner、promo 卡片。把頭像用 absolute 丟到角落並部分裁出框外，增加俏皮感。</p>
+  </div>
+
+  <!-- 16 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">傾斜貼紙</div><div class="en">Tilted Sticker</div></div>
+      <div class="num">16</div>
+    </div>
+    <div class="demo">
+      <div class="s-sticker">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=sticker1">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=sticker2">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=sticker3">
+      </div>
+    </div>
+    <p class="desc">白色厚邊框 + 陰影 + 旋轉，模仿拍立得或貼紙。適合 playful 品牌、個人作品集、相簿。</p>
+  </div>
+
+  <!-- 17 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">團隊網格</div><div class="en">Team Grid</div></div>
+      <div class="num">17</div>
+    </div>
+    <div class="demo" style="padding:14px">
+      <div class="s-grid">
+        <div class="cell"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=g1"><small>PM</small></div>
+        <div class="cell"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=g2"><small>Eng</small></div>
+        <div class="cell"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=g3"><small>Designer</small></div>
+        <div class="cell"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=g4"><small>Data</small></div>
+        <div class="cell"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=g5"><small>QA</small></div>
+        <div class="cell"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=g6"><small>Ops</small></div>
+      </div>
+    </div>
+    <p class="desc">About page、組織架構圖、教室名單。網格化讓觀者一眼掃完所有角色。</p>
+  </div>
+
+  <!-- 18 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">載入中動畫</div><div class="en">Loading / Thinking</div></div>
+      <div class="num">18</div>
+    </div>
+    <div class="demo">
+      <div class="s-loading">
+        <img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=loading">
+        <div class="dots"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <p class="desc">用 CSS animation 讓頭像輕微上下浮動，配三個閃爍點表示「AI 正在思考」。比 spinner 有個性得多。</p>
+  </div>
+
+  <!-- 19 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">對話對峙</div><div class="en">Duo / VS</div></div>
+      <div class="num">19</div>
+    </div>
+    <div class="demo">
+      <div class="s-duo">
+        <div class="p"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=duoA"></div>
+        <div class="vs">VS</div>
+        <div class="p"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=duoB"></div>
+      </div>
+    </div>
+    <p class="desc">辯論、A/B 測試、比較頁。用 <code>transform: scaleX(-1)</code> 讓其中一人面朝對方，製造對話張力。</p>
+  </div>
+
+  <!-- 20 -->
+  <div class="card">
+    <div class="head">
+      <div><div class="name">畫框肖像</div><div class="en">Framed Portrait</div></div>
+      <div class="num">20</div>
+    </div>
+    <div class="demo">
+      <div class="s-frame"><img src="https://api.dicebear.com/7.x/open-peeps/svg?seed=portrait"></div>
+    </div>
+    <p class="desc">金框、厚重陰影，彷彿掛在牆上的油畫。適合「名人堂」、「歷代負責人」、cult 感的 About 頁。</p>
+  </div>
+
+  <!-- ========== 半身 with hands ========== -->
+  <section class="pose-section">
+    <h2>🫖 半身姿勢（到腰、看得到手）<span class="badge">CSS-Peeps</span></h2>
+    <p class="lead">由 <code>css-peeps</code>（CSS-only，一個 1MB 樣式檔）提供，支援真的 bust 姿勢（不只頭像）——喝咖啡、打電動、揹筆電、思考、聳肩、講話、指東指西等等。每個 peep 只要一個 <code>&lt;div&gt;</code> 加上 <code>data-css-peeps="head face body"</code> 就能渲染。</p>
+    <div class="answer-note">
+      <strong>為什麼 DiceBear 做不到？</strong> DiceBear 的 <code>open-peeps</code> style 只裁取了頭肩部分當 avatar generator 用，<em>沒有</em>手、身體、姿勢。要半身／全身要換其他實作。
+    </div>
+    <div class="csspeep-grid">
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="bangs1 talking coffee"></div></div>
+        <div class="label">喝咖啡</div>
+        <div class="sub">coffee</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="pomp driven explaining"></div></div>
+        <div class="label">講解中（雙手比劃）</div>
+        <div class="sub">explaining</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="medium1 cheeky gaming"></div></div>
+        <div class="label">打電動</div>
+        <div class="sub">gaming</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="bun1 smile laptop"></div></div>
+        <div class="label">筆電工作</div>
+        <div class="sub">laptop</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="afro concerned phone"></div></div>
+        <div class="label">講電話</div>
+        <div class="sub">phone</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="long suspicious shrug"></div></div>
+        <div class="label">聳肩（不知道）</div>
+        <div class="sub">shrug</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="cornrows1 calm pointing"></div></div>
+        <div class="label">指向</div>
+        <div class="sub">pointing</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="short3 eating teddy"></div></div>
+        <div class="label">抱熊熊</div>
+        <div class="sub">teddy</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="hijab loving paper"></div></div>
+        <div class="label">拿紙（閱讀）</div>
+        <div class="sub">paper</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="beanie laughing thunder"></div></div>
+        <div class="label">興奮握拳</div>
+        <div class="sub">thunder</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="mohawk1 rage killer"></div></div>
+        <div class="label">雙手插腰</div>
+        <div class="sub">killer</div>
+      </div>
+      <div class="csspeep-tile">
+        <div class="peep-wrap"><div class="css-peeps" data-css-peeps="buns hectic hoodie"></div></div>
+        <div class="label">連帽衫雙手口袋</div>
+        <div class="sub">hoodie</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 站姿 ========== -->
+  <section class="pose-section">
+    <h2>🧍 站姿（全身）<span class="badge">react-peeps</span></h2>
+    <p class="lead">從 <a href="https://github.com/CeamKrier/react-peeps" target="_blank">react-peeps</a> 擷取並合成的完整 SVG（頭＋身＋腿）。以 <code>scripts/build_peeps_svgs.py</code> 把 TSX 裡的 <code>&lt;g&gt;</code> 區塊轉成獨立 SVG 檔，直接用 <code>&lt;img&gt;</code> 顯示即可。</p>
+    <div class="pose-grid">
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/standing_shirt.svg" alt=""></div>
+        <div class="label">襯衫站姿</div>
+        <div class="sub">ShirtBW</div>
+      </div>
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/standing_pointing.svg" alt=""></div>
+        <div class="label">指著什麼</div>
+        <div class="sub">PointingFingerBW</div>
+      </div>
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/standing_walking.svg" alt=""></div>
+        <div class="label">邊走邊講</div>
+        <div class="sub">WalkingBW</div>
+      </div>
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/standing_blazer_pants.svg" alt=""></div>
+        <div class="label">西裝外套</div>
+        <div class="sub">BlazerPantsBW</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 坐姿 ========== -->
+  <section class="pose-section">
+    <h2>🪑 坐姿（全身）<span class="badge">react-peeps</span></h2>
+    <p class="lead">各種坐法：翹腳、單腳抬、端坐、輪椅。適合用在辦公室場景、「員工專訪」、課程列表、團隊介紹頁。</p>
+    <div class="pose-grid">
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/sitting_crossed_legs.svg" alt=""></div>
+        <div class="label">翹腳坐</div>
+        <div class="sub">CrossedLegs</div>
+      </div>
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/sitting_one_leg_up.svg" alt=""></div>
+        <div class="label">單腳抬起</div>
+        <div class="sub">OneLegUpBW</div>
+      </div>
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/sitting_medium.svg" alt=""></div>
+        <div class="label">端坐</div>
+        <div class="sub">MediumBW</div>
+      </div>
+      <div class="pose-tile">
+        <div class="img"><img src="/static/peeps_svg/sitting_wheelchair.svg" alt=""></div>
+        <div class="label">輪椅</div>
+        <div class="sub">Wheelchair</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Why this took so long (historical context) ========== -->
+  <section class="pose-section" style="opacity:.75">
+    <h2 style="font-size:16px;color:var(--ink-dim)">📜 走過的彎路</h2>
+    <p class="lead" style="font-size:12px">為什麼前面花這麼多力氣研究 react-peeps 和 Humaaans？因為我一開始誤以為 DiceBear 的 <code>open-peeps</code>（只有頭）就是全部，沒注意到 DiceBear 有另一個更完整的 style 叫 <code>notionists</code>。<code>open-peeps</code> 跟 <code>notionists</code> 都在 DiceBear 裡面、都是 CC-BY-4.0 授權、API 完全一樣——差別只是 <code>notionists</code> 本來就是為 bust/gesture 設計的。</p>
+    <p class="lead" style="font-size:12px">結論：<strong>以後要 bust + 可互換動作 + 黑白風格，直接用 DiceBear <code>notionists</code></strong>。react-peeps / Humaaans / css-peeps 適合其他需求——例如 react-peeps 的 61 種髮型最多、Humaaans 可以組全身、css-peeps 純 CSS 無 runtime 請求。但對「同人同衣服換動作」這個具體需求來說，notionists 是唯一原生支援的。</p>
+  </section>
+
+  <!-- ========== Face Mixer ========== -->
+  <section class="pose-section">
+    <h2>🎭 捏臉大頭器（像 DiceBear 那樣）<span class="badge">react-peeps 真的能捏</span></h2>
+    <p class="lead">
+      是的，react-peeps <em>就是</em> 捏臉器——它的 Peep component 吃 <code>hair</code>、<code>face</code>、<code>facialHair</code>、<code>accessory</code>、<code>body</code> 五個獨立 prop，每個都能個別選。
+      <strong>51 髮型 × 33 臉 × 17 鬍子 × 10 配件 × 28 半身姿勢 ≈ 800 萬種組合</strong>。
+      比 DiceBear 的 seed-based 隨機更好的是：你可以<em>精準控制</em>要哪顆頭、哪個笑容、要不要戴眼鏡。下面是我預先 compose 好的 4 組組合，選單切換時會瞬間淡入淡出。
+    </p>
+    <div class="mixer">
+      <div class="preview" id="mix-preview">
+        <img class="on" data-key="0" src="/static/peeps_svg/bust_coffee.svg">
+        <img data-key="1" src="/static/peeps_svg/bust_explaining.svg">
+        <img data-key="2" src="/static/peeps_svg/bust_gaming.svg">
+        <img data-key="3" src="/static/peeps_svg/bust_hoodie.svg">
+      </div>
+      <div class="controls">
+        <div>
+          <label>Look</label>
+          <select id="mix-look">
+            <option value="0">Medium 髮型 + Calm 表情 + Coffee 姿勢</option>
+            <option value="1">Pomp 髮型 + Driven 表情 + Explaining 姿勢</option>
+            <option value="2">MediumShort + Cheeky + Gaming 姿勢</option>
+            <option value="3">Bun + Smile + Hoodie 姿勢</option>
+          </select>
+        </div>
+        <div style="font-size:11px;color:var(--ink-dim);line-height:1.5">
+          要做成真互動捏臉器：<br>
+          在 React 裡直接把 <code>&lt;Peep hair={hair} face={face} body={body} /&gt;</code> 的 props 綁到下拉選單 state 即可。不需要 re-compose SVG。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== License section ========== -->
+  <section class="pose-section">
+    <h2>⚖️ 商業授權整理</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">Open Peeps 原始插圖</div>
+        <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px">CC0 公共領域</div>
+        <div style="color:var(--ink-dim);font-size:12px;line-height:1.6">
+          Pablo Stanley 無償釋出。完全無限制：商用、改作、再發布都可以，<strong>不需要署名、不需要聯絡作者</strong>。你只要在心裡感謝他就好。
+        </div>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">react-peeps 套件</div>
+        <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px">MIT License</div>
+        <div style="color:var(--ink-dim);font-size:12px;line-height:1.6">
+          可商用、可改作、可閉源。<strong>需要做的事</strong>：在你發布的產品（若有散布原始碼或二進位）裡附上 MIT 版權宣告和授權全文。Web app 直接 bundle 的話，把一份 LICENSE.txt 放進 about / credits 頁面或 repo 即可。
+        </div>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">css-peeps 套件</div>
+        <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px">BSD-2-Clause</div>
+        <div style="color:var(--ink-dim);font-size:12px;line-height:1.6">
+          跟 MIT 幾乎一樣，商用沒問題。需要在散布時附上版權宣告與免責聲明。同樣放 credits 頁即可。
+        </div>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">DiceBear</div>
+        <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px">MIT + Style 授權</div>
+        <div style="color:var(--ink-dim);font-size:12px;line-height:1.6">
+          核心框架 MIT。每個 avatar style（含 open-peeps）各自繼承<em>原作者</em>的授權——open-peeps style 本身是 CC0，所以用在商業專案沒問題。
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--ink-dim);font-size:12px;margin-top:14px">
+      👉 實務建議：在你 repo 建一個 <code>LICENSES/</code> 目錄，把 react-peeps 的 LICENSE、css-peeps 的 LICENSE 各放一份，README 註明「本專案使用 Open Peeps (CC0), react-peeps (MIT), css-peeps (BSD-2)」就 100% 合規了。<strong>不需要付錢、不需要跟任何人聯絡</strong>。
+    </p>
+  </section>
+
+  <!-- ========== Bust 完整版 (with head, arms) ========== -->
+  <section class="pose-section">
+    <h2>👤 半身 Bust（react-peeps 版）<span class="badge">react-peeps</span></h2>
+    <p class="lead">除了 CSS-Peeps 的純 CSS 方案，react-peeps 也內建各種 bust 姿勢。跟 CSS-Peeps 不同的是你可以直接拿到 SVG 檔案，後續想改顏色、加濾鏡、動畫都更自由。</p>
+    <div class="pose-grid">
+      <div class="pose-tile bust">
+        <div class="img"><img src="/static/peeps_svg/bust_coffee.svg" alt=""></div>
+        <div class="label">喝咖啡</div>
+        <div class="sub">Coffee</div>
+      </div>
+      <div class="pose-tile bust">
+        <div class="img"><img src="/static/peeps_svg/bust_explaining.svg" alt=""></div>
+        <div class="label">講解中</div>
+        <div class="sub">Explaining</div>
+      </div>
+      <div class="pose-tile bust">
+        <div class="img"><img src="/static/peeps_svg/bust_gaming.svg" alt=""></div>
+        <div class="label">打電動</div>
+        <div class="sub">Gaming</div>
+      </div>
+      <div class="pose-tile bust">
+        <div class="img"><img src="/static/peeps_svg/bust_hoodie.svg" alt=""></div>
+        <div class="label">連帽衫</div>
+        <div class="sub">Hoodie</div>
+      </div>
+      <div class="pose-tile bust">
+        <div class="img"><img src="/static/peeps_svg/bust_device.svg" alt=""></div>
+        <div class="label">滑手機</div>
+        <div class="sub">Device</div>
+      </div>
+      <div class="pose-tile bust">
+        <div class="img"><img src="/static/peeps_svg/bust_pointing_up.svg" alt=""></div>
+        <div class="label">指向上方</div>
+        <div class="sub">PointingUp</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // notionists gesture-swap animation (SAME body, different gesture)
+  (function () {
+    var frames = document.querySelectorAll('#noti-anim img');
+    var steps  = document.querySelectorAll('#noti-status .step');
+    if (!frames.length) return;
+    var cur = 0, t = null;
+    function show(i) {
+      cur = ((i % frames.length) + frames.length) % frames.length;
+      frames.forEach(function (el, idx) { el.classList.toggle('on', idx === cur); });
+      steps.forEach(function (el, idx) { el.classList.toggle('on', idx === cur); });
+    }
+    function play() {
+      stop();
+      t = setInterval(function () { show(cur + 1); }, 2000);
+      var pl = document.querySelector('[data-noti-action="play"]');
+      var ps = document.querySelector('[data-noti-action="pause"]');
+      if (pl) pl.classList.add('active');
+      if (ps) ps.classList.remove('active');
+    }
+    function stop() {
+      if (t) { clearInterval(t); t = null; }
+      var pl = document.querySelector('[data-noti-action="play"]');
+      var ps = document.querySelector('[data-noti-action="pause"]');
+      if (pl) pl.classList.remove('active');
+      if (ps) ps.classList.add('active');
+    }
+    var $ = function (s) { return document.querySelector(s); };
+    $('[data-noti-action="play"]').addEventListener('click', play);
+    $('[data-noti-action="pause"]').addEventListener('click', stop);
+    $('[data-noti-action="next"]').addEventListener('click', function () { stop(); show(cur + 1); });
+    $('[data-noti-action="prev"]').addEventListener('click', function () { stop(); show(cur - 1); });
+    play();
+  })();
+
+  // humaaans body-swap animation (stable head + legs)
+  (function () {
+    var bodies = document.querySelectorAll('#humaaan-stage .h-body');
+    var steps  = document.querySelectorAll('#humaaan-narr .step');
+    if (!bodies.length) return;
+    var current = 0;
+    var timer = null;
+    function show(i) {
+      current = ((i % bodies.length) + bodies.length) % bodies.length;
+      bodies.forEach(function (el, idx) { el.classList.toggle('on', idx === current); });
+      steps.forEach(function (el, idx) { el.classList.toggle('on', idx === current); });
+    }
+    function play() {
+      stop();
+      timer = setInterval(function () { show(current + 1); }, 2500);
+      var b = document.querySelector('[data-hum-action="play"]');
+      var p = document.querySelector('[data-hum-action="pause"]');
+      if (b) b.classList.add('active');
+      if (p) p.classList.remove('active');
+    }
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+      var b = document.querySelector('[data-hum-action="play"]');
+      var p = document.querySelector('[data-hum-action="pause"]');
+      if (b) b.classList.remove('active');
+      if (p) p.classList.add('active');
+    }
+    var $ = function (s) { return document.querySelector(s); };
+    $('[data-hum-action="play"]').addEventListener('click', play);
+    $('[data-hum-action="pause"]').addEventListener('click', stop);
+    $('[data-hum-action="next"]').addEventListener('click', function () { stop(); show(current + 1); });
+    $('[data-hum-action="prev"]').addEventListener('click', function () { stop(); show(current - 1); });
+    play();
+  })();
+
+  // ===== Character builder (notionists) with visual thumb pickers =====
+  (function () {
+    var $ = function (s) { return document.querySelector(s); };
+    var $$ = function (s) { return document.querySelectorAll(s); };
+
+    var REF_SEED = 'Neutral';
+    // Use local proxy for thumbnails (avoids Chrome ORB on concurrent cross-origin SVGs).
+    // The big preview uses the direct DiceBear URL.
+    var API = 'https://api.dicebear.com/7.x/notionists/svg';
+    var THUMB_API = '/peeps-proxy/7.x/notionists/svg';
+
+    // part config: count, default, crop style, allow auto/none
+    var PARTS = {
+      body:    { count: 25, default: 'variant05', crop: 'bust-crop', none: false, auto: false },
+      gesture: { count: 10, default: 'handPhone', crop: 'action-crop', none: false, auto: true, enum:
+                 ['handPhone','hand','ok','point','okLongArm','pointLongArm','waveLongArm','waveLongArms','waveOkLongArms','wavePointLongArms'] },
+      hair:    { count: 64, default: 'auto',      crop: 'face-crop', none: false, auto: true },
+      brows:   { count: 13, default: 'auto',      crop: 'face-crop', none: false, auto: true },
+      eyes:    { count:  5, default: 'auto',      crop: 'face-crop', none: false, auto: true },
+      nose:    { count: 20, default: 'auto',      crop: 'face-crop', none: false, auto: true },
+      lips:    { count: 30, default: 'auto',      crop: 'face-crop', none: false, auto: true },
+      beard:   { count: 12, default: 'off',       crop: 'face-crop', none: true,  auto: false },
+      glasses: { count: 11, default: 'off',       crop: 'face-crop', none: true,  auto: false },
+    };
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function variantId(i) { return 'variant' + pad(i); }
+
+    // state
+    var state = {
+      seed: 'Kai',
+      backgroundColor: 'ff7a59',
+      body: 'variant05',
+      gesture: 'handPhone',
+      hair: 'auto',
+      brows: 'auto',
+      eyes: 'auto',
+      nose: 'auto',
+      lips: 'auto',
+      beard: 'off',
+      glasses: 'off',
+    };
+
+    // Build a URL for a "reference character" that isolates one part.
+    // This is used for thumbnails: neutral character, only the chosen
+    // part is forced to `value`. Beard/glasses are suppressed so they
+    // don't obscure other face parts.
+    function thumbUrl(part, value) {
+      var params = ['seed=' + REF_SEED];
+      if (part === 'gesture') {
+        if (value !== 'auto') params.push('gesture=' + value, 'gestureProbability=100');
+      } else if (part === 'beard') {
+        if (value === 'off')   params.push('beardProbability=0');
+        else                    params.push('beard=' + value, 'beardProbability=100');
+      } else if (part === 'glasses') {
+        if (value === 'off')   params.push('glassesProbability=0');
+        else                    params.push('glasses=' + value, 'glassesProbability=100');
+      } else {
+        if (value !== 'auto') params.push(part + '=' + value);
+      }
+      // suppress whichever-accessory we're not actively demoing, to keep face clean
+      if (part !== 'beard')   params.push('beardProbability=0');
+      if (part !== 'glasses') params.push('glassesProbability=0');
+      return THUMB_API + '?' + params.join('&');
+    }
+
+    // Build the user's actual character URL, with optional overrides (for animation frames)
+    function buildUrl(overrides) {
+      overrides = overrides || {};
+      var p = Object.assign({}, state, overrides);
+      var params = ['seed=' + encodeURIComponent(p.seed)];
+      ['body','hair','brows','eyes','nose','lips'].forEach(function (k) {
+        if (p[k] && p[k] !== 'auto') params.push(k + '=' + p[k]);
+      });
+      if (p.gesture && p.gesture !== 'auto') {
+        params.push('gesture=' + p.gesture, 'gestureProbability=100');
+      }
+      if (p.beard === 'off' || p.beard === 'auto' || !p.beard) {
+        params.push('beardProbability=' + (p.beard === 'off' ? 0 : 30));
+      } else {
+        params.push('beard=' + p.beard, 'beardProbability=100');
+      }
+      if (p.glasses === 'off' || p.glasses === 'auto' || !p.glasses) {
+        params.push('glassesProbability=' + (p.glasses === 'off' ? 0 : 30));
+      } else {
+        params.push('glasses=' + p.glasses, 'glassesProbability=100');
+      }
+      if (p.backgroundColor) params.push('backgroundColor=' + p.backgroundColor);
+      return API + '?' + params.join('&');
+    }
+
+    // Build thumb strip for a part
+    function buildStrip(part) {
+      var cfg = PARTS[part];
+      var strip = document.querySelector('.thumb-strip[data-part="' + part + '"]');
+      if (!strip) return;
+      var html = '';
+      if (cfg.auto) {
+        html += '<button class="thumb-btn none auto" data-value="auto" title="自動 (seed 決定)"></button>';
+      }
+      if (cfg.none) {
+        html += '<button class="thumb-btn none off" data-value="off" title="不要"></button>';
+      }
+      var values;
+      if (cfg.enum) {
+        values = cfg.enum;
+      } else {
+        values = [];
+        for (var i = 1; i <= cfg.count; i++) values.push(variantId(i));
+      }
+      values.forEach(function (v) {
+        html += '<button class="thumb-btn ' + cfg.crop + '" data-value="' + v + '" title="' + v + '"><img src="' + thumbUrl(part, v) + '"></button>';
+      });
+      strip.innerHTML = html;
+    }
+
+    Object.keys(PARTS).forEach(buildStrip);
+
+    // Highlight the currently-active thumb in each strip and scroll it into view
+    function refreshThumbSelection(scroll) {
+      Object.keys(PARTS).forEach(function (part) {
+        var strip = document.querySelector('.thumb-strip[data-part="' + part + '"]');
+        if (!strip) return;
+        var val = state[part];
+        var activeBtn = null;
+        strip.querySelectorAll('.thumb-btn').forEach(function (b) {
+          var on = b.dataset.value === val;
+          b.classList.toggle('active', on);
+          if (on) activeBtn = b;
+        });
+        var label = document.querySelector('[data-val-for="' + part + '"]');
+        if (label) label.textContent = val;
+        if (scroll && activeBtn) {
+          // horizontal scroll: center the active thumb in its strip
+          var offset = activeBtn.offsetLeft - (strip.clientWidth / 2) + (activeBtn.offsetWidth / 2);
+          strip.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+        }
+      });
+    }
+
+    function applyAll(scrollToActive) {
+      var url = buildUrl();
+      $$('#builder-section img.char-preview').forEach(function (img) { img.src = url; });
+      $$('#builder-anim img.gesture-frame').forEach(function (img) {
+        img.src = buildUrl({ gesture: img.getAttribute('data-gesture') });
+      });
+      $('#b-url').textContent = decodeURIComponent(url);
+      refreshThumbSelection(scrollToActive);
+      // update tab value labels
+      Object.keys(PARTS).forEach(function (part) {
+        var el = document.querySelector('[data-tab-val="' + part + '"]');
+        if (el) el.textContent = state[part];
+      });
+    }
+
+    // Part tab accordion
+    document.getElementById('part-tabs').addEventListener('click', function (e) {
+      var tab = e.target.closest('.part-tab');
+      if (!tab) return;
+      var target = tab.dataset.target;
+      $$('.part-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      $$('#builder-controls .part-row').forEach(function (r) { r.classList.remove('open'); });
+      var strip = document.querySelector('.thumb-strip[data-part="' + target + '"]');
+      if (strip) strip.closest('.part-row').classList.add('open');
+    });
+
+    // thumb click delegation
+    document.getElementById('builder-controls').addEventListener('click', function (e) {
+      var btn = e.target.closest('.thumb-btn');
+      if (!btn) return;
+      var strip = btn.closest('.thumb-strip');
+      if (!strip) return;
+      var part = strip.dataset.part;
+      state[part] = btn.dataset.value;
+      applyAll();
+    });
+
+    // seed input
+    $('#b-seed').addEventListener('input', function () {
+      state.seed = $('#b-seed').value || 'Kai';
+      applyAll();
+    });
+
+    // background swatches
+    $$('#b-swatches button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        $$('#b-swatches button').forEach(function (x) { x.classList.remove('active'); });
+        b.classList.add('active');
+        state.backgroundColor = b.getAttribute('data-color') || '';
+        applyAll();
+      });
+    });
+
+    // 🎲 random seed
+    $('#b-random').addEventListener('click', function () {
+      var s = Math.random().toString(36).slice(2, 10);
+      $('#b-seed').value = s;
+      state.seed = s;
+      applyAll();
+    });
+
+    // reset
+    $('#b-reset').addEventListener('click', function () {
+      state = {
+        seed: 'Kai', backgroundColor: 'ff7a59',
+        body: 'variant05', gesture: 'handPhone',
+        hair: 'auto', brows: 'auto', eyes: 'auto', nose: 'auto', lips: 'auto',
+        beard: 'off', glasses: 'off',
+      };
+      $('#b-seed').value = 'Kai';
+      $$('#b-swatches button').forEach(function (x) { x.classList.remove('active'); });
+      $$('#b-swatches button')[0].classList.add('active');
+      applyAll();
+    });
+
+    // copy URL
+    $('#b-copy').addEventListener('click', function () {
+      var url = buildUrl();
+      navigator.clipboard.writeText(url).then(function () {
+        $('#b-copy-status').textContent = '已複製 ✓';
+        setTimeout(function () { $('#b-copy-status').textContent = ''; }, 1800);
+      });
+    });
+
+    // animation cycle for the tile-13 frame
+    (function () {
+      var frames = $$('#builder-anim .gesture-frame');
+      if (!frames.length) return;
+      var i = 0;
+      setInterval(function () {
+        i = (i + 1) % frames.length;
+        frames.forEach(function (el, idx) { el.classList.toggle('on', idx === i); });
+      }, 2000);
+    })();
+
+    // initial render — scroll active thumbs into view after slight delay (so layout settles)
+    applyAll();
+    setTimeout(function () { refreshThumbSelection(true); }, 300);
+  })();
+
+  // mixer select
+  (function () {
+    var sel = document.getElementById('mix-look');
+    if (!sel) return;
+    var imgs = document.querySelectorAll('#mix-preview img');
+    sel.addEventListener('change', function () {
+      var k = sel.value;
+      imgs.forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-key') === k); });
+    });
+  })();
+</script>
+<footer>
+  所有頭像以 <code>https://api.dicebear.com/7.x/open-peeps/svg?seed=&lt;任意字串&gt;</code> 即可取得。可加上 <code>backgroundColor</code> / <code>backgroundType</code> / <code>radius</code> / <code>flip</code> 等參數。
+  <br>
+  返回 <a href="/">主應用</a>
+</footer>
+
+</body>
+</html>

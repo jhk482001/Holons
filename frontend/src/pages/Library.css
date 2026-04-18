@@ -1,0 +1,226 @@
+/* Library (Skill / Tool / MCP / 知識庫) grid + card styling. */
+
+.library-page {
+  /* room for detail modal */
+}
+
+.library-empty {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 50px 20px;
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 13px;
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.library-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.library-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(60, 45, 20, 0.08);
+}
+.library-card.disabled {
+  opacity: 0.55;
+}
+
+.library-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.library-card-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.library-card-desc {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.library-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-3);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.library-toggle input {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.library-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 8px;
+}
+.library-stat {
+  text-align: center;
+}
+.library-stat-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+.library-stat-label {
+  font-size: 9px;
+  color: var(--ink-4);
+  margin-top: 4px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.library-card-last {
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+.library-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  gap: 10px;
+}
+
+.library-cred-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* Detail modal */
+.library-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.library-detail-label {
+  font-size: 10px;
+  color: var(--ink-4);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.library-detail-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-top: 4px;
+  line-height: 1;
+}
+.library-detail-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.library-detail-section h4 {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 10px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.library-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 60px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 4px;
+}
+.library-chart-bar {
+  flex: 1;
+  background: var(--accent);
+  min-height: 1px;
+  border-radius: 1px;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.library-chart-bar:hover {
+  opacity: 1;
+}
+
+.library-grant-list, .library-audit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.library-grant-list li, .library-audit-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.library-audit-action {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 60px;
+  text-align: center;
+}
+.library-audit-time {
+  font-size: 10px;
+  color: var(--ink-4);
+}

@@ -1,0 +1,149 @@
+.notif-bell-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.notif-bell-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.notif-bell-btn:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.notif-bell-count {
+  margin-left: auto;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.notif-dropdown {
+  width: 340px;
+  max-height: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: notif-in 0.15s ease;
+}
+/* Portaled dropdown sits above every other UI layer */
+.notif-dropdown-portal {
+  z-index: 9999;
+}
+@keyframes notif-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.notif-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.notif-head-sub {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.notif-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+.notif-list::-webkit-scrollbar { width: 6px; }
+.notif-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.notif-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 12px;
+}
+
+.notif-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 2px;
+  background: var(--surface);
+  transition: background 0.15s;
+}
+.notif-row:hover {
+  background: var(--surface-hover);
+}
+.notif-row.notif-unread {
+  background: var(--accent-soft);
+}
+
+.notif-severity {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.notif-main {
+  flex: 1;
+  min-width: 0;
+}
+.notif-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.notif-body {
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+.notif-go {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.notif-go:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateX(2px);
+}

@@ -1,0 +1,15 @@
+.avatar-round {
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: block;
+  border: 1px solid rgba(60, 45, 20, 0.08);
+}
+.avatar-round img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  /* The SVG viewBox already crops to the head, so no object-position
+     offset is needed. */
+}

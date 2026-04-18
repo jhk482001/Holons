@@ -1,0 +1,1128 @@
+.dc {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 55% at 10% 15%, #ffe5cc 0%, transparent 55%),
+    radial-gradient(ellipse 65% 60% at 90% 25%, #d4e3f4 0%, transparent 55%),
+    linear-gradient(180deg, #f7f1e8 0%, #ede6d8 100%);
+}
+
+/* Thread toggle */
+.thread-toggle {
+  position: fixed;
+  top: 24px;
+  left: 244px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px 9px 13px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(235, 229, 212, 0.9);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+  box-shadow: var(--shadow-md);
+}
+.thread-toggle:hover { background: white; }
+.thread-toggle .count {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.thread-panel {
+  position: fixed;
+  top: 72px;
+  left: 244px;
+  width: 260px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(235, 229, 212, 0.9);
+  border-radius: 18px;
+  padding: 14px 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 19;
+}
+.thread-panel h4 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--ink-3);
+  font-weight: 800;
+  padding: 6px 12px 10px;
+}
+.thread-item {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+.thread-item:hover { background: var(--surface-hover); }
+.thread-item.active {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Stage — fills the whole dc; cast is positioned absolute at bottom.
+   Bottom padding follows the user-controlled --cast-size + breathing room. */
+.stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 40px calc(var(--cast-size, 240px) + 80px);
+  min-height: 0;
+  transition: padding-bottom 0.18s ease;
+}
+
+/* Focus lane — the bubble column + composer, fixed centered in the stage. */
+.focus-lane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 740px;
+  min-height: 0;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  padding: 30px 4px 16px;
+  min-height: 0;
+  scroll-behavior: smooth;
+  /* Push content to the bottom by making the first child glue to bottom */
+}
+.messages > *:first-child { margin-top: auto; }
+.messages::-webkit-scrollbar { width: 6px; }
+.messages::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.empty {
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 13px;
+  padding: 60px 20px;
+}
+
+.bubble {
+  max-width: 560px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(220, 212, 192, 0.7);
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(60, 45, 20, 0.04), 0 12px 28px rgba(60, 45, 20, 0.08);
+  position: relative;
+  animation: bubble-in 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@keyframes bubble-in {
+  0% { opacity: 0; transform: translateY(12px) scale(0.96); }
+  100% { opacity: 1; transform: none; }
+}
+.bubble.bot { align-self: flex-start; border-top-left-radius: 8px; }
+.bubble.wide { max-width: 640px; }
+.bubble.bot::before {
+  content: "";
+  position: absolute; left: 24px; bottom: -12px;
+  width: 0; height: 0;
+  border-top: 13px solid rgba(220, 212, 192, 0.7);
+  border-left: 5px solid transparent;
+  border-right: 15px solid transparent;
+}
+.bubble.bot::after {
+  content: "";
+  position: absolute; left: 25px; bottom: -10px;
+  width: 0; height: 0;
+  border-top: 12px solid rgba(255, 255, 255, 0.98);
+  border-left: 4px solid transparent;
+  border-right: 14px solid transparent;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--accent), #ff8b6d);
+  color: white;
+  border-color: transparent;
+  border-top-right-radius: 8px;
+  box-shadow: 0 2px 6px rgba(255, 122, 89, 0.18), 0 12px 28px rgba(255, 122, 89, 0.22);
+}
+.bubble.user::after {
+  content: "";
+  position: absolute; right: 24px; bottom: -10px;
+  width: 0; height: 0;
+  border-top: 12px solid #ff7a59;
+  border-left: 14px solid transparent;
+  border-right: 4px solid transparent;
+}
+.bubble .content { white-space: pre-wrap; word-break: break-word; }
+
+/* Markdown rendering inside bubbles */
+.bubble .content.markdown { white-space: normal; }
+.bubble .content.markdown > * { margin: 0; }
+.bubble .content.markdown > * + * { margin-top: 8px; }
+.bubble .content.markdown p { line-height: 1.7; }
+.bubble .content.markdown h1,
+.bubble .content.markdown h2,
+.bubble .content.markdown h3,
+.bubble .content.markdown h4 {
+  font-weight: 800;
+  line-height: 1.4;
+  margin-top: 14px;
+  color: var(--ink);
+}
+.bubble .content.markdown h1 { font-size: 18px; }
+.bubble .content.markdown h2 { font-size: 16px; }
+.bubble .content.markdown h3 { font-size: 15px; }
+.bubble .content.markdown h4 { font-size: 14px; }
+.bubble .content.markdown strong { font-weight: 800; }
+.bubble .content.markdown em { font-style: italic; }
+.bubble .content.markdown ul,
+.bubble .content.markdown ol {
+  padding-left: 22px;
+}
+.bubble .content.markdown li { margin: 3px 0; }
+.bubble .content.markdown li > p { display: inline; }
+.bubble .content.markdown code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(60, 45, 20, 0.08);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.bubble .content.markdown pre {
+  background: rgba(60, 45, 20, 0.06);
+  border: 1px solid rgba(60, 45, 20, 0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.bubble .content.markdown pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+.bubble .content.markdown blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 4px 12px;
+  background: var(--accent-soft);
+  color: var(--ink-2);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+}
+.bubble .content.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.bubble .content.markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.bubble .content.markdown table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bubble .content.markdown th,
+.bubble .content.markdown td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.bubble .content.markdown th {
+  background: rgba(60, 45, 20, 0.06);
+  font-weight: 800;
+}
+/* User bubble (white-on-orange) needs lighter borders for tables/code */
+.bubble.user .content.markdown code,
+.bubble.user .content.markdown pre {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+.bubble.user .content.markdown a { color: white; }
+.bubble.user .content.markdown blockquote {
+  background: rgba(255, 255, 255, 0.12);
+  border-left-color: white;
+  color: white;
+}
+.bubble.user .content.markdown table {
+  background: rgba(255, 255, 255, 0.1);
+}
+.bubble.user .content.markdown th,
+.bubble.user .content.markdown td {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.bubble.user .content.markdown th { background: rgba(255, 255, 255, 0.18); }
+.bubble .meta { font-size: 10px; color: var(--ink-4); margin-top: 8px; }
+.bubble.user .meta { color: rgba(255,255,255,0.72); text-align: right; }
+.bubble .wf-hint {
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-top: 10px;
+  font-weight: 600;
+}
+.bubble.loading {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+/* ===== Run status card (rendered inside a bubble for run_event messages) ===== */
+.bubble.run-event {
+  background: white;
+  border-color: rgba(220, 212, 192, 0.9);
+  padding: 0;
+  overflow: hidden;
+  width: 380px;
+  max-width: 100%;
+}
+.run-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 14px;
+}
+.run-status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.run-status-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.run-status-card .spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 122, 89, 0.3);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.run-status-pill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+.run-status-pill.active { background: var(--accent-soft); color: var(--accent); }
+.run-status-pill.done { background: var(--good-soft); color: var(--good); }
+.run-status-pill.error { background: var(--danger-soft); color: var(--danger); }
+.run-status-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.run-status-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  min-width: 0;
+}
+.run-status-stats strong {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.run-status-link {
+  align-self: flex-end;
+  padding: 7px 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.run-status-link:hover { background: var(--accent-hover); }
+.run-status-card.active { border-left: 3px solid var(--accent); }
+.run-status-card.done { border-left: 3px solid var(--good); }
+.run-status-card.error { border-left: 3px solid var(--danger); }
+
+/* Composer — last child of focus-lane */
+.composer {
+  flex-shrink: 0;
+  margin: 12px auto 0;
+  width: 600px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(220, 212, 192, 0.7);
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(60, 45, 20, 0.04), 0 16px 36px rgba(60, 45, 20, 0.10);
+  z-index: 3;
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(60, 45, 20, 0.04), 0 16px 36px rgba(60, 45, 20, 0.10), 0 0 0 4px var(--accent-soft);
+}
+.composer textarea {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 4px 0;
+  font-family: inherit;
+  resize: none;
+  min-height: 22px;
+  max-height: 140px;
+  line-height: 1.5;
+}
+.composer textarea::placeholder { color: var(--ink-4); }
+.composer .icon-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.composer .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+.composer .send {
+  padding: 9px 18px;
+  background: var(--accent);
+  color: white;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  margin-left: 2px;
+}
+.composer .send:hover:not(:disabled) { background: var(--accent-hover); }
+.composer .send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Cast row — absolute-positioned at bottom of stage, overlaps the messages
+   area via z-index so vertical space is reclaimed. */
+.cast {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 96px 32px 16px 32px;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+.cast-row {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  align-items: flex-end;
+  /* Reserve just enough headroom for the hover icon cluster (top -22 + arc
+     -5) plus the -6px hover lift. No growth on active anymore, so we don't
+     need the old 100px reservation — that was the source of the big empty
+     strip above the cast. */
+  padding-top: 44px;
+  margin-top: -44px;
+  pointer-events: auto;
+}
+.cast-row::-webkit-scrollbar { display: none; }
+
+.cast-member {
+  flex-shrink: 0;
+  width: calc(var(--cast-size, 260px) * 0.685);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  transform-origin: bottom center;
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1),
+    width 0.18s ease;
+  padding: 8px 0;
+}
+/* Hover lifts the member slightly; active state uses glow + non-active
+   dimming (see `.cast-member.active .bust::before` and
+   `.has-active .cast-member:not(.active) .bust img`) as its highlight, so
+   it no longer grows or translates up — that was creating a lot of empty
+   space above the cast row. */
+.cast-member:hover { z-index: 2; }
+.cast-member.active { z-index: 3; }
+
+/* (Old .ping-badge replaced by a small dot on the chat action icon — see
+   .cast-action-btn .chat-ping below.) Kept .has-ping as a tiny attention
+   bob so users notice without cluttering the cast with a big pill. */
+.cast-member.has-ping {
+  animation: cast-attention 2.4s ease-in-out infinite;
+}
+@keyframes cast-attention {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.cast-member.has-ping:hover { animation: none; }
+
+/* Hover icon row above the bust — calendar / chat / settings.
+   Floats above the bust in a subtle arc (chat icon raised). Only visible
+   on hover (not when active — the size change already signals selection). */
+.cast-actions {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  z-index: 11;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.cast-member:hover .cast-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+/* Arc shape: side icons sit slightly lower, middle icon lifts higher.
+   Stored as a CSS variable so it composes with the :hover scale below. */
+.cast-actions > :nth-child(1) { --arc-y: 3px; }
+.cast-actions > :nth-child(2) { --arc-y: -5px; }
+.cast-actions > :nth-child(3) { --arc-y: 3px; }
+.cast-action-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transform: translateY(var(--arc-y, 0));
+  transition: color 0.15s, transform 0.15s, filter 0.15s;
+  filter: drop-shadow(0 1px 2px rgba(60, 45, 20, 0.25));
+}
+.cast-action-btn:hover {
+  color: var(--accent);
+  transform: translateY(var(--arc-y, 0)) scale(1.18);
+  filter:
+    drop-shadow(0 0 4px rgba(255, 122, 89, 0.5))
+    drop-shadow(0 0 10px rgba(255, 122, 89, 0.35));
+}
+.cast-action-btn.is-active {
+  color: var(--accent);
+  filter:
+    drop-shadow(0 0 4px rgba(255, 122, 89, 0.65))
+    drop-shadow(0 0 10px rgba(255, 122, 89, 0.45));
+}
+/* Red ping dot on the chat icon when there are pending Lead messages */
+.cast-action-btn .chat-ping {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px white, 0 1px 4px rgba(232, 100, 80, 0.6);
+  animation: chat-ping-pulse 1.6s ease-in-out infinite;
+}
+@keyframes chat-ping-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.25); }
+}
+
+/* Shared focus-lane panel base — same flex slot as .messages, scrolls
+   internally when content overflows. Used by Calendar and Settings tabs. */
+.focus-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 4px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.focus-panel::-webkit-scrollbar { width: 6px; }
+.focus-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* Two-column layout inside the settings tab: avatar+name sidebar | editor */
+.settings-tab-layout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.settings-tab-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 4px 12px;
+}
+.settings-side-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.18s, transform 0.18s;
+}
+.settings-side-avatar:hover {
+  border-color: var(--accent);
+  transform: scale(1.04);
+}
+.settings-side-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.settings-side-name {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  min-height: 28px;
+}
+.settings-side-name .name-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+.settings-side-name input {
+  font: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: white;
+  outline: none;
+  width: 150px;
+  text-align: center;
+}
+.name-edit-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ink-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.name-edit-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.settings-side-role {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* Settings panel head: sub-tabs on the left + open-full-page button right */
+.settings-tab-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.cast-settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  width: fit-content;
+}
+.cast-settings-tabs button {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cast-settings-tabs button:hover { color: var(--ink); }
+.cast-settings-tabs button.active {
+  background: var(--accent);
+  color: white;
+}
+
+/* Agent tools editor (settings → 工具 sub-tab) */
+.agent-tools-editor {
+  padding: 4px 4px 16px;
+}
+.agent-tools-editor .tools-help {
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.7;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.agent-tools-editor .empty-card {
+  padding: 30px 20px;
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.agent-tools-editor .tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-tools-editor .tool-row {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.agent-tools-editor .tool-row:hover {
+  border-color: var(--accent-line);
+}
+.agent-tools-editor .tool-row.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.agent-tools-editor .tool-row input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.agent-tools-editor .tool-main {
+  min-width: 0;
+}
+.agent-tools-editor .tool-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+.agent-tools-editor .tool-desc {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 3px;
+  line-height: 1.6;
+}
+.agent-tools-editor .tools-section-h {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 18px 0 8px;
+}
+
+/* MCP server list */
+.mcp-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.mcp-row.off { opacity: 0.55; }
+.mcp-main { flex: 1; min-width: 0; }
+.mcp-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcp-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.mcp-url {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcp-probe {
+  font-size: 10px;
+  margin-top: 4px;
+  font-weight: 700;
+}
+.mcp-probe.ok { color: var(--good); }
+.mcp-probe.err { color: var(--danger); }
+.mcp-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.mcp-add-form {
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  margin-top: 6px;
+}
+.mcp-add-form .modal-field { margin-bottom: 10px; }
+
+/* Calendar tab — runs + threads list (lives inside .focus-panel) */
+.calendar-tab {
+  padding: 24px 4px 16px;
+}
+.calendar-tab h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-3);
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.calendar-tab .empty-card {
+  padding: 30px 20px;
+  text-align: center;
+  color: var(--ink-4);
+  font-size: 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.calendar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.calendar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.calendar-row:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.calendar-row.thread-row {
+  cursor: default;
+}
+.calendar-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.calendar-row-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calendar-row-meta {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 3px;
+}
+.calendar-pill {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.calendar-pill.run-running, .calendar-pill.run-queued { background: var(--accent-soft); color: var(--accent); }
+.calendar-pill.run-done { background: var(--good-soft); color: var(--good); }
+.calendar-pill.run-error, .calendar-pill.run-failed { background: var(--danger-soft); color: var(--danger); }
+.cast-member:hover { transform: translateY(-6px); }
+
+.cast-member .bust {
+  width: calc(var(--cast-size, 260px) * 0.685);
+  height: var(--cast-size, 260px);
+  position: relative;
+  padding-top: 24px;
+  margin-top: -24px;
+  transition: width 0.18s ease, height 0.18s ease;
+}
+.cast-member .bust img {
+  width: 100%;
+  height: calc(100% - 24px);
+  object-fit: contain;
+  object-position: center top;
+  transition: opacity 0.25s ease, filter 0.25s ease;
+  position: relative;
+  z-index: 1;
+}
+
+/* Active member: dim non-active busts slightly to draw the eye. */
+.has-active .cast-member:not(.active) .bust img {
+  opacity: 0.55;
+  filter: saturate(0.5);
+}
+
+/* ===== Resize handle (left edge of cast, vertically centered on the bust) ===== */
+.cast-resize-handle {
+  position: absolute;
+  left: 16px;
+  /* Center on the bust: 16px bottom padding + half of bust height − half of
+     handle (16px) */
+  bottom: calc(16px + var(--cast-size, 260px) / 2 - 16px);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  pointer-events: auto;
+  z-index: 6;
+  box-shadow: 0 2px 6px rgba(60, 45, 20, 0.08);
+  transition:
+    color 0.15s,
+    transform 0.15s,
+    border-color 0.15s,
+    bottom 0.18s ease;
+}
+.cast-resize-handle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+.cast-resize-handle:active {
+  cursor: grabbing;
+  transform: scale(0.96);
+}
+
+/* ===== Badge mode (very small bust → circular head badge) =====
+   Force the bust into a square so border-radius:50% renders a true circle
+   instead of the natural 0.685 aspect ellipse. Cast member width matches
+   so the head badge is centered. */
+.dc.badge-mode .cast-member {
+  width: var(--cast-size, 130px);
+}
+.dc.badge-mode .cast-member .bust {
+  width: var(--cast-size, 130px);
+  height: var(--cast-size, 130px);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  padding-top: 0;
+  margin-top: 0;
+}
+.dc.badge-mode .cast-member.active .bust {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dc.badge-mode .cast-member .bust img {
+  width: 180% !important;
+  height: 180% !important;
+  object-fit: cover !important;
+  object-position: center 18% !important;
+  margin-left: -40%;
+  margin-top: -10%;
+}
+.dc.badge-mode .cast-member .bust::before {
+  display: none;
+}
+.dc.badge-mode .cast-member .info {
+  margin-top: 4px;
+}
+.dc.badge-mode .cast-member .name {
+  font-size: 11px;
+}
+.dc.badge-mode .cast-member .role-line {
+  display: none;
+}
+
+/* Glow is a bounded radial that stays INSIDE the bust padding-area. Every
+   cast member can get one; Lead has a subtle always-on glow. */
+.cast-member .bust::before {
+  content: "";
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.25s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+.cast-member.lead .bust::before {
+  background: radial-gradient(circle, rgba(255, 122, 89, 0.22) 0%, rgba(255, 122, 89, 0.05) 45%, transparent 72%);
+}
+.cast-member.active .bust::before {
+  background: radial-gradient(circle, rgba(255, 122, 89, 0.5) 0%, rgba(255, 122, 89, 0.15) 45%, transparent 72%);
+}
+
+.cast-member .info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: -6px;
+  position: relative;
+  z-index: 2;
+}
+.cast-member .name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cast-member .name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.cast-member.lead .name { color: var(--accent); }
+.cast-member .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-dot.online { background: var(--good); }
+.status-dot.busy { background: var(--danger); }
+.status-dot.off { background: var(--ink-4); }
+.status-dot.warn { background: var(--warn); }
+.cast-member .role-line {
+  font-size: 10px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.action-cluster {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px) saturate(180%);
+  border: 1px solid rgba(220, 212, 192, 0.85);
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(60, 45, 20, 0.06), 0 14px 30px rgba(60, 45, 20, 0.12);
+  white-space: nowrap;
+}
+.action-cluster button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.action-cluster button:hover { background: var(--accent-soft); color: var(--accent); }

@@ -1,0 +1,10 @@
+flask==3.0.3
+flask-cors==4.0.1
+boto3==1.34.144
+mysql-connector-python==9.0.0
+python-dotenv==1.0.1
+werkzeug==3.0.3
+
+# v2 (Postgres migration) — not yet used by running code
+psycopg[binary]==3.2.1
+pgvector==0.3.0

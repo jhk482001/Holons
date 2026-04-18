@@ -1,0 +1,82 @@
+# ============================================================================
+# Secrets & environment — NEVER commit these
+# ============================================================================
+env.config
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
+!*.example
+
+# ============================================================================
+# Python
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ============================================================================
+# Node / Frontend
+# ============================================================================
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+desktop/dist/
+desktop/.vite/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ============================================================================
+# Rust / Tauri
+# ============================================================================
+target/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
+# ============================================================================
+# User uploads (runtime-generated content)
+# ============================================================================
+static/uploads/*
+!static/uploads/.gitkeep
+
+# ============================================================================
+# OS / editor junk
+# ============================================================================
+.DS_Store
+._*
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# Logs & temp files
+# ============================================================================
+*.log
+logs/
+tmp/
+.tmp/
+dist/
+desktop/src-tauri/sidecar/
+*.spec
+build_output/
+# PyInstaller intermediate output (the shell scripts under build/ stay tracked).
+build/agent-company-backend/

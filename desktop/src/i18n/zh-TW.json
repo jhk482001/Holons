@@ -1,0 +1,61 @@
+{
+  "setup": {
+    "title": "Holons",
+    "subtitle": "選擇使用方式",
+    "enterprise": "企業版",
+    "enterpriseDesc": "連線到公司的伺服器",
+    "personal": "個人版",
+    "personalDesc": "全部在這台 Mac 上運行",
+    "back": "上一步",
+    "connect": "連線",
+    "testing": "測試中…",
+    "start": "開始",
+    "retry": "重試",
+    "ready": "就緒！",
+    "enterpriseTitle": "企業版設定",
+    "enterpriseHint": "輸入 Holons 伺服器網址",
+    "personalTitle": "個人版設定",
+    "personalHint": "在這台 Mac 上啟動本機後端,無需伺服器。",
+    "personalBody": "這會在你的 Mac 啟動一個輕量級後端,用來管理你的 agents、工作流程與對話紀錄,所有資料留在本機。",
+    "starting": "正在啟動本機後端…",
+    "errTimeout": "連線逾時 — 請檢查網址與網路",
+    "errCannotConnect": "無法連線: {{message}}",
+    "errServerStatus": "伺服器回傳 {{status}}",
+    "errStartTimeout": "後端 30 秒內未啟動",
+    "errStartFailed": "無法啟動本機後端"
+  },
+  "login": {
+    "title": "Holons",
+    "subtitle": "登入以繼續",
+    "username": "使用者名稱",
+    "password": "密碼",
+    "submit": "登入",
+    "submitting": "登入中…",
+    "genericError": "登入失敗",
+    "noToken": "登入成功但未收到 token",
+    "unexpectedResponse": "未預期回應 {{status}} ({{ct}}): {{body}}"
+  },
+  "dialog": {
+    "faceRight": "→ 面向右邊",
+    "faceLeft": "← 面向左邊",
+    "hide": "隱藏此角色",
+    "actionLog": "紀錄",
+    "actionChat": "對話",
+    "actionSettings": "設定",
+    "composerPlaceholder": "對 {{name}} 說話…",
+    "settings": "設定",
+    "log": "紀錄",
+    "name": "名稱",
+    "role": "職稱",
+    "status": "狀態",
+    "model": "模型",
+    "description": "描述",
+    "settingsHint": "完整設定請至 Web 版 → 員工 → {{name}}",
+    "noRuns": "此 agent 尚無執行紀錄。",
+    "logHint": "完整紀錄請至 Web 版 → 紀錄"
+  },
+  "common": {
+    "language": "語言",
+    "startingBackend": "正在啟動本機後端…"
+  }
+}

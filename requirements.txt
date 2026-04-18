@@ -8,3 +8,7 @@ werkzeug==3.0.3
 # v2 (Postgres migration) — not yet used by running code
 psycopg[binary,pool]==3.2.1
 pgvector==0.3.0
+
+# Used by backend.services.asset_crypto (Fernet) to encrypt
+# MCP / RAG connection credentials at rest.
+cryptography>=41,<46

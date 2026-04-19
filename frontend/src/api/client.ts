@@ -178,6 +178,14 @@ export interface Notification {
   action_payload?: Record<string, unknown> | null;
 }
 
+export interface HireProposal {
+  name: string;
+  role_title: string;
+  description?: string;
+  system_prompt: string;
+  rationale?: string;
+}
+
 export interface LeadMessage {
   id: number;
   role: "user" | "lead" | "system";
@@ -190,6 +198,10 @@ export interface LeadMessage {
     run_id?: number;
     workflow_id?: number;
     workflow_name?: string;
+    // Lead-proposed hire (parsed from ```hire``` block in Lead's reply)
+    proposed_hire?: HireProposal;
+    // Set after the user accepts the proposal — the created agent's id
+    hired_agent_id?: number;
   } | null;
 }
 
@@ -450,6 +462,9 @@ export type LeadChatResponse = {
   thread_id: string;
   response: string;
   proposed_workflow: unknown;
+  proposed_workflow_id?: number | null;
+  proposed_hire?: HireProposal | null;
+  proposed_hire_message_id?: number | null;
   cost_usd: number;
   tokens: number;
 };
@@ -486,6 +501,14 @@ export const LeadAPI = {
   },
   archive: (thread_id: string) => api.post<{ ok: true }>(`/lead/threads/${thread_id}/archive`),
   pendingCount: () => api.get<{ count: number }>("/lead/pending_count"),
+  acceptHire: (
+    message_id: number,
+    overrides?: Partial<HireProposal>,
+  ) =>
+    api.post<{ agent_id: number; name: string; role_title: string }>(
+      `/lead/hire_proposals/${message_id}/accept`,
+      overrides ?? {},
+    ),
 };
 
 export const NotificationsAPI = {

@@ -17,22 +17,29 @@ from __future__ import annotations
 SQLITE_DDL = [
     """
     CREATE TABLE IF NOT EXISTS as_users (
-        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-        username           TEXT UNIQUE NOT NULL,
-        password_hash      TEXT NOT NULL,
-        display_name       TEXT,
-        role               TEXT DEFAULT 'admin',
-        default_lead_agent_id INTEGER,
-        lead_proxy_enabled INTEGER DEFAULT 1,
+        id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id                  INTEGER,
+        username                   TEXT UNIQUE NOT NULL,
+        password_hash              TEXT NOT NULL,
+        display_name               TEXT,
+        role                       TEXT DEFAULT 'admin',
+        default_lead_agent_id      INTEGER,
+        max_total_queue_depth      INTEGER DEFAULT 5000,
+        escalation_policy          TEXT DEFAULT 'lead_first',
+        escalation_timeout_seconds INTEGER DEFAULT 600,
+        cast_order                 TEXT DEFAULT '[]',
+        last_cast_filter           TEXT DEFAULT '{"scope":"all","status":"all"}',
+        notification_prefs         TEXT DEFAULT '{}',
+        lead_proxy_enabled         INTEGER DEFAULT 1,
         lead_proxy_timeout_minutes INTEGER DEFAULT 10,
-        lead_proxy_away_minutes INTEGER DEFAULT 5,
-        last_seen_at       TEXT,
-        language           TEXT DEFAULT 'en',
-        lead_max_steps     INTEGER DEFAULT 10,
-        lead_max_tokens    INTEGER DEFAULT 50000,
-        cast_layout        TEXT DEFAULT '{}',
-        created_at         TEXT DEFAULT (datetime('now')),
-        updated_at         TEXT DEFAULT (datetime('now'))
+        lead_proxy_away_minutes    INTEGER DEFAULT 5,
+        last_seen_at               TEXT,
+        language                   TEXT DEFAULT 'en',
+        lead_max_steps             INTEGER DEFAULT 10,
+        lead_max_tokens            INTEGER DEFAULT 50000,
+        cast_layout                TEXT DEFAULT '{}',
+        created_at                 TEXT DEFAULT (datetime('now')),
+        updated_at                 TEXT DEFAULT (datetime('now'))
     )
     """,
     """
@@ -177,6 +184,11 @@ SQLITE_DDL = [
     "CREATE INDEX IF NOT EXISTS idx_project_events_project ON project_events(project_id, created_at DESC)",
     # Attribution columns on existing tables (SQLite swallows duplicate-column errors).
     "ALTER TABLE workflows ADD COLUMN max_review_iterations INTEGER DEFAULT 2",
+    # Source attribution: 'manual' / 'lead_generated' / 'imported'. Matches
+    # the Postgres CHECK constraint, just without enforcement on SQLite.
+    "ALTER TABLE workflows ADD COLUMN source TEXT DEFAULT 'manual'",
+    "ALTER TABLE workflows ADD COLUMN loop_prompt TEXT",
+    "ALTER TABLE workflows ADD COLUMN parent_workflow_id INTEGER REFERENCES workflows(id) ON DELETE SET NULL",
     "ALTER TABLE runs ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL",
     "ALTER TABLE run_steps ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL",
     "CREATE INDEX IF NOT EXISTS idx_runs_project ON runs(project_id, started_at DESC)",
@@ -215,16 +227,20 @@ SQLITE_DDL = [
     "CREATE INDEX IF NOT EXISTS idx_auto_topup_user_date ON auto_topup_events(user_id, event_date DESC)",
     """
     CREATE TABLE IF NOT EXISTS workflows (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id       INTEGER NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
-        name          TEXT NOT NULL,
-        description   TEXT,
-        is_template   INTEGER DEFAULT 0,
-        is_draft      INTEGER DEFAULT 0,
-        loop_enabled  INTEGER DEFAULT 0,
-        max_loops     INTEGER DEFAULT 1,
-        created_at    TEXT DEFAULT (datetime('now')),
-        updated_at    TEXT DEFAULT (datetime('now'))
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id                 INTEGER NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
+        name                    TEXT NOT NULL,
+        description             TEXT,
+        is_template             INTEGER DEFAULT 0,
+        is_draft                INTEGER DEFAULT 0,
+        loop_enabled            INTEGER DEFAULT 0,
+        max_loops               INTEGER DEFAULT 1,
+        max_review_iterations   INTEGER DEFAULT 2,
+        loop_prompt             TEXT,
+        source                  TEXT DEFAULT 'manual',
+        parent_workflow_id      INTEGER REFERENCES workflows(id) ON DELETE SET NULL,
+        created_at              TEXT DEFAULT (datetime('now')),
+        updated_at              TEXT DEFAULT (datetime('now'))
     )
     """,
     """
@@ -245,19 +261,23 @@ SQLITE_DDL = [
     """,
     """
     CREATE TABLE IF NOT EXISTS runs (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        workflow_id     INTEGER REFERENCES workflows(id) ON DELETE SET NULL,
-        user_id         INTEGER NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
-        initial_input   TEXT,
-        final_output    TEXT,
-        status          TEXT DEFAULT 'queued',
-        trigger_source  TEXT DEFAULT 'manual',
-        total_cost_usd  REAL DEFAULT 0,
-        total_tokens    INTEGER DEFAULT 0,
-        iteration       INTEGER DEFAULT 1,
-        started_at      TEXT DEFAULT (datetime('now')),
-        finished_at     TEXT,
-        created_at      TEXT DEFAULT (datetime('now'))
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        workflow_id           INTEGER REFERENCES workflows(id) ON DELETE SET NULL,
+        user_id               INTEGER NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
+        initial_input         TEXT,
+        final_output          TEXT,
+        status                TEXT DEFAULT 'queued',
+        started_at            TEXT DEFAULT (datetime('now')),
+        finished_at           TEXT,
+        total_input_tokens    INTEGER DEFAULT 0,
+        total_output_tokens   INTEGER DEFAULT 0,
+        total_cost_usd        REAL DEFAULT 0,
+        total_duration_ms     INTEGER DEFAULT 0,
+        iterations            INTEGER DEFAULT 1,
+        error_message         TEXT,
+        trigger_source        TEXT DEFAULT 'manual',
+        trigger_context       TEXT DEFAULT '{}',
+        project_id            INTEGER REFERENCES projects(id) ON DELETE SET NULL
     )
     """,
     """
@@ -269,7 +289,7 @@ SQLITE_DDL = [
         group_id        INTEGER,
         agent_id        INTEGER REFERENCES agents(id) ON DELETE SET NULL,
         role_label      TEXT,
-        prompt          TEXT,
+        prompt           TEXT,
         system_prompt   TEXT,
         response        TEXT,
         model_id        TEXT,
@@ -281,25 +301,30 @@ SQLITE_DDL = [
         error           TEXT,
         tool_calls      TEXT DEFAULT '[]',
         turn            INTEGER DEFAULT 0,
-        created_at      TEXT DEFAULT (datetime('now'))
+        started_at      TEXT DEFAULT (datetime('now')),
+        finished_at     TEXT,
+        project_id      INTEGER REFERENCES projects(id) ON DELETE SET NULL
     )
     """,
     """
     CREATE TABLE IF NOT EXISTS agent_tasks (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        agent_id        INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-        run_id          INTEGER REFERENCES runs(id) ON DELETE CASCADE,
-        step_id         INTEGER,
-        payload         TEXT NOT NULL,
-        status          TEXT DEFAULT 'queued',
-        priority        TEXT DEFAULT 'normal',
-        priority_num    INTEGER DEFAULT 5,
-        source          TEXT,
-        result          TEXT,
-        error           TEXT,
-        progress_snapshot TEXT,
-        started_at      TEXT,
-        created_at      TEXT DEFAULT (datetime('now'))
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id           INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        run_id             INTEGER REFERENCES runs(id) ON DELETE CASCADE,
+        step_id            INTEGER REFERENCES run_steps(id) ON DELETE SET NULL,
+        parent_task_id     INTEGER REFERENCES agent_tasks(id) ON DELETE SET NULL,
+        task_type          TEXT DEFAULT 'workflow_step',
+        priority           TEXT DEFAULT 'normal',
+        priority_num       INTEGER DEFAULT 2,
+        status             TEXT DEFAULT 'queued',
+        payload            TEXT NOT NULL,
+        result             TEXT,
+        error_message      TEXT,
+        progress_snapshot  TEXT,
+        source             TEXT,
+        started_at         TEXT,
+        finished_at        TEXT,
+        created_at         TEXT DEFAULT (datetime('now'))
     )
     """,
     """
@@ -386,14 +411,22 @@ SQLITE_DDL = [
     """,
     """
     CREATE TABLE IF NOT EXISTS agent_quotas (
-        id           INTEGER PRIMARY KEY AUTOINCREMENT,
-        agent_id     INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-        name         TEXT,
-        window       TEXT DEFAULT 'monthly',
-        max_cost_usd REAL,
-        max_tokens   INTEGER,
-        hard_limit   INTEGER DEFAULT 0,
-        created_at   TEXT DEFAULT (datetime('now'))
+        id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id                   INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        name                       TEXT,
+        window_type                TEXT DEFAULT 'monthly',
+        window_start               TEXT,
+        window_end                 TEXT,
+        max_tokens                 INTEGER,
+        max_tpm                    INTEGER,
+        max_rpm                    INTEGER,
+        max_cost_usd               REAL,
+        current_tokens             INTEGER DEFAULT 0,
+        current_cost_usd           REAL DEFAULT 0,
+        current_window_started_at  TEXT,
+        hard_limit                 INTEGER DEFAULT 1,
+        enabled                    INTEGER DEFAULT 1,
+        created_at                 TEXT DEFAULT (datetime('now'))
     )
     """,
     """
@@ -452,13 +485,12 @@ SQLITE_DDL = [
     """,
     """
     CREATE TABLE IF NOT EXISTS user_quotas (
-        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id            INTEGER NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
-        monthly_cost_limit REAL,
-        daily_cost_limit   REAL,
-        monthly_token_limit INTEGER,
-        daily_token_limit  INTEGER,
-        updated_at         TEXT DEFAULT (datetime('now'))
+        user_id                 INTEGER PRIMARY KEY REFERENCES as_users(id) ON DELETE CASCADE,
+        daily_token_limit       INTEGER,
+        daily_cost_limit_usd    REAL,
+        monthly_token_limit     INTEGER,
+        monthly_cost_limit_usd  REAL,
+        updated_at              TEXT DEFAULT (datetime('now'))
     )
     """,
     """

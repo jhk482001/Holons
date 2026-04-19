@@ -1,0 +1,121 @@
+.hire-bubble {
+  border: 1px solid var(--line-2, #e5e7eb);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 10px;
+  background: rgba(59, 130, 246, 0.04);
+  font-size: 13px;
+}
+.hire-bubble-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.hire-bubble-title {
+  flex: 1;
+  min-width: 0;
+}
+.hire-bubble-name strong {
+  font-size: 15px;
+}
+.hire-bubble-name input,
+.hire-bubble-role input {
+  font: inherit;
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: white;
+}
+.hire-bubble-role {
+  color: var(--ink-3, #6b7280);
+  font-size: 12px;
+}
+.hire-bubble-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.hire-bubble-desc {
+  color: var(--ink-2, #374151);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.hire-bubble-desc-edit {
+  width: 100%;
+  margin-bottom: 8px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  resize: vertical;
+}
+.hire-bubble-prompt {
+  margin: 8px 0;
+}
+.hire-bubble-prompt summary {
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.hire-bubble-prompt pre {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin: 0;
+}
+.hire-bubble-prompt textarea {
+  width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  resize: vertical;
+  background: white;
+}
+.hire-bubble-rationale {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+.hire-bubble-err {
+  color: #dc2626;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.hire-bubble-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Confirmation row after hire succeeds */
+.hire-bubble--done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #065f46;
+  padding: 8px 12px;
+}
+.hire-check {
+  color: #10b981;
+  font-weight: 700;
+  font-size: 16px;
+}

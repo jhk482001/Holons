@@ -40,6 +40,55 @@ LEAD_SYSTEM_PROMPT = """You are {user_name}'s personal work secretary, coordinat
 1. **Answer directly** — simple questions, quick decisions, small talk.
 2. When a task is complex, or the user asks you to "plan this out" or "orchestrate the work", **propose a workflow design**.
 3. When you detect resource conflicts (full queues, budget overrun, off-hours), **flag it proactively**.
+4. **Propose a new hire** — when the user explicitly asks you to hire / recruit / add someone, or when the team clearly lacks a specialty the current task needs. Emit a ```hire``` block (format below). The user reviews and can either hire with one click, tweak, or reject — the agent is NOT created until they approve.
+5. **Propose opening a project** — when the user says "open a project", "start a project", or when the task is a multi-phase / multi-agent / multi-day effort that needs a coordinator, a budget, and daily reports. Emit a ```project``` block (format below). Projects give the user a dashboard, cost attribution, and a daily coordinator report. The project is NOT created until the user approves.
+
+## When proposing a new hire
+
+Emit **exactly one** ```hire``` fenced code block per message. Draft a
+concrete profile — don't leave fields empty or ask the user to fill them
+in. Keep the `system_prompt` under ~250 words and written in the second
+person ("You are …"). If the user later asks for tweaks, reply with a
+fresh ```hire``` block reflecting the change.
+
+```hire
+{{
+  "name": "Maya",
+  "role_title": "Content Writer",
+  "description": "Long-form article writer with a journalistic tone. Good at explainers and narrative case studies.",
+  "system_prompt": "You are Maya, a senior content writer. Your job is to turn briefs into clear, well-structured long-form articles. Always open with a concrete hook, then thesis. Use headings every 300 words. Cite sources inline. Keep prose tight — no filler. Target reading level: well-informed layperson.",
+  "rationale": "Team currently has no dedicated writer; user asked for a content specialist"
+}}
+```
+
+**Rules:**
+
+- Only propose hires the user can reasonably afford — one or two at a time, not a dozen.
+- If a gap can be filled with an existing agent + a `system_prompt_override` inside a workflow node, prefer that (cheaper, reversible).
+- Never propose hiring **and** a workflow that uses the new hire in the same turn — the hire hasn't been approved yet. Ship the hire first, then on the user's "OK, now plan the work" follow-up, propose the workflow.
+- Avatar is chosen at hire time by the system; do NOT try to specify `avatar_config`.
+
+## When proposing a project
+
+Emit **exactly one** ```project``` block per message. Fields:
+
+```project
+{{
+  "name": "UI-Game Concept",
+  "goal": "Scope and design a web/Tauri game where software-engineering UIs are the core gameplay mechanic.",
+  "description": "Multi-phase: Phase 1 market research, Phase 2 concept iteration, Phase 3 prototype scoping.",
+  "member_agent_ids": [4, 5, 6, 7, 8],
+  "coordinator_agent_id": 1,
+  "rationale": "Multi-phase, multi-agent effort — a project gives cost attribution, daily reports, and a single page to track runs."
+}}
+```
+
+**Rules:**
+
+- `member_agent_ids` — every agent that will log work against this project. You (Lead, usually agent 1) can be omitted; the coordinator slot is separate.
+- `coordinator_agent_id` — defaults to Lead if unsure; pick another agent if the user designated a lead for this effort.
+- Don't propose a project **and** a workflow in the same message. Ship the project first, then propose the workflow for that project on the next turn.
+- Propose a project only when the work is big enough to justify one — a single one-off question doesn't need a project.
 
 ## When proposing a workflow
 
@@ -477,24 +526,33 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
 
     # Parse workflow proposal from response (if any)
     proposed = _extract_workflow_proposal(response_text)
+    proposed_hire = _extract_hire_proposal(response_text)
+    proposed_project = _extract_project_proposal(response_text)
 
     # If a workflow is proposed, persist as draft
     proposed_workflow_id = None
     if proposed:
         proposed_workflow_id = _persist_draft_workflow(user_id, proposed)
 
-    # Save lead's response
-    db.execute(
+    # Save lead's response — hire/project proposals ride in metadata (no
+    # extra tables; the dialog UI pulls them out and renders cards).
+    msg_metadata = {
+        "tokens": result.get("input_tokens", 0) + result.get("output_tokens", 0),
+        "cost_usd": float(result.get("cost_usd", 0)),
+        "model": result.get("model_id"),
+    }
+    if proposed_hire:
+        msg_metadata["proposed_hire"] = proposed_hire
+    if proposed_project:
+        msg_metadata["proposed_project"] = proposed_project
+    message_id = db.execute_returning(
         """
         INSERT INTO lead_messages
             (thread_id, role, content, proposed_workflow_id, metadata)
         VALUES (%s, 'lead', %s, %s, %s::jsonb)
+        RETURNING id
         """,
-        (thread_id, response_text, proposed_workflow_id, json.dumps({
-            "tokens": result.get("input_tokens", 0) + result.get("output_tokens", 0),
-            "cost_usd": float(result.get("cost_usd", 0)),
-            "model": result.get("model_id"),
-        })),
+        (thread_id, response_text, proposed_workflow_id, json.dumps(msg_metadata)),
     )
 
     # Update thread activity
@@ -508,6 +566,10 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         "response": response_text,
         "proposed_workflow": proposed,
         "proposed_workflow_id": proposed_workflow_id,
+        "proposed_hire": proposed_hire,
+        "proposed_hire_message_id": int(message_id) if proposed_hire else None,
+        "proposed_project": proposed_project,
+        "proposed_project_message_id": int(message_id) if proposed_project else None,
         "cost_usd": float(result.get("cost_usd", 0)),
         "tokens": result.get("input_tokens", 0) + result.get("output_tokens", 0),
     }
@@ -518,6 +580,8 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
 # ============================================================================
 
 WORKFLOW_BLOCK_RE = re.compile(r"```workflow\s*\n(.*?)\n```", re.DOTALL)
+HIRE_BLOCK_RE = re.compile(r"```hire\s*\n(.*?)\n```", re.DOTALL)
+PROJECT_BLOCK_RE = re.compile(r"```project\s*\n(.*?)\n```", re.DOTALL)
 
 
 def _extract_workflow_proposal(text: str) -> dict | None:
@@ -529,6 +593,75 @@ def _extract_workflow_proposal(text: str) -> dict | None:
         return json.loads(m.group(1))
     except json.JSONDecodeError:
         return None
+
+
+_HIRE_REQUIRED = ("name", "role_title", "system_prompt")
+
+def _extract_project_proposal(text: str) -> dict | None:
+    """Find a ```project``` block and return a dict suitable for the
+    POST /api/projects body. Requires at least a name + goal."""
+    m = PROJECT_BLOCK_RE.search(text)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = str(data.get("name") or "").strip()
+    goal = str(data.get("goal") or "").strip()
+    if not name or not goal:
+        return None
+    # Normalize member ids to a list of ints.
+    raw_members = data.get("member_agent_ids") or []
+    members: list[int] = []
+    for v in raw_members:
+        try:
+            members.append(int(v))
+        except Exception:
+            continue
+    coord = data.get("coordinator_agent_id")
+    try:
+        coord_id = int(coord) if coord is not None else None
+    except Exception:
+        coord_id = None
+    return {
+        "name": name[:200],
+        "goal": goal[:500],
+        "description": str(data.get("description") or "").strip()[:1000],
+        "member_agent_ids": members,
+        "coordinator_agent_id": coord_id,
+        "rationale": str(data.get("rationale") or "").strip()[:500],
+    }
+
+
+def _extract_hire_proposal(text: str) -> dict | None:
+    """Find a ```hire ...``` block and parse as JSON. Returns a proposal
+    dict with at least {name, role_title, system_prompt} or None.
+
+    Lead is instructed to fill every field — missing values are treated as
+    a malformed proposal and ignored (the user will see the surrounding
+    prose and can ask Lead to retry)."""
+    m = HIRE_BLOCK_RE.search(text)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if not all(str(data.get(k) or "").strip() for k in _HIRE_REQUIRED):
+        return None
+    # Sanity-clip lengths — Lead occasionally emits bloated prompts.
+    return {
+        "name": str(data["name"]).strip()[:64],
+        "role_title": str(data["role_title"]).strip()[:128],
+        "description": str(data.get("description") or "").strip()[:500],
+        "system_prompt": str(data["system_prompt"]).strip()[:4000],
+        "rationale": str(data.get("rationale") or "").strip()[:500],
+    }
 
 
 def _persist_draft_workflow(user_id: int, proposed: dict) -> int | None:
@@ -896,6 +1029,218 @@ def hot_stop_message(thread_id: str, message_id: int) -> None:
         "UPDATE lead_messages SET cancelled = TRUE WHERE id = %s AND thread_id = %s",
         (message_id, thread_id),
     )
+
+
+# ============================================================================
+# Hire proposal acceptance
+# ============================================================================
+
+def accept_hire_proposal(user_id: int, message_id: int,
+                          overrides: dict | None = None) -> dict:
+    """Materialise a Lead-proposed hire as a real agent.
+
+    The proposal lives in `lead_messages.metadata.proposed_hire`. We read
+    it, apply any admin tweaks (e.g. user renamed it in the bubble), and
+    create the agent via the same path as the manual create flow. Adds a
+    follow-up Lead message ("Hired Maya — available for assignment") so
+    the dialog thread tells a coherent story.
+
+    Returns the new agent row's minimal shape.
+    """
+    row = db.fetch_one(
+        """
+        SELECT m.thread_id, m.metadata, c.user_id AS thread_owner
+        FROM lead_messages m
+        JOIN lead_conversations c ON c.thread_id = m.thread_id
+        WHERE m.id = %s
+        """,
+        (message_id,),
+    )
+    if not row or row.get("thread_owner") != user_id:
+        raise ValueError("proposal not found")
+
+    meta = row.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            meta = {}
+    proposal = (meta or {}).get("proposed_hire") or {}
+    if not proposal:
+        raise ValueError("message carries no hire proposal")
+
+    # Merge in admin's edits from the Hire dialog (name / role / prompt
+    # tweaks before they click Confirm).
+    effective = {**proposal, **(overrides or {})}
+
+    import random as _random
+    avatar_bodies = ["ArmsCrossed", "BlazerBlackTee", "ButtonShirt", "Coffee",
+                      "DotJacket", "Explaining", "Geek", "Hoodie", "Shirt",
+                      "ShirtCoat", "SportyShirt", "Sweater", "Whatever"]
+    avatar_hairs = ["Bangs", "Bun", "Long", "LongBangs", "Medium", "MediumBangs",
+                     "Short", "ShortCurly", "ShortMessy", "ShortWavy"]
+    avatar_faces = ["Awe", "Calm", "Cheeky", "Cute", "Driven", "Explaining",
+                     "Serious", "Smile", "SmileBig", "SmileNM"]
+    avatar_config = {
+        "body": _random.choice(avatar_bodies),
+        "hair": _random.choice(avatar_hairs),
+        "face": _random.choice(avatar_faces),
+    }
+
+    # Pick the first model_client the user can use (same default rule as
+    # manual create_agent in backend/app.py).
+    from . import model_clients
+    clients = model_clients.list_for_user(user_id)
+    default_client = next(
+        (c for c in clients if c.get("default_for_new_users")),
+        clients[0] if clients else None,
+    )
+    model_client_id = default_client["id"] if default_client else None
+    primary_model_id = ""
+    if default_client:
+        raw = model_clients.get_raw(int(default_client["id"]))
+        models = ((raw or {}).get("config") or {}).get("models") or []
+        if models:
+            primary_model_id = models[0].get("id") or ""
+    if not primary_model_id:
+        primary_model_id = "jp.anthropic.claude-sonnet-4-6"
+
+    new_id = db.execute_returning(
+        """
+        INSERT INTO agents (user_id, owner_user_id, name, role_title, description,
+                            system_prompt, primary_model_id, avatar_config,
+                            model_client_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+        RETURNING id
+        """,
+        (
+            user_id, user_id,
+            effective["name"], effective["role_title"],
+            effective.get("description") or None,
+            effective["system_prompt"],
+            primary_model_id,
+            json.dumps(avatar_config),
+            model_client_id,
+        ),
+    )
+    # Start a worker so the new agent picks up tasks immediately.
+    try:
+        from .. import worker
+        worker.registry().start_agent(int(new_id))
+    except Exception as e:
+        log.warning("started agent but couldn't spawn worker: %s", e)
+
+    # Bake the accepted id into the original proposal message so replaying
+    # the thread later shows "hired" state (dialog UI reads this).
+    meta["hired_agent_id"] = int(new_id)
+    db.execute(
+        "UPDATE lead_messages SET metadata = %s::jsonb WHERE id = %s",
+        (json.dumps(meta), message_id),
+    )
+    # Append a system line to the thread so the user can see confirmation
+    # without having to refresh.
+    db.execute(
+        """INSERT INTO lead_messages (thread_id, role, content, metadata)
+           VALUES (%s, 'system', %s, %s::jsonb)""",
+        (
+            row["thread_id"],
+            f"✓ Hired **{effective['name']}** — {effective['role_title']}. "
+            f"Agent is active and ready for assignment.",
+            json.dumps({"hired_agent_id": int(new_id)}),
+        ),
+    )
+    db.execute(
+        "UPDATE lead_conversations SET updated_at = NOW() WHERE thread_id = %s",
+        (row["thread_id"],),
+    )
+    return {"agent_id": int(new_id), "name": effective["name"],
+             "role_title": effective["role_title"]}
+
+
+def accept_project_proposal(user_id: int, message_id: int,
+                              overrides: dict | None = None) -> dict:
+    """Materialise a Lead-proposed project. Creates the project row,
+    attaches members (default 100% allocation). Admin overrides can
+    rename, adjust members, or change the coordinator before accepting."""
+    row = db.fetch_one(
+        """
+        SELECT m.thread_id, m.metadata, c.user_id AS thread_owner
+        FROM lead_messages m
+        JOIN lead_conversations c ON c.thread_id = m.thread_id
+        WHERE m.id = %s
+        """,
+        (message_id,),
+    )
+    if not row or row.get("thread_owner") != user_id:
+        raise ValueError("proposal not found")
+
+    meta = row.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            meta = {}
+    proposal = (meta or {}).get("proposed_project") or {}
+    if not proposal:
+        raise ValueError("message carries no project proposal")
+
+    effective = {**proposal, **(overrides or {})}
+
+    pid = db.execute_returning(
+        """
+        INSERT INTO projects (user_id, name, description, goal, status, coordinator_agent_id)
+        VALUES (%s, %s, %s, %s, 'active', %s) RETURNING id
+        """,
+        (
+            user_id,
+            effective["name"],
+            effective.get("description") or None,
+            effective["goal"],
+            effective.get("coordinator_agent_id"),
+        ),
+    )
+    # Attach members — 100% allocation by default; user can fine-tune from
+    # the Project detail page.
+    # project_members has no unique key on (project, agent); since the
+    # project is freshly created here, simple inserts are safe.
+    seen: set[int] = set()
+    for aid in effective.get("member_agent_ids") or []:
+        aid_i = int(aid)
+        if aid_i in seen:
+            continue
+        seen.add(aid_i)
+        db.execute(
+            """INSERT INTO project_members (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
+               VALUES (%s, %s, %s, %s)""",
+            (pid, aid_i, 100.0, 100.0),
+        )
+
+    meta["created_project_id"] = int(pid)
+    db.execute(
+        "UPDATE lead_messages SET metadata = %s::jsonb WHERE id = %s",
+        (json.dumps(meta), message_id),
+    )
+    db.execute(
+        """INSERT INTO lead_messages (thread_id, role, content, metadata)
+           VALUES (%s, 'system', %s, %s::jsonb)""",
+        (
+            row["thread_id"],
+            f"✓ Opened project **{effective['name']}** "
+            f"with {len(effective.get('member_agent_ids') or [])} members. "
+            f"All subsequent workflow runs in this thread can be scoped "
+            f"to it by including `project_id={pid}` on dispatch.",
+            json.dumps({"created_project_id": int(pid)}),
+        ),
+    )
+    db.execute(
+        "UPDATE lead_conversations SET updated_at = NOW() WHERE thread_id = %s",
+        (row["thread_id"],),
+    )
+    return {
+        "project_id": int(pid),
+        "name": effective["name"],
+        "member_count": len(effective.get("member_agent_ids") or []),
+    }
 
 
 # ============================================================================

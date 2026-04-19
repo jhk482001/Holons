@@ -118,6 +118,15 @@ three-stage workflow, picks the right agents off your bench, shows
 the cost estimate, and offers **Run Now**. You can run it, edit any
 step, or save it as a template for next time.
 
+Lead doesn't only propose workflows. When the team is missing a
+specialty, Lead can **propose hiring** — it drafts name, role,
+description, and a full system prompt; you click Hire, the agent
+exists, ready to take work. When the ask is multi-phase or spans days,
+Lead can **propose opening a Project** with members, coordinator,
+and cost attribution — you click Accept, the project exists and every
+subsequent run lands under it. Both actions are previewed in the chat
+as editable cards; nothing is created until you approve.
+
 Lead also answers simple questions directly, flags resource conflicts
 ("Noah is busy until 3pm"), and proposes the same workflow in the
 group chat when you're deliberating with teammates.
@@ -200,8 +209,10 @@ deep-dive doc, or both.
 |---|---|---|
 | 🗣️ **Natural-language → workflow** | 🧩 **Visual workflow editor** | 👥 **Named agents & roles** |
 | Talk to Lead; get a runnable flow. | Drag, swap, override per step. | Name, face, role, system prompt. |
-| 💬 **Group chat rooms** | 🔁 **Parallel / sequential groups** | 🎬 **"Let them continue"** |
-| Observable deliberation. | Fan-out, round-robin, aggregator. | 1–10 autonomous rounds. |
+| 🧑‍💼 **Lead proposes hires** | 🗂️ **Lead proposes projects** | 🎬 **"Let them continue"** |
+| Missing a specialty → Lead drafts one. | Multi-phase work → a project, auto. | 1–10 autonomous rounds. |
+| 💬 **Group chat rooms** | 🔁 **Parallel / sequential groups** | 🔄 **Review-loop workflows** |
+| Observable deliberation. | Fan-out, round-robin, aggregator. | N iterations, REVISE / APPROVE verdicts. |
 | 🗂️ **Projects + quotas** | 📈 **Daily coordinator report** | 💰 **Budget & auto-topup** |
 | Goals, members, resource %. | Status / highlights / next-up. | Rate-limited, warn at 80%. |
 | 📊 **Dashboard & cost** | 🕐 **Schedules (cron)** | 🔎 **Full-text search** |
@@ -255,6 +266,7 @@ holons/
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the pieces fit together |
 | [docs/BUILD.md](docs/BUILD.md) | Build the desktop binary / Docker image |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local setup, tests, conventions |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
 ---

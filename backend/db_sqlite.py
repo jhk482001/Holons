@@ -126,6 +126,26 @@ def _translate_sql(sql: str, params: tuple | list | dict = ()) -> tuple[str, tup
         lambda m: f"datetime('now', '-{m.group(1)} days')",
         s, flags=re.IGNORECASE,
     )
+    # INTERVAL patterns for singular/plural hours
+    s = re.sub(
+        r"datetime\('now'\)\s*-\s*INTERVAL\s*'(\d+)\s*hours?'",
+        lambda m: f"datetime('now', '-{m.group(1)} hours')",
+        s, flags=re.IGNORECASE,
+    )
+    s = re.sub(
+        r"datetime\('now'\)\s*-\s*INTERVAL\s*'(\d+)\s*months?'",
+        lambda m: f"datetime('now', '-{m.group(1)} months')",
+        s, flags=re.IGNORECASE,
+    )
+    # date_trunc('unit', expr) → SQLite date(expr, 'start of unit'). Only
+    # day/month/year/hour line up cleanly. Week needs more care (SQLite
+    # starts week on Sunday); left un-translated so it errors loudly if
+    # anyone leans on it.
+    s = re.sub(
+        r"date_trunc\(\s*'(day|month|year|hour)'\s*,\s*([^)]+?)\s*\)",
+        r"datetime(\2, 'start of \1')",
+        s, flags=re.IGNORECASE,
+    )
     # JSONB ->> 'key' → json_extract(col, '$.key')
     s = re.sub(r"(\w+)\s*->>\s*'(\w+)'", r"json_extract(\1, '$.\2')", s)
     # JSONB @> containment → instr() approximation

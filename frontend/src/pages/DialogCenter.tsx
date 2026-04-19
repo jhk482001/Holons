@@ -6,6 +6,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentsAPI, LeadAPI, McpAPI, RunsAPI, ToolsAPI, api, bustUrl, headUrl, Agent, LeadMessage } from "../api/client";
 import WorkflowBubble from "../components/WorkflowBubble";
+import HireBubble from "../components/HireBubble";
+import "../components/HireBubble.css";
 import { AgentOverviewEditor, AgentSkillsEditor } from "../components/AgentEditors";
 import "./DialogCenter.css";
 
@@ -1164,12 +1166,19 @@ function CastMember({
 }
 
 function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string }) {
-  // Strip the ```workflow ... ``` block from display (it's rendered as a WorkflowBubble)
-  const cleanContent = msg.content.replace(/```workflow\s*\n[\s\S]*?\n```/g, "").trim();
+  // Strip both the workflow and hire fenced blocks from display — they're
+  // rendered as dedicated cards below instead of raw JSON in the prose.
+  const cleanContent = msg.content
+    .replace(/```workflow\s*\n[\s\S]*?\n```/g, "")
+    .replace(/```hire\s*\n[\s\S]*?\n```/g, "")
+    .trim();
   const isRunEvent = msg.metadata?.event === "run_event" && msg.metadata?.run_id;
+  const hireProposal = msg.metadata?.proposed_hire;
+  const hiredAgentId = msg.metadata?.hired_agent_id;
+  const isWide = msg.proposed_workflow_id || hireProposal;
 
   return (
-    <div className={`bubble ${msg.role === "user" ? "user" : "bot"} ${msg.proposed_workflow_id ? "wide" : ""} ${isRunEvent ? "run-event" : ""}`}>
+    <div className={`bubble ${msg.role === "user" ? "user" : "bot"} ${isWide ? "wide" : ""} ${isRunEvent ? "run-event" : ""}`}>
       {isRunEvent && msg.metadata?.run_id ? (
         <RunStatusCard
           runId={msg.metadata.run_id}
@@ -1182,6 +1191,13 @@ function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string 
       )}
       {msg.proposed_workflow_id && (
         <WorkflowBubble workflowId={msg.proposed_workflow_id} threadId={threadId} />
+      )}
+      {hireProposal && (
+        <HireBubble
+          messageId={msg.id}
+          proposal={hireProposal}
+          hiredAgentId={hiredAgentId}
+        />
       )}
       <div className="meta">{new Date(msg.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div>
     </div>

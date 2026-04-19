@@ -2722,6 +2722,42 @@ def lead_archive(thread_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/lead/hire_proposals/<int:msg_id>/accept", methods=["POST"])
+@login_required
+def lead_accept_hire(msg_id: int):
+    """Materialise a Lead-proposed hire. Admin can override any field
+    (name / role_title / description / system_prompt) via request JSON
+    before the agent is created.
+    """
+    data = request.get_json(silent=True) or {}
+    overrides = {k: data[k] for k in ("name", "role_title", "description", "system_prompt")
+                  if data.get(k)}
+    try:
+        out = lead_agent.accept_hire_proposal(current_user_id(), msg_id, overrides)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify(out)
+
+
+@app.route("/api/lead/project_proposals/<int:msg_id>/accept", methods=["POST"])
+@login_required
+def lead_accept_project(msg_id: int):
+    """Materialise a Lead-proposed project. Creates the project row +
+    attaches members (100% allocation default)."""
+    data = request.get_json(silent=True) or {}
+    overrides = {
+        k: data[k]
+        for k in ("name", "goal", "description", "coordinator_agent_id",
+                   "member_agent_ids")
+        if k in data
+    }
+    try:
+        out = lead_agent.accept_project_proposal(current_user_id(), msg_id, overrides)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify(out)
+
+
 # ============================================================================
 # Schedules
 # ============================================================================

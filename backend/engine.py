@@ -306,7 +306,18 @@ def execute_task(task: dict, ctx: dict) -> dict:
     asset_ctx: dict = {"mcp": [], "rag": [], "skill_snips": []}
     try:
         asset_ctx = _gather_agent_assets(agent["id"])
-        mcp_tools.extend(asset_ctx["mcp"])
+        # Dedup against the legacy agent_mcp_servers path: the startup
+        # migration copies every row in that table into asset_items, so
+        # if both paths see the same MCP we'd send Bedrock two identical
+        # tool definitions and Converse rejects the request with
+        # "tool mcp__X__Y is already defined". Keep the first occurrence.
+        seen = {(mt.get("server_name"), mt.get("name")) for mt in mcp_tools}
+        for mt in asset_ctx["mcp"]:
+            key = (mt.get("server_name"), mt.get("name"))
+            if key in seen:
+                continue
+            mcp_tools.append(mt)
+            seen.add(key)
         if asset_ctx["skill_snips"]:
             system_prompt = (
                 system_prompt + "\n\n" + "\n\n".join(asset_ctx["skill_snips"])

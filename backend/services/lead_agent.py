@@ -42,6 +42,7 @@ LEAD_SYSTEM_PROMPT = """You are {user_name}'s personal work secretary, coordinat
 3. When you detect resource conflicts (full queues, budget overrun, off-hours), **flag it proactively**.
 4. **Propose a new hire** — when the user explicitly asks you to hire / recruit / add someone, or when the team clearly lacks a specialty the current task needs. Emit a ```hire``` block (format below). The user reviews and can either hire with one click, tweak, or reject — the agent is NOT created until they approve.
 5. **Propose opening a project** — when the user says "open a project", "start a project", or when the task is a multi-phase / multi-agent / multi-day effort that needs a coordinator, a budget, and daily reports. Emit a ```project``` block (format below). Projects give the user a dashboard, cost attribution, and a daily coordinator report. The project is NOT created until the user approves.
+6. **Emit artifacts directly** — when the user asks for something that deserves to be rendered as an interactive unit (HTML prototype, a slide deck, a downloadable file), embed it as a fenced ```artifact-html``` / ```artifact-slides``` / ```artifact-file``` block in your reply (format below). The frontend will render each as its own bubble (iframe for html/slides, download chip for files). Write concise prose around the artifact — the artifact itself should stand on its own.
 
 ## When proposing a new hire
 
@@ -89,6 +90,66 @@ Emit **exactly one** ```project``` block per message. Fields:
 - `coordinator_agent_id` — defaults to Lead if unsure; pick another agent if the user designated a lead for this effort.
 - Don't propose a project **and** a workflow in the same message. Ship the project first, then propose the workflow for that project on the next turn.
 - Propose a project only when the work is big enough to justify one — a single one-off question doesn't need a project.
+
+## When emitting artifacts
+
+Three fence tags, each rendered as a dedicated bubble in the dialog:
+
+**HTML prototype** — a self-contained, runnable HTML document. The UI
+embeds it in a sandboxed iframe; scripts run, but the iframe cannot
+read the parent page. Use this for playable game prototypes, demo UIs,
+interactive diagrams. Keep under ~150 KB.
+
+````
+```artifact-html SIGNAL/NOISE · v1
+<!DOCTYPE html>
+<html>
+  <head><meta charset="utf-8"><title>SIGNAL/NOISE</title><style>…</style></head>
+  <body>…</body>
+</html>
+```
+````
+
+The text after `artifact-html` on the fence line is the bubble title
+(shown above the iframe). Optional.
+
+**Slide deck** — full HTML using reveal.js or similar, same sandbox
+rules. Include the CDN script tags inline; don't rely on Holons to
+wrap anything.
+
+````
+```artifact-slides Pitch deck · SIGNAL/NOISE
+<!DOCTYPE html>
+<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4/dist/reveal.css">…</head>
+<body><div class="reveal"><div class="slides">
+<section>…</section><section>…</section>
+</div></div><script src="https://cdn.jsdelivr.net/npm/reveal.js@4/dist/reveal.js"></script><script>Reveal.initialize();</script></body></html>
+```
+````
+
+**Downloadable file** — for things the user should save rather than
+view inline (PDFs, .zip assets, .md exports, CSV). Emit a JSON body
+with `filename`, `mime`, `content`, and (for binary) `encoding:
+"base64"`. Text files can stay utf-8.
+
+````
+```artifact-file
+{{
+  "filename": "game-concepts.md",
+  "mime": "text/markdown",
+  "content": "# Game concepts\\n\\n- SIGNAL/NOISE\\n- …"
+}}
+```
+````
+
+**Rules:**
+
+- Don't emit an artifact when plain markdown works — e.g. a bullet list
+  isn't an artifact; a runnable HTML5 canvas demo is.
+- Artifacts above ~200 KB are truncated with a visible marker; split
+  big outputs into multiple files or trim.
+- HTML/slide sandbox denies same-origin + network-to-our-API; anything
+  the prototype needs must be inline or a public CDN.
 
 ## When proposing a workflow
 
@@ -515,12 +576,16 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
     lead_agent_id = (lead_agent or {}).get("id")
     model = (lead_agent or {}).get("primary_model_id") or None
 
-    # Invoke LLM via the agent's assigned model client
+    # Invoke LLM via the agent's assigned model client. We lift max_tokens
+    # well above the 4K default because Lead increasingly outputs long
+    # artifacts inline (HTML prototypes, slide decks) — a 4K cap truncates
+    # those mid-fence and the parser then finds no artifacts.
     result = llm_invoke(
         agent_id=lead_agent_id,
         model_key=model,
         system_prompt=system_prompt,
         user_text=prompt,
+        max_tokens=32_000,
     )
     response_text = result.get("text", "")
 
@@ -528,6 +593,7 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
     proposed = _extract_workflow_proposal(response_text)
     proposed_hire = _extract_hire_proposal(response_text)
     proposed_project = _extract_project_proposal(response_text)
+    artifacts = _extract_artifacts(response_text)
 
     # If a workflow is proposed, persist as draft
     proposed_workflow_id = None
@@ -545,6 +611,8 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         msg_metadata["proposed_hire"] = proposed_hire
     if proposed_project:
         msg_metadata["proposed_project"] = proposed_project
+    if artifacts:
+        msg_metadata["artifacts"] = artifacts
     message_id = db.execute_returning(
         """
         INSERT INTO lead_messages
@@ -570,6 +638,7 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         "proposed_hire_message_id": int(message_id) if proposed_hire else None,
         "proposed_project": proposed_project,
         "proposed_project_message_id": int(message_id) if proposed_project else None,
+        "artifacts": artifacts,
         "cost_usd": float(result.get("cost_usd", 0)),
         "tokens": result.get("input_tokens", 0) + result.get("output_tokens", 0),
     }
@@ -582,6 +651,15 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
 WORKFLOW_BLOCK_RE = re.compile(r"```workflow\s*\n(.*?)\n```", re.DOTALL)
 HIRE_BLOCK_RE = re.compile(r"```hire\s*\n(.*?)\n```", re.DOTALL)
 PROJECT_BLOCK_RE = re.compile(r"```project\s*\n(.*?)\n```", re.DOTALL)
+# Artifact blocks — three kinds rendered as dedicated bubbles in the UI.
+# Each has its own fence tag so the regex + the UI dispatcher stay simple.
+ARTIFACT_HTML_RE   = re.compile(r"```artifact-html(?:\s+([^\n]+))?\s*\n(.*?)\n```",   re.DOTALL)
+ARTIFACT_SLIDES_RE = re.compile(r"```artifact-slides(?:\s+([^\n]+))?\s*\n(.*?)\n```", re.DOTALL)
+ARTIFACT_FILE_RE   = re.compile(r"```artifact-file\s*\n(.*?)\n```",                   re.DOTALL)
+# Compound regex to strip every artifact block from the displayed prose.
+ARTIFACT_ANY_RE = re.compile(
+    r"```artifact-(?:html|slides|file)(?:\s+[^\n]+)?\s*\n.*?\n```", re.DOTALL,
+)
 
 
 def _extract_workflow_proposal(text: str) -> dict | None:
@@ -596,6 +674,64 @@ def _extract_workflow_proposal(text: str) -> dict | None:
 
 
 _HIRE_REQUIRED = ("name", "role_title", "system_prompt")
+
+# Per-artifact size cap (characters in the raw payload). Keeps one runaway
+# LLM response from blowing up the DB row. 200KB is roughly 50K tokens.
+_ARTIFACT_MAX_CHARS = 200_000
+
+
+def _extract_artifacts(text: str) -> list[dict]:
+    """Pull every ```artifact-{html,slides,file}``` block out of the LLM
+    response. Returns a list of dicts the UI can dispatch on `kind`:
+
+      {"kind": "html",   "title": str,     "html": str}
+      {"kind": "slides", "title": str,     "html": str}
+      {"kind": "file",   "filename": str,  "mime": str,
+                         "content": str,   "encoding": "utf-8" | "base64"}
+
+    Files are a JSON body so the agent can emit metadata + content atomically;
+    html / slides are raw HTML in the fence for readability + token efficiency.
+    Blocks over `_ARTIFACT_MAX_CHARS` are truncated with a header comment so
+    an obvious signal shows in the UI rather than a silent drop.
+    """
+    out: list[dict] = []
+
+    def _clip(s: str) -> str:
+        if len(s) <= _ARTIFACT_MAX_CHARS:
+            return s
+        return s[:_ARTIFACT_MAX_CHARS] + (
+            f"\n<!-- artifact truncated at {_ARTIFACT_MAX_CHARS} chars -->"
+        )
+
+    for m in ARTIFACT_HTML_RE.finditer(text):
+        title = (m.group(1) or "").strip() or "HTML prototype"
+        out.append({"kind": "html", "title": title[:200], "html": _clip(m.group(2))})
+
+    for m in ARTIFACT_SLIDES_RE.finditer(text):
+        title = (m.group(1) or "").strip() or "Slide deck"
+        out.append({"kind": "slides", "title": title[:200], "html": _clip(m.group(2))})
+
+    for m in ARTIFACT_FILE_RE.finditer(text):
+        try:
+            payload = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        filename = str(payload.get("filename") or "").strip()
+        content = payload.get("content")
+        if not filename or content is None:
+            continue
+        out.append({
+            "kind": "file",
+            "filename": filename[:200],
+            "mime": str(payload.get("mime") or "application/octet-stream")[:100],
+            "encoding": "base64" if str(payload.get("encoding") or "") == "base64" else "utf-8",
+            "content": _clip(str(content)),
+        })
+
+    return out
+
 
 def _extract_project_proposal(text: str) -> dict | None:
     """Find a ```project``` block and return a dict suitable for the

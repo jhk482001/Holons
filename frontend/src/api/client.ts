@@ -186,6 +186,20 @@ export interface HireProposal {
   rationale?: string;
 }
 
+// Artifacts parsed from `artifact-html` / `artifact-slides` /
+// `artifact-file` fenced blocks in an LLM response. Rendered as
+// dedicated bubbles in the dialog, next to the prose.
+export type Artifact =
+  | { kind: "html";   title?: string; html: string }
+  | { kind: "slides"; title?: string; html: string }
+  | {
+      kind: "file";
+      filename: string;
+      mime: string;
+      content: string;
+      encoding: "utf-8" | "base64";
+    };
+
 export interface LeadMessage {
   id: number;
   role: "user" | "lead" | "system";
@@ -202,6 +216,8 @@ export interface LeadMessage {
     proposed_hire?: HireProposal;
     // Set after the user accepts the proposal — the created agent's id
     hired_agent_id?: number;
+    // Artifacts (zero or more) rendered as dedicated bubbles under the prose
+    artifacts?: Artifact[];
   } | null;
 }
 

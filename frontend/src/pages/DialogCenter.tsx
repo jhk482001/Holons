@@ -8,6 +8,7 @@ import { AgentsAPI, LeadAPI, McpAPI, RunsAPI, ToolsAPI, api, bustUrl, headUrl, A
 import WorkflowBubble from "../components/WorkflowBubble";
 import HireBubble from "../components/HireBubble";
 import "../components/HireBubble.css";
+import ArtifactBubble from "../components/ArtifactBubble";
 import { AgentOverviewEditor, AgentSkillsEditor } from "../components/AgentEditors";
 import "./DialogCenter.css";
 
@@ -1166,16 +1167,19 @@ function CastMember({
 }
 
 function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string }) {
-  // Strip both the workflow and hire fenced blocks from display — they're
-  // rendered as dedicated cards below instead of raw JSON in the prose.
+  // Strip every fenced block that's rendered as its own card (workflow,
+  // hire, project, and the three artifact kinds) from the prose.
   const cleanContent = msg.content
     .replace(/```workflow\s*\n[\s\S]*?\n```/g, "")
     .replace(/```hire\s*\n[\s\S]*?\n```/g, "")
+    .replace(/```project\s*\n[\s\S]*?\n```/g, "")
+    .replace(/```artifact-(?:html|slides|file)(?:\s+[^\n]+)?\s*\n[\s\S]*?\n```/g, "")
     .trim();
   const isRunEvent = msg.metadata?.event === "run_event" && msg.metadata?.run_id;
   const hireProposal = msg.metadata?.proposed_hire;
   const hiredAgentId = msg.metadata?.hired_agent_id;
-  const isWide = msg.proposed_workflow_id || hireProposal;
+  const artifacts = msg.metadata?.artifacts || [];
+  const isWide = msg.proposed_workflow_id || hireProposal || artifacts.length > 0;
 
   return (
     <div className={`bubble ${msg.role === "user" ? "user" : "bot"} ${isWide ? "wide" : ""} ${isRunEvent ? "run-event" : ""}`}>
@@ -1199,6 +1203,9 @@ function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string 
           hiredAgentId={hiredAgentId}
         />
       )}
+      {artifacts.map((a, i) => (
+        <ArtifactBubble key={i} artifact={a} />
+      ))}
       <div className="meta">{new Date(msg.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div>
     </div>
   );

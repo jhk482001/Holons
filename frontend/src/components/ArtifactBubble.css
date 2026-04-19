@@ -1,0 +1,126 @@
+.artifact-bubble {
+  border: 1px solid var(--line-2, #e5e7eb);
+  border-radius: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+  font-size: 13px;
+  background: white;
+}
+
+.artifact-bubble.fullscreen {
+  position: fixed;
+  inset: 20px;
+  z-index: 1000;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: white;
+}
+
+.artifact-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(59, 130, 246, 0.04);
+  border-bottom: 1px solid var(--line-2, #e5e7eb);
+}
+
+.artifact-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.artifact-slides .artifact-badge {
+  background: rgba(168, 85, 247, 0.15);
+  color: #9333ea;
+}
+
+.artifact-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--ink-1, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.artifact-btn {
+  background: transparent;
+  border: 1px solid var(--line-2, #e5e7eb);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--ink-2, #374151);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+.artifact-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--ink-1);
+}
+.artifact-btn.primary {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+.artifact-btn.primary:hover {
+  background: #1d4ed8;
+  color: white;
+}
+
+.artifact-iframe {
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: 0;
+  background: white;
+}
+.artifact-iframe-slides {
+  height: 480px;
+  background: #0b0b10;
+}
+
+.artifact-bubble.fullscreen .artifact-iframe,
+.artifact-bubble.fullscreen .artifact-iframe-slides {
+  height: calc(100% - 44px);
+}
+
+/* File download row */
+.artifact-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.artifact-file-icon {
+  font-size: 26px;
+}
+.artifact-file-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.artifact-file-name {
+  font-weight: 600;
+  color: var(--ink-1, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.artifact-file-sub {
+  font-size: 11px;
+  color: var(--ink-3, #6b7280);
+}

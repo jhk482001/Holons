@@ -1,20 +1,24 @@
 import { useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Artifact } from "../api/client";
 import "./ArtifactBubble.css";
 
 /**
- * Three artifact kinds rendered as dedicated bubbles inside a Lead message:
- *   - html    → sandboxed iframe with the agent-authored HTML page
- *   - slides  → same, but labelled as a deck + "Open fullscreen" action
- *   - file    → download chip with filename, mime, size, click-to-save
+ * Four artifact kinds rendered as dedicated bubbles inside a Lead message:
+ *   - html     → sandboxed iframe with the agent-authored HTML page
+ *   - slides   → same, but labelled as a deck + "Open fullscreen" action
+ *   - markdown → rendered Markdown (GFM — tables, task lists, strikethrough)
+ *   - file     → download chip with filename, mime, size, click-to-save
  *
- * All three are isolated from the parent page via `iframe.sandbox` or
- * plain `<a href data-url>` — the agent cannot read Holons session
- * state or hit our API from the rendered output.
+ * html/slides are isolated from the parent page via `iframe.sandbox`;
+ * markdown is rendered inline since the source is plain text we control
+ * via react-markdown (no raw HTML pass-through, so no XSS surface).
  */
 export default function ArtifactBubble({ artifact }: { artifact: Artifact }) {
   if (artifact.kind === "html") return <HtmlBubble artifact={artifact} />;
   if (artifact.kind === "slides") return <SlidesBubble artifact={artifact} />;
+  if (artifact.kind === "markdown") return <MarkdownBubble artifact={artifact} />;
   if (artifact.kind === "file") return <FileBubble artifact={artifact} />;
   return null;
 }
@@ -86,6 +90,38 @@ function SlidesBubble({ artifact }: {
         srcDoc={artifact.html}
         className="artifact-iframe artifact-iframe-slides"
       />
+    </div>
+  );
+}
+
+
+function MarkdownBubble({ artifact }: {
+  artifact: Extract<Artifact, { kind: "markdown" }>;
+}) {
+  const [full, setFull] = useState(false);
+  return (
+    <div className={`artifact-bubble artifact-markdown ${full ? "fullscreen" : ""}`}>
+      <div className="artifact-head">
+        <span className="artifact-badge">Markdown</span>
+        <span className="artifact-title">{artifact.title || "Untitled"}</span>
+        <span className="artifact-actions">
+          <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
+            {full ? "Exit fullscreen" : "Fullscreen"}
+          </button>
+          <a
+            className="artifact-btn"
+            href={`data:text/markdown;charset=utf-8,${encodeURIComponent(artifact.markdown)}`}
+            download={(artifact.title || "document") + ".md"}
+          >
+            Download
+          </a>
+        </span>
+      </div>
+      <div className="artifact-md-body">
+        {/* react-markdown sanitises by default — raw HTML in the source is
+            escaped. GFM plugin enables tables, task lists, strikethrough. */}
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{artifact.markdown}</ReactMarkdown>
+      </div>
     </div>
   );
 }

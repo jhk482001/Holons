@@ -42,7 +42,7 @@ LEAD_SYSTEM_PROMPT = """You are {user_name}'s personal work secretary, coordinat
 3. When you detect resource conflicts (full queues, budget overrun, off-hours), **flag it proactively**.
 4. **Propose a new hire** — when the user explicitly asks you to hire / recruit / add someone, or when the team clearly lacks a specialty the current task needs. Emit a ```hire``` block (format below). The user reviews and can either hire with one click, tweak, or reject — the agent is NOT created until they approve.
 5. **Propose opening a project** — when the user says "open a project", "start a project", or when the task is a multi-phase / multi-agent / multi-day effort that needs a coordinator, a budget, and daily reports. Emit a ```project``` block (format below). Projects give the user a dashboard, cost attribution, and a daily coordinator report. The project is NOT created until the user approves.
-6. **Emit artifacts directly** — when the user asks for something that deserves to be rendered as an interactive unit (HTML prototype, a slide deck, a downloadable file), embed it as a fenced ```artifact-html``` / ```artifact-slides``` / ```artifact-file``` block in your reply (format below). The frontend will render each as its own bubble (iframe for html/slides, download chip for files). Write concise prose around the artifact — the artifact itself should stand on its own.
+6. **Emit artifacts directly** — when the user asks for something that deserves to be rendered as an interactive unit (HTML prototype, slide deck, markdown document, downloadable file), embed it as a fenced ```artifact-html``` / ```artifact-slides``` / ```artifact-markdown``` / ```artifact-file``` block in your reply (format below). The frontend will render each as its own bubble (iframe for html/slides, rendered markdown, download chip for files). Write concise prose around the artifact — the artifact itself should stand on its own.
 
 ## When proposing a new hire
 
@@ -124,6 +124,25 @@ wrap anything.
 <body><div class="reveal"><div class="slides">
 <section>…</section><section>…</section>
 </div></div><script src="https://cdn.jsdelivr.net/npm/reveal.js@4/dist/reveal.js"></script><script>Reveal.initialize();</script></body></html>
+```
+````
+
+**Markdown document** — a rendered markdown page (GFM). Best for
+long-form reports, meeting notes, specs, summaries where the content
+is prose + tables + headings rather than interactive. Rendered with
+tables, task lists, and code blocks working natively.
+
+````
+```artifact-markdown Weekly sync · 2026-W15
+# Team sync — week of Apr 7
+
+## Decisions
+- Shipped v0.3 behind a flag …
+
+## Open questions
+| Topic | Owner | Due |
+|---|---|---|
+| Pricing model | … | Apr 11 |
 ```
 ````
 
@@ -623,6 +642,28 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         (thread_id, response_text, proposed_workflow_id, json.dumps(msg_metadata)),
     )
 
+    # Project-scoped chats (project_id given) persist each emitted artifact
+    # to project_artifacts so the project detail page can surface them
+    # without having to walk every lead_message. Safe to skip silently on
+    # failure — the artifact still lives on the lead_message metadata.
+    if project_id and artifacts:
+        for a in artifacts:
+            try:
+                db.execute(
+                    """
+                    INSERT INTO project_artifacts
+                        (project_id, agent_id, source, source_ref,
+                         kind, title, payload)
+                    VALUES (%s, %s, 'lead_message', %s, %s, %s, %s::jsonb)
+                    """,
+                    (project_id, lead_agent_id, int(message_id),
+                     a.get("kind"),
+                     (a.get("title") or a.get("filename") or None),
+                     json.dumps(a)),
+                )
+            except Exception:
+                pass
+
     # Update thread activity
     db.execute(
         "UPDATE lead_conversations SET updated_at = NOW() WHERE thread_id = %s",
@@ -653,12 +694,13 @@ HIRE_BLOCK_RE = re.compile(r"```hire\s*\n(.*?)\n```", re.DOTALL)
 PROJECT_BLOCK_RE = re.compile(r"```project\s*\n(.*?)\n```", re.DOTALL)
 # Artifact blocks — three kinds rendered as dedicated bubbles in the UI.
 # Each has its own fence tag so the regex + the UI dispatcher stay simple.
-ARTIFACT_HTML_RE   = re.compile(r"```artifact-html(?:\s+([^\n]+))?\s*\n(.*?)\n```",   re.DOTALL)
-ARTIFACT_SLIDES_RE = re.compile(r"```artifact-slides(?:\s+([^\n]+))?\s*\n(.*?)\n```", re.DOTALL)
-ARTIFACT_FILE_RE   = re.compile(r"```artifact-file\s*\n(.*?)\n```",                   re.DOTALL)
+ARTIFACT_HTML_RE     = re.compile(r"```artifact-html(?:\s+([^\n]+))?\s*\n(.*?)\n```",     re.DOTALL)
+ARTIFACT_SLIDES_RE   = re.compile(r"```artifact-slides(?:\s+([^\n]+))?\s*\n(.*?)\n```",   re.DOTALL)
+ARTIFACT_FILE_RE     = re.compile(r"```artifact-file\s*\n(.*?)\n```",                     re.DOTALL)
+ARTIFACT_MARKDOWN_RE = re.compile(r"```artifact-markdown(?:\s+([^\n]+))?\s*\n(.*?)\n```", re.DOTALL)
 # Compound regex to strip every artifact block from the displayed prose.
 ARTIFACT_ANY_RE = re.compile(
-    r"```artifact-(?:html|slides|file)(?:\s+[^\n]+)?\s*\n.*?\n```", re.DOTALL,
+    r"```artifact-(?:html|slides|file|markdown)(?:\s+[^\n]+)?\s*\n.*?\n```", re.DOTALL,
 )
 
 
@@ -710,6 +752,14 @@ def _extract_artifacts(text: str) -> list[dict]:
     for m in ARTIFACT_SLIDES_RE.finditer(text):
         title = (m.group(1) or "").strip() or "Slide deck"
         out.append({"kind": "slides", "title": title[:200], "html": _clip(m.group(2))})
+
+    for m in ARTIFACT_MARKDOWN_RE.finditer(text):
+        title = (m.group(1) or "").strip() or "Markdown document"
+        out.append({
+            "kind": "markdown",
+            "title": title[:200],
+            "markdown": _clip(m.group(2)),
+        })
 
     for m in ARTIFACT_FILE_RE.finditer(text):
         try:

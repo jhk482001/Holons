@@ -182,6 +182,20 @@ SQLITE_DDL = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_project_events_project ON project_events(project_id, created_at DESC)",
+    """
+    CREATE TABLE IF NOT EXISTS project_artifacts (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        agent_id   INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+        source     TEXT NOT NULL DEFAULT 'lead_message',
+        source_ref INTEGER,
+        kind       TEXT NOT NULL,
+        title      TEXT,
+        payload    TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_project_artifacts_project ON project_artifacts(project_id, id DESC)",
     # Attribution columns on existing tables (SQLite swallows duplicate-column errors).
     "ALTER TABLE workflows ADD COLUMN max_review_iterations INTEGER DEFAULT 2",
     # Source attribution: 'manual' / 'lead_generated' / 'imported'. Matches

@@ -30,9 +30,11 @@ export default function DialogCenter() {
   });
   const leadPendingCount = leadPending?.count ?? 0;
 
-  // Cast layout (shared with desktop) — used for hidden_agents list
+  // Cast layout (shared with desktop) — used for hidden_agents + facing.
+  // `facing` keys are stringified agent ids so the JSON round-trips cleanly.
   const { data: castLayout } = useQuery<{
     hidden_agents?: number[];
+    facing?: Record<string, "left" | "right">;
     [k: string]: unknown;
   }>({
     queryKey: ["cast-layout"],
@@ -42,18 +44,25 @@ export default function DialogCenter() {
     },
   });
   const hiddenAgents = new Set(castLayout?.hidden_agents || []);
+  const facingMap = castLayout?.facing || {};
+  const saveCastLayout = (next: Record<string, unknown>) => {
+    fetch("/api/me/cast_layout", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(next),
+    }).then(() => qc.invalidateQueries({ queryKey: ["cast-layout"] }));
+  };
   const toggleAgentHidden = (agentId: number) => {
     const current = castLayout?.hidden_agents || [];
     const next = current.includes(agentId)
       ? current.filter((id: number) => id !== agentId)
       : [...current, agentId];
-    const newLayout = { ...castLayout, hidden_agents: next };
-    fetch("/api/me/cast_layout", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(newLayout),
-    }).then(() => qc.invalidateQueries({ queryKey: ["cast-layout"] }));
+    saveCastLayout({ ...castLayout, hidden_agents: next });
+  };
+  const setAgentFacing = (agentId: number, dir: "left" | "right") => {
+    const nextFacing = { ...facingMap, [String(agentId)]: dir };
+    saveCastLayout({ ...castLayout, facing: nextFacing });
   };
 
   // `?agent=<id>` URL query pre-selects a specific cast member on mount.
@@ -253,6 +262,34 @@ export default function DialogCenter() {
   const otherAgents = agents.filter((a) => !a.is_lead);
 
   const castRowRef = useRef<HTMLDivElement>(null);
+
+  // Cast row horizontal overflow indicators. Arrow buttons (left/right)
+  // appear whenever the row has more members than fit horizontally, which
+  // happens on narrow screens with many agents.
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  useEffect(() => {
+    const row = castRowRef.current;
+    if (!row) return;
+    const update = () => {
+      const maxScroll = row.scrollWidth - row.clientWidth;
+      setCanScrollLeft(row.scrollLeft > 1);
+      setCanScrollRight(row.scrollLeft < maxScroll - 1);
+    };
+    update();
+    row.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(row);
+    window.addEventListener("resize", update);
+    return () => {
+      row.removeEventListener("scroll", update);
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [agents.length, castSize]);
+  const scrollCast = (delta: number) => {
+    castRowRef.current?.scrollBy({ left: delta, behavior: "smooth" });
+  };
 
   // Auto-focus the composer when active changes so the user can type
   // immediately. No fancy scroll/anchor behaviour — the cast row is now a
@@ -562,10 +599,32 @@ export default function DialogCenter() {
         onClick={(e) => {
           // Click on cast container background (not on a member or handle) closes
           const t = e.target as HTMLElement;
-          if (t.closest(".cast-member") || t.closest(".cast-resize-handle")) return;
+          if (t.closest(".cast-member") || t.closest(".cast-resize-handle") || t.closest(".cast-nav-btn")) return;
           setActiveId(null);
         }}
       >
+        {canScrollLeft && (
+          <button
+            className="cast-nav-btn left"
+            aria-label="Scroll cast left"
+            onClick={() => scrollCast(-220)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
+        {canScrollRight && (
+          <button
+            className="cast-nav-btn right"
+            aria-label="Scroll cast right"
+            onClick={() => scrollCast(220)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        )}
         <button
           className="cast-resize-handle"
           title={t("dialog.resizeHandle")}
@@ -614,10 +673,12 @@ export default function DialogCenter() {
                   activeTab={activeTab}
                   isLead={isLeadMember}
                   pendingCount={isLeadMember ? leadPendingCount : 0}
+                  facing={facingMap[String(a.id)] === "left" ? "left" : "right"}
                   onChat={() => toggleChat(id)}
                   onCalendar={() => selectCalendar(id)}
                   onSettings={() => selectSettings(id)}
                   onHide={() => toggleAgentHidden(a.id)}
+                  onFace={(dir) => setAgentFacing(a.id, dir)}
                 />
               );
             });
@@ -1049,17 +1110,20 @@ function McpServerList({ agentId }: { agentId: number }) {
 // ============================================================================
 
 function CastMember({
-  agent, active, activeTab, isLead, pendingCount, onChat, onCalendar, onSettings, onHide,
+  agent, active, activeTab, isLead, pendingCount, facing = "right",
+  onChat, onCalendar, onSettings, onHide, onFace,
 }: {
   agent: Agent;
   active: boolean;
   activeTab: CastTab;
   isLead?: boolean;
   pendingCount?: number;
+  facing?: "left" | "right";
   onChat: () => void;
   onCalendar: () => void;
   onSettings: () => void;
   onHide: () => void;
+  onFace?: (dir: "left" | "right") => void;
 }) {
   const { t } = useTranslation();
   const id = isLead ? "lead" : `${agent.id}`;
@@ -1086,7 +1150,6 @@ function CastMember({
       className={`cast-member ${isLead ? "lead" : ""} ${active ? "active" : ""} ${hasPending && !active ? "has-ping" : ""}`}
       onClick={onChat}
       onContextMenu={(e) => {
-        if (isLead) return;
         e.preventDefault();
         setCtxPos({ x: e.clientX, y: e.clientY });
         setCtxOpen(true);
@@ -1097,22 +1160,49 @@ function CastMember({
           style={{
             position: "fixed", left: ctxPos.x, top: ctxPos.y, zIndex: 100,
             background: "var(--surface)", border: "1px solid var(--border)",
-            borderRadius: 10, padding: 4, minWidth: 120,
+            borderRadius: 10, padding: 4, minWidth: 140,
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             style={{
-              display: "block", width: "100%", background: "none", border: "none",
-              padding: "7px 12px", fontSize: 12, textAlign: "left", borderRadius: 6,
-              cursor: "pointer", color: "var(--ink)",
+              display: "block", width: "100%", background: facing === "right" ? "var(--surface-2)" : "none",
+              border: "none", padding: "7px 12px", fontSize: 12, textAlign: "left",
+              borderRadius: 6, cursor: "pointer", color: "var(--ink)",
             }}
             onMouseOver={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
-            onMouseOut={(e) => (e.currentTarget.style.background = "none")}
-            onClick={() => { onHide(); setCtxOpen(false); }}
-          >{t("dialog.hide")}
+            onMouseOut={(e) => (e.currentTarget.style.background = facing === "right" ? "var(--surface-2)" : "none")}
+            onClick={() => { onFace?.("right"); setCtxOpen(false); }}
+          >{t("dialog.faceRight")}
           </button>
+          <button
+            style={{
+              display: "block", width: "100%", background: facing === "left" ? "var(--surface-2)" : "none",
+              border: "none", padding: "7px 12px", fontSize: 12, textAlign: "left",
+              borderRadius: 6, cursor: "pointer", color: "var(--ink)",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = facing === "left" ? "var(--surface-2)" : "none")}
+            onClick={() => { onFace?.("left"); setCtxOpen(false); }}
+          >{t("dialog.faceLeft")}
+          </button>
+          {!isLead && (
+            <>
+              <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }} />
+              <button
+                style={{
+                  display: "block", width: "100%", background: "none", border: "none",
+                  padding: "7px 12px", fontSize: 12, textAlign: "left", borderRadius: 6,
+                  cursor: "pointer", color: "var(--ink)",
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "none")}
+                onClick={() => { onHide(); setCtxOpen(false); }}
+              >{t("dialog.hide")}
+              </button>
+            </>
+          )}
         </div>
       )}
       <div className="cast-actions" onClick={(e) => e.stopPropagation()}>
@@ -1153,7 +1243,12 @@ function CastMember({
         </button>
       </div>
       <div className="bust">
-        <img src={bustUrl(agent.avatar_config, true)} alt={agent.name} loading="lazy" />
+        <img
+          src={bustUrl(agent.avatar_config, true)}
+          alt={agent.name}
+          loading="lazy"
+          style={facing === "left" ? { transform: "scaleX(-1)" } : undefined}
+        />
       </div>
       <div className="info">
         <div className="name-line">
@@ -1173,7 +1268,7 @@ function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string 
     .replace(/```workflow\s*\n[\s\S]*?\n```/g, "")
     .replace(/```hire\s*\n[\s\S]*?\n```/g, "")
     .replace(/```project\s*\n[\s\S]*?\n```/g, "")
-    .replace(/```artifact-(?:html|slides|file)(?:\s+[^\n]+)?\s*\n[\s\S]*?\n```/g, "")
+    .replace(/```artifact-(?:html|slides|file|markdown)(?:\s+[^\n]+)?\s*\n[\s\S]*?\n```/g, "")
     .trim();
   const isRunEvent = msg.metadata?.event === "run_event" && msg.metadata?.run_id;
   const hireProposal = msg.metadata?.proposed_hire;

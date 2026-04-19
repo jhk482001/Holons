@@ -187,11 +187,12 @@ export interface HireProposal {
 }
 
 // Artifacts parsed from `artifact-html` / `artifact-slides` /
-// `artifact-file` fenced blocks in an LLM response. Rendered as
-// dedicated bubbles in the dialog, next to the prose.
+// `artifact-file` / `artifact-markdown` fenced blocks in an LLM response.
+// Rendered as dedicated bubbles in the dialog, next to the prose.
 export type Artifact =
-  | { kind: "html";   title?: string; html: string }
-  | { kind: "slides"; title?: string; html: string }
+  | { kind: "html";     title?: string; html: string }
+  | { kind: "slides";   title?: string; html: string }
+  | { kind: "markdown"; title?: string; markdown: string }
   | {
       kind: "file";
       filename: string;

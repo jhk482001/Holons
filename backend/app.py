@@ -1980,6 +1980,33 @@ def list_project_events(pid: int):
     return jsonify(rows)
 
 
+@app.route("/api/projects/<int:pid>/artifacts", methods=["GET"])
+@login_required
+def list_project_artifacts(pid: int):
+    """HTML / slides / file / markdown artifacts produced inside this project.
+    Populated by lead_agent.chat() whenever the coordinator emits an
+    artifact fence during a project chat."""
+    if not db.fetch_one(
+        "SELECT id FROM projects WHERE id = %s AND user_id = %s",
+        (pid, current_user_id()),
+    ):
+        return jsonify({"error": "not found"}), 404
+    rows = db.fetch_all(
+        """
+        SELECT pa.id, pa.agent_id, pa.source, pa.source_ref,
+               pa.kind, pa.title, pa.payload, pa.created_at,
+               a.name AS agent_name, a.role_title AS agent_role
+        FROM project_artifacts pa
+        LEFT JOIN agents a ON a.id = pa.agent_id
+        WHERE pa.project_id = %s
+        ORDER BY pa.id DESC
+        LIMIT 100
+        """,
+        (pid,),
+    )
+    return jsonify(rows)
+
+
 @app.route("/api/projects/<int:pid>/outputs", methods=["GET"])
 @login_required
 def list_project_outputs(pid: int):

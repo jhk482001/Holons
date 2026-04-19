@@ -3,8 +3,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AgentsAPI, ProjectsAPI, api } from "../api/client";
+import type { Artifact } from "../api/client";
 import Avatar from "../components/Avatar";
+import ArtifactBubble from "../components/ArtifactBubble";
 import UsageStackChart from "../components/UsageStackChart";
+
+interface ProjectArtifactRow {
+  id: number;
+  agent_id: number | null;
+  source: string;
+  source_ref: number | null;
+  kind: string;
+  title: string | null;
+  payload: Artifact;
+  created_at: string;
+  agent_name?: string | null;
+  agent_role?: string | null;
+}
 
 export default function ProjectDetail() {
   const { t } = useTranslation();
@@ -42,6 +57,11 @@ export default function ProjectDetail() {
     queryFn: () => api.get<Array<{run_id:number; status:string; started_at:string;
       finished_at:string|null; total_cost_usd:number|string;
       workflow_name:string|null; final_output:string}>>(`/projects/${pid}/outputs`),
+    enabled: !!pid,
+  });
+  const { data: artifacts = [] } = useQuery({
+    queryKey: ["project-artifacts", pid],
+    queryFn: () => api.get<ProjectArtifactRow[]>(`/projects/${pid}/artifacts`),
     enabled: !!pid,
   });
 
@@ -214,6 +234,11 @@ export default function ProjectDetail() {
         <ReportsPanel pid={pid} reports={reports} />
       </Section>
 
+      {/* Artifacts — agent-produced HTML, slides, markdown, files */}
+      <Section title={t("projectDetail.artifacts", { count: artifacts.length })}>
+        <ArtifactsPanel artifacts={artifacts} />
+      </Section>
+
       {/* Outputs library */}
       <Section title={t("projectDetail.outputs", { count: outputs.length })}>
         <OutputsPanel pid={pid} outputs={outputs} />
@@ -336,6 +361,31 @@ function summarizePayload(type: string, payload: any): string {
   if (type === "milestone_status_changed") return `#${payload.milestone_id} → ${payload.to}`;
   if (type === "created") return `${payload.name}`;
   return "";
+}
+
+
+function ArtifactsPanel({ artifacts }: { artifacts: ProjectArtifactRow[] }) {
+  const { t } = useTranslation();
+  if (!artifacts.length) {
+    return <div style={{ color: "var(--ink-4)", fontSize: 12 }}>{t("projectDetail.noArtifacts")}</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {artifacts.map((row) => (
+        <div key={row.id}>
+          <div style={{
+            fontSize: 11, color: "var(--ink-4)", marginBottom: 4,
+            display: "flex", gap: 8, flexWrap: "wrap",
+          }}>
+            <span>#{row.id}</span>
+            {row.agent_name && <span>· {row.agent_name}{row.agent_role ? ` (${row.agent_role})` : ""}</span>}
+            <span>· {new Date(row.created_at).toLocaleString()}</span>
+          </div>
+          <ArtifactBubble artifact={row.payload} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 

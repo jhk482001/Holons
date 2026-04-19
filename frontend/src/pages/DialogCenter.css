@@ -469,7 +469,10 @@
 .cast-row {
   display: flex;
   gap: 24px;
-  justify-content: center;
+  /* `safe center`: centered when members fit, but falls back to left-align
+     on overflow so the first member isn't clipped off the left edge. Keeps
+     horizontal scroll + arrow buttons usable on narrow screens. */
+  justify-content: safe center;
   overflow-x: auto;
   scroll-behavior: smooth;
   align-items: flex-end;
@@ -482,6 +485,37 @@
   pointer-events: auto;
 }
 .cast-row::-webkit-scrollbar { display: none; }
+
+/* Scroll arrow buttons — only rendered when the cast row overflows the
+   viewport horizontally. Float above the bust area, centered vertically on
+   the cast half-height. */
+.cast-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 7;
+  box-shadow: 0 2px 8px rgba(60, 45, 20, 0.1);
+  transition: color 0.15s, transform 0.15s, border-color 0.15s;
+}
+.cast-nav-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-50%) scale(1.08);
+}
+.cast-nav-btn.left  { left: 12px; }
+.cast-nav-btn.right { right: 12px; }
 
 .cast-member {
   flex-shrink: 0;

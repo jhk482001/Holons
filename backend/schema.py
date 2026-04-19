@@ -199,6 +199,26 @@ DDL: list[str] = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_project_events_project ON project_events(project_id, created_at DESC)",
 
+    # Artifacts produced by agents inside a project — html prototypes, slide
+    # decks, files, markdown docs. Populated by the project coordinator
+    # (lead_agent.chat with project_id) whenever the agent emits an
+    # artifact-<kind> fence. `payload` is the raw {kind, …} dict that the
+    # frontend ArtifactBubble component already understands.
+    """
+    CREATE TABLE IF NOT EXISTS project_artifacts (
+        id           BIGSERIAL PRIMARY KEY,
+        project_id   BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        agent_id     BIGINT REFERENCES agents(id) ON DELETE SET NULL,
+        source       VARCHAR(30) NOT NULL DEFAULT 'lead_message',
+        source_ref   BIGINT,
+        kind         VARCHAR(20) NOT NULL,
+        title        TEXT,
+        payload      JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_project_artifacts_project ON project_artifacts(project_id, id DESC)",
+
     # ---------- workflows ----------
     """
     CREATE TABLE IF NOT EXISTS workflows (

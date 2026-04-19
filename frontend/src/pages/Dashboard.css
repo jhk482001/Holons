@@ -1,15 +1,26 @@
+/* ============================================================================
+   Dashboard layout — stacked sections:
+     1) Summary (4 KPI cards)
+     2) Near-quota alert row (optional)
+     3) Charts grid (2 columns of panel cards)
+     4) Agent load grid (compact cards with embedded 24h heatmap strip)
+   ============================================================================ */
+
 .dashboard .summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 36px;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .dashboard .summary { grid-template-columns: repeat(2, 1fr); }
 }
 
 .sum-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 22px 24px;
+  padding: 18px 20px;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s;
 }
@@ -20,87 +31,105 @@
   letter-spacing: 0.8px;
   color: var(--ink-3);
   font-weight: 700;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .sum-card .value {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   color: var(--ink);
-  letter-spacing: -0.8px;
+  letter-spacing: -0.6px;
   line-height: 1.1;
 }
 .sum-card .delta {
   font-size: 11px;
   color: var(--ink-3);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
+/* Section headings between large blocks (agent load, etc.). Charts use
+   panel-title inside their own card instead. */
 .section-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--ink-3);
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin: 30px 0 14px;
+  margin: 28px 0 14px;
 }
 
-/* Dashboard charts: two-column grid so Agent Timeline + the three usage
-   charts share horizontal space. Auto-collapses to one column on narrow
-   screens via minmax(360px, 1fr). Each cell has its own section title. */
-.dashboard-charts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 18px;
+/* ---- Dashboard panels ---- */
+
+.dashboard-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px 12px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
   margin-top: 20px;
 }
-.dashboard-charts .chart-cell .section-title {
-  margin-top: 0;
+.dashboard-panel .panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
 }
+/* Chart children stretch to fill the panel body so heights stay consistent. */
+.dashboard-panel > :not(.panel-title) {
+  flex: 1;
+  min-width: 0;
+}
+/* Full-width variant for the timeline — sits on its own row, no grid. */
+.dashboard-panel-full {
+  min-height: 260px;
+}
+
+/* Three usage charts in a single horizontal row; collapses to 1 col on
+   narrow screens so each chart stays readable. */
+.dashboard-charts-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 20px;
+}
+.dashboard-charts-row .dashboard-panel {
+  margin-top: 0;
+  min-height: 260px;
+}
+@media (max-width: 1100px) {
+  .dashboard-charts-row { grid-template-columns: 1fr; }
+}
+
+/* ---- Agent load cards ---- */
 
 .load-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-}
-
-/* 24-hour mini heatmap strip embedded in each agent's load-card — 24
-   equal cells colored by hourly task count, no labels. Replaces the
-   standalone dashboard heatmap section. */
-.load-heatmap-strip {
-  display: grid;
-  grid-template-columns: repeat(24, 1fr);
-  gap: 2px;
-  margin-top: 10px;
-  height: 8px;
-  border-radius: 3px;
-  overflow: hidden;
-}
-.load-heatmap-strip span {
-  display: block;
-  height: 100%;
-  border-radius: 1px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
 }
 
 .load-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px 18px;
+  padding: 14px 16px;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s;
 }
 .load-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.load-card.warn { border-color: #edc87f; background: #fffbf3; }
-.load-card.danger {
-  border-color: #e8a899;
-  background: var(--danger-soft);
-}
+.load-card.warn   { border-color: #edc87f; background: #fffbf3; }
+.load-card.danger { border-color: #e8a899; background: var(--danger-soft); }
 
 .load-card .card-head {
   display: flex;
   align-items: center;
-  gap: 11px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 .load-card .name {
   font-size: 13px;
@@ -112,38 +141,60 @@
   font-size: 10px;
   color: var(--ink-3);
   margin-top: 2px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .load-card .status-badge {
   margin-left: auto;
-  font-size: 10px;
-  padding: 4px 10px;
+  font-size: 9px;
+  padding: 3px 8px;
   border-radius: 999px;
   font-weight: 700;
+  white-space: nowrap;
 }
 .status-badge.active { background: var(--good-soft); color: var(--good); }
 .status-badge.paused { background: var(--warn-soft); color: var(--warn); }
-.status-badge.offline { background: var(--surface-3); color: var(--ink-3); }
+.status-badge.offline,
 .status-badge.off_duty { background: var(--surface-3); color: var(--ink-3); }
-.status-badge.budget_exceeded { background: var(--danger-soft); color: var(--danger); }
+.status-badge.budget_exceeded,
 .status-badge.quota_exceeded { background: var(--danger-soft); color: var(--danger); }
 
 .load-card .bar {
-  height: 6px;
+  height: 5px;
   background: var(--surface-2);
   border-radius: 3px;
   overflow: hidden;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-.load-card .bar-fill { height: 100%; background: var(--good); border-radius: 3px; }
-.load-card .bar-fill.high { background: var(--warn); }
+.load-card .bar-fill          { height: 100%; background: var(--good); border-radius: 3px; }
+.load-card .bar-fill.high     { background: var(--warn); }
 .load-card .bar-fill.critical { background: var(--danger); }
 
 .load-card .metrics {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 14px;
+  gap: 6px 12px;
   font-size: 10px;
   color: var(--ink-3);
 }
-.load-card .metrics .cell { display: flex; flex-direction: column; gap: 1px; }
-.load-card .metrics .cell .num { font-size: 13px; color: var(--ink); font-weight: 800; }
+.load-card .metrics .cell      { display: flex; flex-direction: column; gap: 1px; }
+.load-card .metrics .cell .num { font-size: 12px; color: var(--ink); font-weight: 800; }
+
+/* 24-hour embedded heatmap strip inside each load-card.
+   Replaces the standalone heatmap section at dashboard level. */
+.load-heatmap-strip {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.load-heatmap-strip span {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+}

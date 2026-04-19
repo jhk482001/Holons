@@ -89,27 +89,9 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* Two-column charts grid. On narrow screens the grid collapses to
-          a single column automatically via minmax(360px, 1fr). */}
-      <div className="dashboard-charts">
-        <div className="chart-cell">
-          <h2 className="section-title">{t("dashboard.timeline")}</h2>
-          <Gantt hours={6} />
-        </div>
-        <div className="chart-cell">
-          <h2 className="section-title">{t("dashboard.usageByProject")}</h2>
-          <UsageStackChart group_by="project" days={14} title={undefined} />
-        </div>
-        <div className="chart-cell">
-          <h2 className="section-title">{t("dashboard.usageByAgent")}</h2>
-          <UsageStackChart group_by="agent" days={14} title={undefined} />
-        </div>
-        <div className="chart-cell">
-          <h2 className="section-title">{t("dashboard.usageByGroup")}</h2>
-          <UsageStackChart group_by="group" days={14} title={undefined} />
-        </div>
-      </div>
-
+      {/* Order: agent widget → timeline (full width) → three usage charts
+          in a horizontal row. Agent load cards surface per-member load +
+          24h heatmap strip. */}
       <h2 className="section-title">{t("dashboard.agentLoad")}</h2>
       <div className="load-grid">
         {load.map((a) => {
@@ -152,6 +134,26 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      <div className="dashboard-panel dashboard-panel-full">
+        <div className="panel-title">{t("dashboard.timeline")}</div>
+        <Gantt hours={6} />
+      </div>
+
+      <div className="dashboard-charts-row">
+        <div className="dashboard-panel">
+          <div className="panel-title">{t("dashboard.usageByProject")}</div>
+          <UsageStackChart group_by="project" days={14} title={undefined} height={180} />
+        </div>
+        <div className="dashboard-panel">
+          <div className="panel-title">{t("dashboard.usageByAgent")}</div>
+          <UsageStackChart group_by="agent" days={14} title={undefined} height={180} />
+        </div>
+        <div className="dashboard-panel">
+          <div className="panel-title">{t("dashboard.usageByGroup")}</div>
+          <UsageStackChart group_by="group" days={14} title={undefined} height={180} />
+        </div>
       </div>
     </div>
   );

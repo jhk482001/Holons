@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTranslation } from "react-i18next";
 import type { Artifact } from "../api/client";
 import "./ArtifactBubble.css";
 
@@ -27,22 +28,23 @@ export default function ArtifactBubble({ artifact }: { artifact: Artifact }) {
 function HtmlBubble({ artifact }: {
   artifact: Extract<Artifact, { kind: "html" }>;
 }) {
+  const { t } = useTranslation();
   const [full, setFull] = useState(false);
   return (
     <div className={`artifact-bubble artifact-html ${full ? "fullscreen" : ""}`}>
       <div className="artifact-head">
-        <span className="artifact-badge">HTML prototype</span>
-        <span className="artifact-title">{artifact.title || "Untitled"}</span>
+        <span className="artifact-badge">{t("artifactBubble.htmlBadge")}</span>
+        <span className="artifact-title">{artifact.title || t("artifactBubble.untitled")}</span>
         <span className="artifact-actions">
           <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
-            {full ? "Exit fullscreen" : "Fullscreen"}
+            {full ? t("artifactBubble.exitFullscreen") : t("artifactBubble.enterFullscreen")}
           </button>
           <a
             className="artifact-btn"
             href={`data:text/html;charset=utf-8,${encodeURIComponent(artifact.html)}`}
             download={(artifact.title || "prototype") + ".html"}
           >
-            Download
+            {t("btn.download")}
           </a>
         </span>
       </div>
@@ -63,23 +65,24 @@ function HtmlBubble({ artifact }: {
 function SlidesBubble({ artifact }: {
   artifact: Extract<Artifact, { kind: "slides" }>;
 }) {
+  const { t } = useTranslation();
   const [full, setFull] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   return (
     <div className={`artifact-bubble artifact-slides ${full ? "fullscreen" : ""}`}>
       <div className="artifact-head">
-        <span className="artifact-badge">Slide deck</span>
-        <span className="artifact-title">{artifact.title || "Untitled"}</span>
+        <span className="artifact-badge">{t("artifactBubble.slidesBadge")}</span>
+        <span className="artifact-title">{artifact.title || t("artifactBubble.untitled")}</span>
         <span className="artifact-actions">
           <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
-            {full ? "Exit fullscreen" : "Fullscreen"}
+            {full ? t("artifactBubble.exitFullscreen") : t("artifactBubble.enterFullscreen")}
           </button>
           <a
             className="artifact-btn"
             href={`data:text/html;charset=utf-8,${encodeURIComponent(artifact.html)}`}
             download={(artifact.title || "deck") + ".html"}
           >
-            Download
+            {t("btn.download")}
           </a>
         </span>
       </div>
@@ -98,22 +101,23 @@ function SlidesBubble({ artifact }: {
 function MarkdownBubble({ artifact }: {
   artifact: Extract<Artifact, { kind: "markdown" }>;
 }) {
+  const { t } = useTranslation();
   const [full, setFull] = useState(false);
   return (
     <div className={`artifact-bubble artifact-markdown ${full ? "fullscreen" : ""}`}>
       <div className="artifact-head">
-        <span className="artifact-badge">Markdown</span>
-        <span className="artifact-title">{artifact.title || "Untitled"}</span>
+        <span className="artifact-badge">{t("artifactBubble.markdownBadge")}</span>
+        <span className="artifact-title">{artifact.title || t("artifactBubble.untitled")}</span>
         <span className="artifact-actions">
           <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
-            {full ? "Exit fullscreen" : "Fullscreen"}
+            {full ? t("artifactBubble.exitFullscreen") : t("artifactBubble.enterFullscreen")}
           </button>
           <a
             className="artifact-btn"
             href={`data:text/markdown;charset=utf-8,${encodeURIComponent(artifact.markdown)}`}
             download={(artifact.title || "document") + ".md"}
           >
-            Download
+            {t("btn.download")}
           </a>
         </span>
       </div>
@@ -130,6 +134,7 @@ function MarkdownBubble({ artifact }: {
 function FileBubble({ artifact }: {
   artifact: Extract<Artifact, { kind: "file" }>;
 }) {
+  const { t } = useTranslation();
   // Build a data URL the browser can download directly. utf-8 text files
   // get URL-encoded; base64 payloads are passed through as-is.
   const dataUrl =
@@ -154,7 +159,7 @@ function FileBubble({ artifact }: {
         </span>
       </span>
       <a className="artifact-btn primary" href={dataUrl} download={artifact.filename}>
-        Download
+        {t("btn.download")}
       </a>
     </div>
   );

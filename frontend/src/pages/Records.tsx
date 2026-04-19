@@ -284,8 +284,8 @@ function ProxyRow({
           gap: 14,
         }}
       >
-        <span>thread: {row.thread_id.slice(0, 8)}…</span>
-        <span>{new Date(row.created_at).toLocaleString("zh-TW")}</span>
+        <span>{t("records.threadLabel")} {row.thread_id.slice(0, 8)}…</span>
+        <span>{new Date(row.created_at).toLocaleString()}</span>
       </div>
     </div>
   );

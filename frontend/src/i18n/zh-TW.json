@@ -4,7 +4,8 @@
     "dashboard": "Dashboard",
     "agents": "員工",
     "teams": "團隊",
-    "automation": "自動化",
+    "projects": "專案",
+    "automation": "Workflow",
     "records": "紀錄",
     "library": "Skill / MCP / 知識庫",
     "settings": "設定",
@@ -251,6 +252,8 @@
     "templates": "範本",
     "emptyMine": "還沒有任何 workflow。按 + 新增 workflow 開始。",
     "emptyTemplates": "還沒有任何公開的範本。",
+    "badgeTemplate": "範本",
+    "badgeDraft": "草稿",
     "unnamed": "(未命名)",
     "author": "作者",
     "source": "來源",
@@ -322,6 +325,7 @@
     "overview": "總覽",
     "skills": "技能",
     "tools": "工具",
+    "busy": "忙碌中",
     "threads": "對話串",
     "leadThreads": "與 Lead 的對話串",
     "agentThreads": "與 {{name}} 的對話串",
@@ -363,6 +367,7 @@
   "records": {
     "title": "紀錄",
     "subtitle": "執行紀錄、Escalation、通知全部集中於此",
+    "threadLabel": "thread：",
     "tab": {
       "runs": "執行紀錄",
       "escalations": "Escalation",
@@ -416,6 +421,7 @@
     "aggregator": "彙整",
     "edit": "編輯",
     "delete": "刪除",
+    "openChat": "開啟聊天室",
     "deleteTitle": "確認刪除團隊",
     "deleteDesc": "刪除團隊不會刪除 agent，但使用此團隊的 workflow 節點會失去引用。",
     "parallel": "並行",
@@ -455,6 +461,8 @@
   "runDetail": {
     "back": "返回執行紀錄",
     "notFound": "找不到這筆執行紀錄",
+    "runPrefix": "執行 ",
+    "workflowLabel": "Workflow",
     "usageByAgent": "依成員分類用量(近 14 天)",
     "stopping": "停止中…",
     "stopRun": "停止 run",
@@ -477,6 +485,8 @@
     "title": "排程",
     "subtitle": "定期觸發的 workflow",
     "createNew": "+ 新增排程",
+    "cronPrefix": "cron:",
+    "workflowPrefix": "workflow ",
     "empty": "還沒有任何排程。按 + 新增排程 建立一個。",
     "enabled": "啟用",
     "disabled": "已停用",
@@ -716,7 +726,7 @@
     "noAgents": "沒有 agent"
   },
   "automation": {
-    "title": "自動化",
+    "title": "Workflow",
     "subtitle": "Workflow 編排與排程設定",
     "tabWorkflows": "Workflows",
     "tabSchedules": "排程"
@@ -744,6 +754,26 @@
     "running": "執行中…",
     "runHistory": "執行紀錄（{{count}}）",
     "viewRun": "查看 →"
+  },
+  "artifactBubble": {
+    "htmlBadge": "HTML 原型",
+    "slidesBadge": "投影片",
+    "markdownBadge": "Markdown",
+    "enterFullscreen": "全螢幕",
+    "exitFullscreen": "結束全螢幕",
+    "untitled": "未命名"
+  },
+  "hireBubble": {
+    "proposedBadge": "提議招聘",
+    "hiredPrefix": "已雇用",
+    "descriptionPlaceholder": "簡短描述",
+    "systemPromptLabel": "System prompt",
+    "whyLabel": "原因：",
+    "cancelEdits": "取消編輯",
+    "editBeforeHiring": "先修改再招聘",
+    "hire": "招聘",
+    "hireWithEdits": "用編輯後的版本招聘",
+    "hiring": "招聘中…"
   },
   "btn": {
     "cancel": "取消",
@@ -813,6 +843,14 @@
     "noOutputs": "目前沒有產出。當 run 產生 final output 後會顯示在這裡。",
     "artifacts": "產出物件 ({{count}})",
     "noArtifacts": "目前沒有產出物件。當專案對話中 agent 產生 HTML、投影片、Markdown 或檔案時，會顯示在這裡。",
+    "coordinator": "協調員",
+    "chat": "對話",
+    "chatTabCoord": "找 {{name}}",
+    "chatTabLead": "找 Lead",
+    "chatCoordHint": "專案脈絡 · 看得到團隊與預算",
+    "chatLeadHint": "全域 Lead · 跨專案決策用",
+    "chatLeadEmpty": "可以請 Lead 幫忙招人、跨專案安排、整體規劃。",
+    "chatLeadPlaceholder": "跟 Lead 說…",
     "activity": "變更紀錄 ({{count}})",
     "noActivity": "目前沒有動態。",
     "runs": "執行紀錄 ({{count}})",
@@ -854,9 +892,6 @@
     "rounds_one": "{{count}} 輪",
     "rounds_other": "{{count}} 輪",
     "groupNotFound": "找不到這個團隊。"
-  },
-  "groups": {
-    "openChat": "開啟聊天室"
   },
   "chart": {
     "noUsageData": "尚無用量資料。"

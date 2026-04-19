@@ -57,7 +57,7 @@ export default function AgentDetail() {
           <h1>{agent.name}</h1>
           <div className="subtitle">
             {agent.role_title}
-            {agent.is_lead && <span className="lead-badge">LEAD</span>}
+            {agent.is_lead && <span className="lead-badge">{t("common.lead")}</span>}
           </div>
           <div className="meta-row">
             <span>{t("agentDetail.status")}<strong>{agent.status}</strong></span>

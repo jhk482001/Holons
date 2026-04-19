@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { HireProposal, LeadAPI } from "../api/client";
 import Avatar from "./Avatar";
 
@@ -22,6 +23,7 @@ export default function HireBubble({
   proposal: HireProposal;
   hiredAgentId?: number;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<HireProposal>(proposal);
@@ -44,7 +46,7 @@ export default function HireBubble({
       <div className="hire-bubble hire-bubble--done">
         <span className="hire-check">✓</span>
         <span>
-          Hired <strong>{proposal.name}</strong> — {proposal.role_title}
+          {t("hireBubble.hiredPrefix")} <strong>{proposal.name}</strong> — {proposal.role_title}
         </span>
       </div>
     );
@@ -80,7 +82,7 @@ export default function HireBubble({
             )}
           </div>
         </div>
-        <span className="hire-bubble-badge">Proposed hire</span>
+        <span className="hire-bubble-badge">{t("hireBubble.proposedBadge")}</span>
       </div>
 
       {proposal.description && !editing && (
@@ -92,12 +94,12 @@ export default function HireBubble({
           rows={2}
           value={form.description || ""}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Short description"
+          placeholder={t("hireBubble.descriptionPlaceholder")}
         />
       )}
 
       <details className="hire-bubble-prompt">
-        <summary>System prompt</summary>
+        <summary>{t("hireBubble.systemPromptLabel")}</summary>
         {editing ? (
           <textarea
             rows={8}
@@ -111,7 +113,7 @@ export default function HireBubble({
 
       {proposal.rationale && (
         <div className="hire-bubble-rationale">
-          <em>Why: {proposal.rationale}</em>
+          <em>{t("hireBubble.whyLabel")} {proposal.rationale}</em>
         </div>
       )}
 
@@ -127,27 +129,27 @@ export default function HireBubble({
                 setEditing(false);
               }}
             >
-              Cancel edits
+              {t("hireBubble.cancelEdits")}
             </button>
             <button
               className="mbtn primary"
               disabled={accept.isPending}
               onClick={() => accept.mutate()}
             >
-              {accept.isPending ? "Hiring…" : "Hire with edits"}
+              {accept.isPending ? t("hireBubble.hiring") : t("hireBubble.hireWithEdits")}
             </button>
           </>
         ) : (
           <>
             <button className="mbtn ghost" onClick={() => setEditing(true)}>
-              Edit before hiring
+              {t("hireBubble.editBeforeHiring")}
             </button>
             <button
               className="mbtn primary"
               disabled={accept.isPending}
               onClick={() => accept.mutate()}
             >
-              {accept.isPending ? "Hiring…" : "Hire"}
+              {accept.isPending ? t("hireBubble.hiring") : t("hireBubble.hire")}
             </button>
           </>
         )}

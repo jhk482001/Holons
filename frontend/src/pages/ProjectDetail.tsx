@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { AgentsAPI, ProjectsAPI, api } from "../api/client";
-import type { Artifact } from "../api/client";
+import { AgentsAPI, LeadAPI, ProjectsAPI, api } from "../api/client";
+import type { Artifact, LeadMessage } from "../api/client";
 import Avatar from "../components/Avatar";
 import ArtifactBubble from "../components/ArtifactBubble";
 import UsageStackChart from "../components/UsageStackChart";
@@ -65,6 +65,10 @@ export default function ProjectDetail() {
     enabled: !!pid,
   });
 
+  // Two-tab chat: "coord" talks to the project coordinator thread
+  // (proj-<pid>-*), "lead" talks to the user's most recent global Lead
+  // thread so this panel is a convenient alternative to going to /dialog.
+  const [chatTab, setChatTab] = useState<"coord" | "lead">("coord");
   const [composer, setComposer] = useState("");
   const { data: chatBundle, refetch: refetchChat } = useQuery({
     queryKey: ["project-chat", pid],
@@ -75,6 +79,27 @@ export default function ProjectDetail() {
     mutationFn: async (message: string) =>
       ProjectsAPI.chatSend(pid, message, chatBundle?.thread_id),
     onSuccess: () => { setComposer(""); refetchChat(); },
+  });
+
+  // Lead (global) tab — load the newest non-project Lead thread for history.
+  const { data: leadThreads = [] } = useQuery({
+    queryKey: ["lead-threads"],
+    queryFn: () => LeadAPI.threads(),
+    enabled: !!pid && chatTab === "lead",
+  });
+  const leadThreadId = leadThreads.find((t) => !t.thread_id.startsWith("proj-"))?.thread_id;
+  const { data: leadMsgBundle, refetch: refetchLead } = useQuery({
+    queryKey: ["lead-messages", leadThreadId],
+    queryFn: () => leadThreadId ? LeadAPI.messages(leadThreadId, { limit: 50 }) : Promise.resolve({ messages: [] as LeadMessage[], has_more: false }),
+    enabled: !!leadThreadId && chatTab === "lead",
+  });
+  const leadChat = useMutation({
+    mutationFn: async (message: string) => LeadAPI.chat(message, leadThreadId),
+    onSuccess: () => {
+      setComposer("");
+      qc.invalidateQueries({ queryKey: ["lead-threads"] });
+      if (leadThreadId) refetchLead();
+    },
   });
 
   const setStatus = useMutation({
@@ -145,18 +170,19 @@ export default function ProjectDetail() {
             const isCoord = project.coordinator_agent_id === m.agent_id;
             return (
               <div key={m.agent_id} style={{
-                padding: 10, background: "var(--surface)",
-                border: "1px solid var(--border)", borderRadius: 10,
+                padding: isCoord ? 12 : 10,
+                background: isCoord ? "var(--accent-soft)" : "var(--surface)",
+                border: isCoord ? "2px solid var(--accent)" : "1px solid var(--border)",
+                borderRadius: 10,
                 display: "flex", gap: 10, alignItems: "center",
+                position: "relative",
+                boxShadow: isCoord ? "0 2px 10px rgba(91,140,255,0.18)" : "none",
               }}>
-                <Avatar cfg={m.avatar_config} size={36} title={m.agent_name} />
+                <Avatar cfg={m.avatar_config} size={isCoord ? 44 : 36} title={m.agent_name} />
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
+                    {isCoord && <span title={t("projectDetail.coordinator")} style={{ fontSize: 14 }}>👑</span>}
                     {m.agent_name}
-                    {isCoord && <span style={{
-                      marginLeft: 6, fontSize: 9, background: "var(--accent)",
-                      color: "white", padding: "1px 6px", borderRadius: 4,
-                    }}>COORD</span>}
                   </div>
                   <div style={{ fontSize: 10, color: "var(--ink-3)" }}>
                     {m.role_title || ""}
@@ -165,58 +191,78 @@ export default function ProjectDetail() {
                     {t("projectDetail.dailySlice")} {Math.round(Number(m.daily_alloc_pct))}%
                   </div>
                 </div>
+                {isCoord && <span style={{
+                  position: "absolute", top: 8, right: 8,
+                  fontSize: 10, fontWeight: 700,
+                  background: "var(--accent)", color: "white",
+                  padding: "2px 8px", borderRadius: 999,
+                  letterSpacing: "0.04em",
+                }}>{t("projectDetail.coordinator")}</span>}
               </div>
             );
           })}
         </div>
       </Section>
 
-      {/* Coordinator chat */}
-      <Section title={t("projectDetail.chatWith", { name: coord?.name || t("common.members") })}>
-        <div style={{
-          background: "var(--surface)", border: "1px solid var(--border)",
-          borderRadius: 10, padding: 10, maxHeight: 360, overflowY: "auto",
-          display: "flex", flexDirection: "column", gap: 8, marginBottom: 8,
-        }}>
-          {(chatBundle?.messages || []).length === 0 && (
-            <div style={{ textAlign: "center", color: "var(--ink-4)", padding: 20, fontSize: 12 }}>
-              {coord
-                ? t("projectDetail.chatHelp", { name: coord.name })
-                : t("projectDetail.chatNoCoord")}
-            </div>
-          )}
-          {(chatBundle?.messages || []).map((m) => (
-            <div key={m.id} style={{
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "75%",
-              padding: "8px 12px",
-              borderRadius: 12,
-              background: m.role === "user" ? "var(--accent-soft)" : "var(--surface-2)",
-              fontSize: 13, whiteSpace: "pre-wrap",
-            }}>{m.content}</div>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <textarea
-            value={composer}
-            onChange={(e) => setComposer(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (composer.trim() && !chat.isPending) chat.mutate(composer.trim());
-              }
+      {/* Chat — two tabs: Coordinator (project-scoped) and Lead (global). */}
+      <Section title={t("projectDetail.chat")}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <button
+            onClick={() => setChatTab("coord")}
+            className="mbtn"
+            style={{
+              padding: "6px 14px", fontSize: 12, fontWeight: 600,
+              background: chatTab === "coord" ? "var(--accent)" : "var(--surface)",
+              color: chatTab === "coord" ? "white" : "var(--ink-2)",
+              border: `1px solid ${chatTab === "coord" ? "var(--accent)" : "var(--border)"}`,
             }}
-            placeholder={chat.isPending ? t("projectDetail.chatWaiting") : t("projectDetail.chatPlaceholder")}
-            disabled={chat.isPending || !coord}
-            rows={2}
-            style={{ flex: 1, resize: "none", padding: 10, borderRadius: 8, border: "1px solid var(--border)", fontSize: 13 }}
-          />
-          <button className="mbtn primary"
-                  disabled={chat.isPending || !composer.trim() || !coord}
-                  onClick={() => chat.mutate(composer.trim())}>
-            {chat.isPending ? "…" : t("btn.send")}
+          >
+            <span style={{ marginRight: 6 }}>👑</span>
+            {coord ? t("projectDetail.chatTabCoord", { name: coord.name }) : t("projectDetail.coordinator")}
           </button>
+          <button
+            onClick={() => setChatTab("lead")}
+            className="mbtn"
+            style={{
+              padding: "6px 14px", fontSize: 12, fontWeight: 600,
+              background: chatTab === "lead" ? "var(--accent)" : "var(--surface)",
+              color: chatTab === "lead" ? "white" : "var(--ink-2)",
+              border: `1px solid ${chatTab === "lead" ? "var(--accent)" : "var(--border)"}`,
+            }}
+          >
+            {t("projectDetail.chatTabLead")}
+          </button>
+          <div style={{ flex: 1 }} />
+          <div style={{ alignSelf: "center", fontSize: 11, color: "var(--ink-4)" }}>
+            {chatTab === "coord" ? t("projectDetail.chatCoordHint") : t("projectDetail.chatLeadHint")}
+          </div>
         </div>
+
+        {chatTab === "coord" ? (
+          <ChatPane
+            messages={chatBundle?.messages || []}
+            emptyHint={coord ? t("projectDetail.chatHelp", { name: coord.name }) : t("projectDetail.chatNoCoord")}
+            composer={composer}
+            setComposer={setComposer}
+            disabled={!coord}
+            pending={chat.isPending}
+            onSend={(msg) => chat.mutate(msg)}
+            placeholder={chat.isPending ? t("projectDetail.chatWaiting") : t("projectDetail.chatPlaceholder")}
+            sendLabel={t("btn.send")}
+          />
+        ) : (
+          <ChatPane
+            messages={leadMsgBundle?.messages || []}
+            emptyHint={t("projectDetail.chatLeadEmpty")}
+            composer={composer}
+            setComposer={setComposer}
+            disabled={false}
+            pending={leadChat.isPending}
+            onSend={(msg) => leadChat.mutate(msg)}
+            placeholder={leadChat.isPending ? t("projectDetail.chatWaiting") : t("projectDetail.chatLeadPlaceholder")}
+            sendLabel={t("btn.send")}
+          />
+        )}
       </Section>
 
       {/* Daily usage chart */}
@@ -361,6 +407,67 @@ function summarizePayload(type: string, payload: any): string {
   if (type === "milestone_status_changed") return `#${payload.milestone_id} → ${payload.to}`;
   if (type === "created") return `${payload.name}`;
   return "";
+}
+
+
+function ChatPane({
+  messages, emptyHint, composer, setComposer,
+  disabled, pending, onSend, placeholder, sendLabel,
+}: {
+  messages: Array<{ id: number; role: string; content: string }>;
+  emptyHint: string;
+  composer: string;
+  setComposer: (v: string) => void;
+  disabled: boolean;
+  pending: boolean;
+  onSend: (msg: string) => void;
+  placeholder: string;
+  sendLabel: string;
+}) {
+  return (
+    <>
+      <div style={{
+        background: "var(--surface)", border: "1px solid var(--border)",
+        borderRadius: 10, padding: 10, maxHeight: 360, overflowY: "auto",
+        display: "flex", flexDirection: "column", gap: 8, marginBottom: 8,
+      }}>
+        {messages.length === 0 && (
+          <div style={{ textAlign: "center", color: "var(--ink-4)", padding: 20, fontSize: 12 }}>
+            {emptyHint}
+          </div>
+        )}
+        {messages.map((m) => (
+          <div key={m.id} style={{
+            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+            maxWidth: "75%", padding: "8px 12px", borderRadius: 12,
+            background: m.role === "user" ? "var(--accent-soft)" : "var(--surface-2)",
+            fontSize: 13, whiteSpace: "pre-wrap",
+          }}>{m.content}</div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <textarea
+          value={composer}
+          onChange={(e) => setComposer(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (composer.trim() && !pending && !disabled) onSend(composer.trim());
+            }
+          }}
+          placeholder={placeholder}
+          disabled={pending || disabled}
+          rows={2}
+          style={{ flex: 1, resize: "none", padding: 10, borderRadius: 8, border: "1px solid var(--border)", fontSize: 13 }}
+        />
+        <button className="mbtn primary"
+                disabled={pending || !composer.trim() || disabled}
+                onClick={() => onSend(composer.trim())}>
+          {pending ? "…" : sendLabel}
+        </button>
+      </div>
+    </>
+  );
 }
 
 

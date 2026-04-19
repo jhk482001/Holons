@@ -4,7 +4,8 @@
     "dashboard": "Dashboard",
     "agents": "Employees",
     "teams": "Teams",
-    "automation": "Automation",
+    "projects": "Projects",
+    "automation": "Workflow",
     "records": "Records",
     "library": "Skill / MCP / Knowledge Base",
     "settings": "Settings",
@@ -251,6 +252,8 @@
     "templates": "Templates",
     "emptyMine": "No workflows yet. Click + New Workflow to start.",
     "emptyTemplates": "No public templates yet.",
+    "badgeTemplate": "TEMPLATE",
+    "badgeDraft": "DRAFT",
     "unnamed": "(Untitled)",
     "author": "Author",
     "source": "Source",
@@ -322,6 +325,7 @@
     "overview": "Overview",
     "skills": "Skills",
     "tools": "Tools",
+    "busy": "busy",
     "threads": "Threads",
     "leadThreads": "Lead Threads",
     "agentThreads": "{{name}} Threads",
@@ -363,6 +367,7 @@
   "records": {
     "title": "Records",
     "subtitle": "Execution records, escalations, notifications all in one place",
+    "threadLabel": "thread:",
     "tab": {
       "runs": "Execution History",
       "escalations": "Escalation",
@@ -416,6 +421,7 @@
     "aggregator": "Aggregator",
     "edit": "Edit",
     "delete": "Delete",
+    "openChat": "Open chat",
     "deleteTitle": "Confirm Delete Team",
     "deleteDesc": "Deleting a team won't delete agents, but workflow nodes referencing this team will lose the reference.",
     "parallel": "Parallel",
@@ -455,6 +461,8 @@
   "runDetail": {
     "back": "Back to Runs",
     "notFound": "Run not found",
+    "runPrefix": "Run ",
+    "workflowLabel": "Workflow",
     "usageByAgent": "Usage by member (last 14 days)",
     "stopping": "Stopping…",
     "stopRun": "Stop Run",
@@ -477,6 +485,8 @@
     "title": "Schedules",
     "subtitle": "Periodically triggered workflows",
     "createNew": "+ New Schedule",
+    "cronPrefix": "cron:",
+    "workflowPrefix": "workflow ",
     "empty": "No schedules yet. Click + New Schedule to create one.",
     "enabled": "Enabled",
     "disabled": "Disabled",
@@ -716,7 +726,7 @@
     "noAgents": "No agents"
   },
   "automation": {
-    "title": "Automation",
+    "title": "Workflow",
     "subtitle": "Workflow orchestration and scheduling",
     "tabWorkflows": "Workflows",
     "tabSchedules": "Schedules"
@@ -744,6 +754,26 @@
     "running": "Running…",
     "runHistory": "Run History ({{count}})",
     "viewRun": "View →"
+  },
+  "artifactBubble": {
+    "htmlBadge": "HTML prototype",
+    "slidesBadge": "Slide deck",
+    "markdownBadge": "Markdown",
+    "enterFullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "untitled": "Untitled"
+  },
+  "hireBubble": {
+    "proposedBadge": "Proposed hire",
+    "hiredPrefix": "Hired",
+    "descriptionPlaceholder": "Short description",
+    "systemPromptLabel": "System prompt",
+    "whyLabel": "Why:",
+    "cancelEdits": "Cancel edits",
+    "editBeforeHiring": "Edit before hiring",
+    "hire": "Hire",
+    "hireWithEdits": "Hire with edits",
+    "hiring": "Hiring…"
   },
   "btn": {
     "cancel": "Cancel",
@@ -813,6 +843,14 @@
     "noOutputs": "No outputs yet. Once a run produces a final output, it shows up here.",
     "artifacts": "Artifacts ({{count}})",
     "noArtifacts": "No artifacts yet. When an agent produces an HTML, slides, markdown, or file artifact in project chat, it shows up here.",
+    "coordinator": "Coordinator",
+    "chat": "Chat",
+    "chatTabCoord": "Ask {{name}}",
+    "chatTabLead": "Ask Lead",
+    "chatCoordHint": "Project-scoped · sees team roster & budget",
+    "chatLeadHint": "Global Lead · best for cross-project decisions",
+    "chatLeadEmpty": "Ask Lead anything — hires, cross-project escalations, broad planning.",
+    "chatLeadPlaceholder": "Ask Lead…",
     "activity": "Activity ({{count}})",
     "noActivity": "Nothing here yet.",
     "runs": "Runs ({{count}})",
@@ -854,9 +892,6 @@
     "rounds_one": "{{count}} round",
     "rounds_other": "{{count}} rounds",
     "groupNotFound": "Group not found."
-  },
-  "groups": {
-    "openChat": "Open chat"
   },
   "chart": {
     "noUsageData": "No usage data yet."

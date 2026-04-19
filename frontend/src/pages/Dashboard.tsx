@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { DashboardAPI, api } from "../api/client";
 import Avatar from "../components/Avatar";
 import Gantt from "../components/Gantt";
-import LoadHeatmap from "../components/LoadHeatmap";
 import UsageStackChart from "../components/UsageStackChart";
 import "./Dashboard.css";
 
@@ -19,6 +18,17 @@ export default function Dashboard() {
     queryFn: DashboardAPI.agentLoad,
     refetchInterval: 10_000,
   });
+  // Per-agent hourly heatmap — fetched once, sliced into each load-card
+  // as a mini strip instead of a big standalone section.
+  const { data: heatmap } = useQuery({
+    queryKey: ["load-heatmap"],
+    queryFn: () => DashboardAPI.loadHeatmap(24),
+    refetchInterval: 60_000,
+  });
+  const heatmapByAgent = new Map<number, number[]>();
+  for (const row of heatmap?.agents || []) heatmapByAgent.set(row.id, row.values);
+  const heatmapMax = Math.max(1, ...(heatmap?.agents || []).flatMap((a) => a.values));
+
   const { data: nearQuota = [] } = useQuery({
     queryKey: ["dashboard-near-quota"],
     queryFn: () => api.get<Array<{
@@ -79,22 +89,26 @@ export default function Dashboard() {
         </section>
       )}
 
-      <Gantt hours={6} />
-
-      <LoadHeatmap />
-
-      <h2 className="section-title">{t("dashboard.usageByProject")}</h2>
-      <UsageStackChart group_by="project" days={14} title={undefined} />
-
-      <h2 className="section-title" style={{ marginTop: 20 }}>
-        {t("dashboard.usageByAgent")}
-      </h2>
-      <UsageStackChart group_by="agent" days={14} title={undefined} />
-
-      <h2 className="section-title" style={{ marginTop: 20 }}>
-        {t("dashboard.usageByGroup")}
-      </h2>
-      <UsageStackChart group_by="group" days={14} title={undefined} />
+      {/* Two-column charts grid. On narrow screens the grid collapses to
+          a single column automatically via minmax(360px, 1fr). */}
+      <div className="dashboard-charts">
+        <div className="chart-cell">
+          <h2 className="section-title">{t("dashboard.timeline")}</h2>
+          <Gantt hours={6} />
+        </div>
+        <div className="chart-cell">
+          <h2 className="section-title">{t("dashboard.usageByProject")}</h2>
+          <UsageStackChart group_by="project" days={14} title={undefined} />
+        </div>
+        <div className="chart-cell">
+          <h2 className="section-title">{t("dashboard.usageByAgent")}</h2>
+          <UsageStackChart group_by="agent" days={14} title={undefined} />
+        </div>
+        <div className="chart-cell">
+          <h2 className="section-title">{t("dashboard.usageByGroup")}</h2>
+          <UsageStackChart group_by="group" days={14} title={undefined} />
+        </div>
+      </div>
 
       <h2 className="section-title">{t("dashboard.agentLoad")}</h2>
       <div className="load-grid">
@@ -104,6 +118,7 @@ export default function Dashboard() {
           const fill = Math.min(100, (depth / max) * 100);
           const level = fill > 80 ? "critical" : fill > 50 ? "high" : "normal";
           const cost = Number(a.today_cost) || 0;
+          const values = heatmapByAgent.get(a.id);
           return (
             <div key={a.id} className={`load-card ${level === "critical" ? "danger" : level === "high" ? "warn" : ""}`}>
               <div className="card-head">
@@ -116,9 +131,24 @@ export default function Dashboard() {
               </div>
               <div className="bar"><div className={`bar-fill ${level}`} style={{ width: `${fill}%` }}></div></div>
               <div className="metrics">
-                <div className="cell"><div className="num">{depth}/{max}</div>queue</div>
-                <div className="cell"><div className="num">${cost.toFixed(2)}</div>cost today</div>
+                <div className="cell"><div className="num">{depth}/{max}</div>{t("dashboard.queue")}</div>
+                <div className="cell"><div className="num">${cost.toFixed(2)}</div>{t("dashboard.todayCostLabel")}</div>
               </div>
+              {values && values.length > 0 && (
+                <div
+                  className="load-heatmap-strip"
+                  title={t("heatmap.hint")}
+                  aria-label={t("heatmap.title")}
+                >
+                  {values.map((v, i) => {
+                    const intensity = v === 0 ? 0 : Math.min(1, v / heatmapMax);
+                    const bg = intensity === 0
+                      ? "var(--surface-2)"
+                      : `hsl(28, ${Math.round(60 + intensity * 35)}%, ${Math.round(70 - intensity * 40)}%)`;
+                    return <span key={i} style={{ background: bg }} />;
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

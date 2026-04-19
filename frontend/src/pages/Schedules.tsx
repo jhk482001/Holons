@@ -97,10 +97,10 @@ export default function Schedules() {
                 {s.trigger_type === "interval"
                   ? `${formatInterval(s.interval_seconds || 0)}`
                   : s.trigger_type === "cron"
-                    ? `cron: ${s.cron_expression}`
+                    ? `${t("schedules.cronPrefix")} ${s.cron_expression}`
                     : s.trigger_type}
                 {" · "}{t("schedules.priority")}{" "}{s.priority}
-                {" · workflow #"}{s.workflow_id}
+                {" · "}{t("schedules.workflowPrefix")}#{s.workflow_id}
               </div>
             </div>
             <div

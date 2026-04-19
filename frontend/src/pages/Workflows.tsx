@@ -189,7 +189,7 @@ export default function Workflows() {
                     color: "var(--good)",
                     padding: "2px 8px",
                     borderRadius: 999,
-                  }}>TEMPLATE</span>
+                  }}>{t("workflows.badgeTemplate")}</span>
                 )}
                 {wf.is_draft && (
                   <span style={{
@@ -200,7 +200,7 @@ export default function Workflows() {
                     color: "var(--ink-3)",
                     padding: "2px 8px",
                     borderRadius: 999,
-                  }}>DRAFT</span>
+                  }}>{t("workflows.badgeDraft")}</span>
                 )}
                 {wf.loop_enabled && (
                   <span style={{

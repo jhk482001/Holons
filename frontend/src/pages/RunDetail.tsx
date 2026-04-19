@@ -140,11 +140,11 @@ export default function RunDetail() {
         borderBottom: "1px solid var(--border)",
       }}>
         <div>
-          <h1 style={{ fontSize: 24 }}>Run #{run.id}</h1>
+          <h1 style={{ fontSize: 24 }}>{t("runDetail.runPrefix")}#{run.id}</h1>
           <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 4 }}>
-            Workflow <Link to={`/workflows/${run.workflow_id}`} style={{ color: "var(--accent)", textDecoration: "none" }}>#{run.workflow_id}</Link>
+            {t("runDetail.workflowLabel")} <Link to={`/workflows/${run.workflow_id}`} style={{ color: "var(--accent)", textDecoration: "none" }}>#{run.workflow_id}</Link>
             {" · "}
-            {new Date(run.started_at).toLocaleString("zh-TW")}
+            {new Date(run.started_at).toLocaleString()}
           </div>
         </div>
         <div style={{

@@ -4,7 +4,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tansta
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AgentsAPI, LeadAPI, McpAPI, RunsAPI, ToolsAPI, api, bustUrl, headUrl, Agent, LeadMessage } from "../api/client";
+import { AgentsAPI, DashboardAPI, LeadAPI, McpAPI, RunsAPI, ToolsAPI, api, bustUrl, headUrl, Agent, LeadMessage } from "../api/client";
 import WorkflowBubble from "../components/WorkflowBubble";
 import HireBubble from "../components/HireBubble";
 import "../components/HireBubble.css";
@@ -22,6 +22,17 @@ export default function DialogCenter() {
     queryFn: AgentsAPI.list,
     refetchInterval: 10_000,
   });
+
+  // Per-agent queue depth drives the "busy" chest pill on each cast bust.
+  // Polled more aggressively than the agent list since busy-ness is the
+  // most time-sensitive visual signal in the cast.
+  const { data: agentLoad = [] } = useQuery({
+    queryKey: ["agent-load"],
+    queryFn: DashboardAPI.agentLoad,
+    refetchInterval: 5_000,
+  });
+  const busyByAgentId = new Map<number, boolean>();
+  for (const row of agentLoad) busyByAgentId.set(row.id, (row.queue_depth || 0) > 0);
 
   const { data: leadPending } = useQuery({
     queryKey: ["lead-pending"],
@@ -674,6 +685,7 @@ export default function DialogCenter() {
                   isLead={isLeadMember}
                   pendingCount={isLeadMember ? leadPendingCount : 0}
                   facing={facingMap[String(a.id)] === "left" ? "left" : "right"}
+                  busy={busyByAgentId.get(a.id) || false}
                   onChat={() => toggleChat(id)}
                   onCalendar={() => selectCalendar(id)}
                   onSettings={() => selectSettings(id)}
@@ -1110,7 +1122,7 @@ function McpServerList({ agentId }: { agentId: number }) {
 // ============================================================================
 
 function CastMember({
-  agent, active, activeTab, isLead, pendingCount, facing = "right",
+  agent, active, activeTab, isLead, pendingCount, facing = "right", busy = false,
   onChat, onCalendar, onSettings, onHide, onFace,
 }: {
   agent: Agent;
@@ -1119,6 +1131,7 @@ function CastMember({
   isLead?: boolean;
   pendingCount?: number;
   facing?: "left" | "right";
+  busy?: boolean;
   onChat: () => void;
   onCalendar: () => void;
   onSettings: () => void;
@@ -1242,13 +1255,18 @@ function CastMember({
           </svg>
         </button>
       </div>
-      <div className="bust">
+      <div className={`bust ${busy ? "is-busy" : ""}`}>
         <img
           src={bustUrl(agent.avatar_config, true)}
           alt={agent.name}
           loading="lazy"
           style={facing === "left" ? { transform: "scaleX(-1)" } : undefined}
         />
+        {busy && (
+          <span className="bust-busy-pill" aria-label={t("dialog.busy")}>
+            {t("dialog.busy")}<span className="bust-busy-dots"><span>.</span><span>.</span><span>.</span></span>
+          </span>
+        )}
       </div>
       <div className="info">
         <div className="name-line">

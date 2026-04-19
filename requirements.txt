@@ -12,3 +12,9 @@ pgvector==0.3.0
 # Used by backend.services.asset_crypto (Fernet) to encrypt
 # MCP / RAG connection credentials at rest.
 cryptography>=41,<46
+
+# Cron expression parsing for the scheduler. Without this,
+# backend.services.scheduler falls back to a 1-hour interval for any
+# cron-trigger schedule — so interval triggers keep working but cron
+# ones silently misfire.
+croniter>=2,<7

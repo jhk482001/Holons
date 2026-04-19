@@ -23,8 +23,13 @@ swappable backing DB.
 
 ![Lead proposes a full workflow from a one-line request](docs/assets/screenshots/02b-dialog-lead-response.png)
 
-> Tell Lead what you want; it decomposes the task, drafts a workflow, and
-> hands you Edit / Save / Run Now. No YAML, no code.
+> ### Talk to Lead in your own words → get a runnable multi-agent workflow in seconds.
+>
+> Type the job the way you'd say it to a colleague — *"spin up a pitch
+> for a B2B AI accountant"* or *"review this chapter for pacing and
+> consistency"*. Lead picks who on your team should do what, drafts the
+> workflow, shows a cost estimate, and hands you **Edit / Save / Run
+> Now**. No YAML, no graph-coding, no framework to learn.
 >
 > 🎬 **[Watch the full walkthrough](docs/assets/demo-walkthrough.webm)** — login → dialog → groups → group chat → workflow editor → dashboard → library.
 
@@ -105,16 +110,31 @@ Linux.
 
 ## 🧭 A quick tour
 
-### 1. Lead designs the workflow for you
+### 1. Tell Lead what you want — get a workflow back
 
-The hero shot above shows Lead turning "spin up a pitch for a B2B AI
-accountant" into a three-stage flow, with cost estimate and a Run Now
-button. Direct answers, workflow proposals, and resource-conflict hints
-all live in the same chat.
+The hero shot above is the flagship moment. You type *"spin up a pitch
+for a B2B AI accountant"* in plain English; Lead turns it into a
+three-stage workflow, picks the right agents off your bench, shows
+the cost estimate, and offers **Run Now**. You can run it, edit any
+step, or save it as a template for next time.
+
+Lead also answers simple questions directly, flags resource conflicts
+("Noah is busy until 3pm"), and proposes the same workflow in the
+group chat when you're deliberating with teammates.
 
 🎥 [`videos/01-dialog-workflow-proposal.webm`](docs/assets/videos/01-dialog-workflow-proposal.webm)
 
-### 2. Sit in a room and talk to a team
+### 2. Workflows are visual — and you can always take over
+
+Once Lead proposes (or you hand-build) a workflow, drag nodes, swap
+agents, change parallel vs. sequential, override a prompt for one step.
+No YAML, no code, no framework-specific DSL.
+
+![Workflow editor](docs/assets/screenshots/06-workflow-editor.png)
+
+🎥 [`videos/03-workflow-editor.webm`](docs/assets/videos/03-workflow-editor.webm)
+
+### 3. Sit in a room and talk to a team
 
 A "group chat" is exactly what it sounds like: you, and every agent in a
 group, in one thread. Replies come in parallel (everyone answers at once)
@@ -125,28 +145,34 @@ continue"** and the agents keep riffing without you for 1–10 rounds.
 
 🎥 [`videos/02-group-chat.webm`](docs/assets/videos/02-group-chat.webm)
 
-### 3. Workflows are visual and editable
+### 4. Projects bundle the work — and a coordinator writes your daily report
 
-Drag nodes, swap agents, change parallel vs. sequential, override a prompt
-for one step — no YAML, no code.
+Group runs into a **Project**: give it a goal, allocate a slice of each
+agent's daily quota, and pick a coordinator. At day's end the coordinator
+writes a short report — status, per-member highlights, budget burn, next
+up — and drops it into your Lead thread with a link. Hook a webhook and
+it goes to Slack too.
 
-![Workflow editor](docs/assets/screenshots/06-workflow-editor.png)
+Budgets and quotas are per-agent / per-project, with 80% warnings and
+an optional auto-topup that's rate-limited so you don't run a 3am surprise.
 
-🎥 [`videos/03-workflow-editor.webm`](docs/assets/videos/03-workflow-editor.webm)
+→ Deep dive: [docs/PROJECTS.md](docs/PROJECTS.md)
 
-### 4. See who's working and what it cost
+### 5. See who's working — and what it cost
 
-Real-time Gantt chart of agent activity, today's cost, queue depth per
-agent, and who's idle.
+Real-time Gantt of agent activity, today's cost, queue depth per agent,
+who's idle vs. over-budget, stacked per-project spend.
 
 ![Dashboard](docs/assets/screenshots/07-dashboard.png)
 
 🎥 [`videos/04-dashboard.webm`](docs/assets/videos/04-dashboard.webm)
 
-### 5. Plug in the outside world
+### 6. Plug in the outside world — skills, tools, MCP servers
 
-Share skills, tools, and MCP servers across all your agents from one
-place. Built-in tools ship out of the box; add your own via the UI.
+Share curated skills, built-in tools (HTTP GET, current time, search),
+custom MCP servers, and RAG knowledge bases across every agent from one
+Library page. Admins gate who can create and share; agents inherit whatever
+they've been granted.
 
 ![Library](docs/assets/screenshots/08-library.png)
 
@@ -165,18 +191,31 @@ place. Built-in tools ship out of the box; add your own via the UI.
 
 ---
 
-## 📦 What's inside
+## 📦 Features at a glance
 
-| | |
-|---|---|
-| **Two surfaces, one backend** | Rich web console (React + Flask) plus a transparent desktop overlay (Tauri + Rust + React). |
-| **Lead agent** | Your personal secretary — takes natural-language requests, decomposes them, proposes a runnable workflow. |
-| **Teams** | Parallel or sequential groups; fan out, debate, or hand off with full context. |
-| **Group chat rooms** | Observable deliberation; *"let them continue"* for 1–10 rounds. |
-| **Visual workflow editor** | Drag nodes, swap agents, override a prompt per step. |
-| **Library** | Share skills, tools, and MCP servers across agents from one place. |
-| **Pluggable LLMs** | AWS Bedrock, Anthropic, OpenAI, Gemini, MiniMax. Pick per agent. |
-| **Two backends** | SQLite (personal, single file) or Postgres + pgvector (team / prod). |
+The big surfaces — everything below maps to a tour section above, a
+deep-dive doc, or both.
+
+| | | |
+|---|---|---|
+| 🗣️ **Natural-language → workflow** | 🧩 **Visual workflow editor** | 👥 **Named agents & roles** |
+| Talk to Lead; get a runnable flow. | Drag, swap, override per step. | Name, face, role, system prompt. |
+| 💬 **Group chat rooms** | 🔁 **Parallel / sequential groups** | 🎬 **"Let them continue"** |
+| Observable deliberation. | Fan-out, round-robin, aggregator. | 1–10 autonomous rounds. |
+| 🗂️ **Projects + quotas** | 📈 **Daily coordinator report** | 💰 **Budget & auto-topup** |
+| Goals, members, resource %. | Status / highlights / next-up. | Rate-limited, warn at 80%. |
+| 📊 **Dashboard & cost** | 🕐 **Schedules (cron)** | 🔎 **Full-text search** |
+| Gantt, stacked spend, idle/busy. | Trigger workflows on a timer. | Across threads, runs, reports. |
+| 📔 **Skills library** | 🔧 **Tools (HTTP, time, …)** | 🧠 **RAG knowledge bases** |
+| Reusable prompt snippets. | Built-ins + bring-your-own. | pgvector backend; per-agent grants. |
+| 🔑 **MCP servers** | 🛂 **Feature flags + admin** | 📨 **Notifications + webhooks** |
+| Custom + shared connections. | Who can create/share/use what. | In-app bell + Slack/HTTP fanout. |
+| 🪟 **Desktop cast-bar overlay** | 🔌 **API tokens (`hlns_…`)** | 📤 **Export / import** |
+| Transparent, click-through. | Long-lived, scoped, rotate-able. | Agents, workflows as JSON. |
+| 🌐 **Pluggable LLMs** | 💾 **Swappable backends** | 🌍 **i18n (en / zh-TW)** |
+| Bedrock / Anthropic / OpenAI / Gemini / MiniMax. | SQLite (personal) or Postgres + pgvector. | Per-user locale. |
+
+→ Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Projects deep-dive: **[docs/PROJECTS.md](docs/PROJECTS.md)** · Development: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**
 
 ---
 

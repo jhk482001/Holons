@@ -5,9 +5,10 @@ import PersonalTab from "../components/settings/PersonalTab";
 import UserManagementTab from "../components/settings/UserManagementTab";
 import SystemSettingsTab from "../components/settings/SystemSettingsTab";
 import ModelClientsTab from "../components/settings/ModelClientsTab";
+import ChannelsTab from "../components/settings/ChannelsTab";
 import "./Records.css"; // reuse .page-tabs + suppression rules
 
-type TabKey = "personal" | "users" | "system" | "models";
+type TabKey = "personal" | "channels" | "users" | "system" | "models";
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -18,6 +19,7 @@ export default function Settings() {
   // Non-admins landing on admin-only tabs get bounced to personal.
   const visibleTabs: { key: TabKey; label: string }[] = [
     { key: "personal", label: t("settings.tab.personal") },
+    { key: "channels", label: t("settings.tab.channels") },
     ...(isAdmin
       ? ([
           { key: "users" as TabKey, label: t("settings.tab.users") },
@@ -58,6 +60,7 @@ export default function Settings() {
 
       <div className="settings-tab-body">
         {tab === "personal" && <PersonalTab />}
+        {tab === "channels" && <ChannelsTab />}
         {tab === "users" && isAdmin && <UserManagementTab />}
         {tab === "models" && isAdmin && <ModelClientsTab />}
         {tab === "system" && isAdmin && <SystemSettingsTab />}

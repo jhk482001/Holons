@@ -630,6 +630,32 @@ DDL: list[str] = [
     "ALTER TABLE groups_tbl ADD COLUMN IF NOT EXISTS is_ephemeral BOOLEAN DEFAULT FALSE",
     "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS agent_id BIGINT REFERENCES agents(id) ON DELETE CASCADE",
     "CREATE INDEX IF NOT EXISTS idx_lead_conv_agent ON lead_conversations(user_id, agent_id)",
+    # IM channel source continuity — when a Lead thread was opened from
+    # Telegram / Slack / etc., remember which platform + external chat
+    # it came from so replies can be routed back.
+    "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS source_platform VARCHAR(30)",
+    "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS source_external_id VARCHAR(200)",
+    "CREATE INDEX IF NOT EXISTS idx_lead_conv_source ON lead_conversations(source_platform, source_external_id)",
+    # IM channel bindings — one row per (user, platform) pair. Bot token
+    # / webhook secret / etc. live encrypted in `secret_encrypted`.
+    # External id is populated lazily on first `/start` contact so we
+    # know which chat to push replies to.
+    """
+    CREATE TABLE IF NOT EXISTS im_bindings (
+        id                 BIGSERIAL PRIMARY KEY,
+        user_id            BIGINT NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
+        platform           VARCHAR(30) NOT NULL,
+        external_id        VARCHAR(200),
+        display_name       VARCHAR(200),
+        enabled            BOOLEAN DEFAULT TRUE,
+        secret_encrypted   TEXT,
+        metadata           JSONB DEFAULT '{}'::jsonb,
+        created_at         TIMESTAMPTZ DEFAULT NOW(),
+        updated_at         TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, platform)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_im_bindings_platform_ext ON im_bindings(platform, external_id)",
     # Stage 1 — tool use: record each turn's tool invocations
     "ALTER TABLE run_steps ADD COLUMN IF NOT EXISTS tool_calls JSONB DEFAULT '[]'::jsonb",
     "ALTER TABLE run_steps ADD COLUMN IF NOT EXISTS turn INT DEFAULT 0",

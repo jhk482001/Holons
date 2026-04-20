@@ -122,6 +122,11 @@ def _startup() -> None:
     db.init()  # schema.create_all() seeds feature_flags for us
     worker.registry().start_all_active()
     scheduler.start()
+    # IM channel pollers — one thread per enabled im_bindings row.
+    # Skippable via env flag for local dev or tests.
+    if os.environ.get("HOLONS_DISABLE_IM") != "1":
+        from .services import im_channels
+        im_channels.start_all()
 
 
 # ============================================================================
@@ -546,6 +551,111 @@ def put_cast_layout():
         (json.dumps(data), current_user_id()),
     )
     return jsonify({"ok": True})
+
+
+# ============================================================================
+# IM channel bindings — per-user bot tokens for Telegram / Slack / …
+#
+# Wire protocol: Bot tokens are stored encrypted via asset_crypto.Fernet.
+# Creating or updating a binding triggers im_channels.reload_user() so the
+# polling thread picks up the new token without a backend restart.
+# ============================================================================
+
+
+@app.route("/api/im/bindings")
+@login_required
+def list_im_bindings():
+    rows = db.fetch_all(
+        "SELECT id, platform, external_id, display_name, enabled, metadata, created_at "
+        "FROM im_bindings WHERE user_id = %s ORDER BY id",
+        (current_user_id(),),
+    )
+    return jsonify(rows)
+
+
+@app.route("/api/im/bindings", methods=["POST"])
+@login_required
+def upsert_im_binding():
+    """Create or update the (user, platform) binding. Validates the
+    token by calling getMe first — a bad token fails fast with a 400
+    before we ever persist it."""
+    from .services import asset_crypto
+    from .services import im_channels
+    from .services.im_channels import telegram as _tg
+
+    d = request.get_json() or {}
+    platform = (d.get("platform") or "").lower()
+    token = (d.get("token") or "").strip()
+    if platform not in ("telegram",):
+        return jsonify({"error": f"unsupported platform: {platform}"}), 400
+    if not token:
+        return jsonify({"error": "token required"}), 400
+
+    # Verify. For Telegram: getMe.
+    try:
+        if platform == "telegram":
+            info = _tg.verify_token(token)
+            display_name = f"@{info.get('username')} ({info.get('first_name')})"
+    except Exception as e:
+        return jsonify({"error": f"token rejected by platform: {e}"}), 400
+
+    enc = asset_crypto.encrypt(token)
+    uid = current_user_id()
+    existing = db.fetch_one(
+        "SELECT id FROM im_bindings WHERE user_id = %s AND platform = %s",
+        (uid, platform),
+    )
+    if existing:
+        db.execute(
+            "UPDATE im_bindings SET secret_encrypted = %s, display_name = %s, "
+            "enabled = TRUE, updated_at = NOW(), external_id = NULL, "
+            "metadata = '{}'::jsonb WHERE id = %s",
+            (enc, display_name, existing["id"]),
+        )
+        bid = existing["id"]
+    else:
+        bid = db.execute_returning(
+            "INSERT INTO im_bindings (user_id, platform, secret_encrypted, "
+            "display_name, enabled) VALUES (%s, %s, %s, %s, TRUE) RETURNING id",
+            (uid, platform, enc, display_name),
+        )
+    im_channels.reload_user(uid)
+    return jsonify({"id": bid, "display_name": display_name, "platform": platform})
+
+
+@app.route("/api/im/bindings/<int:bid>", methods=["DELETE"])
+@login_required
+def delete_im_binding(bid: int):
+    from .services import im_channels
+    uid = current_user_id()
+    row = db.fetch_one(
+        "SELECT id FROM im_bindings WHERE id = %s AND user_id = %s", (bid, uid),
+    )
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    db.execute("DELETE FROM im_bindings WHERE id = %s", (bid,))
+    im_channels.reload_user(uid)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/im/bindings/<int:bid>/toggle", methods=["POST"])
+@login_required
+def toggle_im_binding(bid: int):
+    from .services import im_channels
+    uid = current_user_id()
+    row = db.fetch_one(
+        "SELECT id, enabled FROM im_bindings WHERE id = %s AND user_id = %s",
+        (bid, uid),
+    )
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    new_enabled = not row["enabled"]
+    db.execute(
+        "UPDATE im_bindings SET enabled = %s, updated_at = NOW() WHERE id = %s",
+        (new_enabled, bid),
+    )
+    im_channels.reload_user(uid)
+    return jsonify({"id": bid, "enabled": new_enabled})
 
 
 @app.route("/api/logout", methods=["POST"])

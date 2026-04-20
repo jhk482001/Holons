@@ -533,10 +533,32 @@
     "subtitleUser": "Personal Account",
     "tab": {
       "personal": "Personal Settings",
+      "channels": "Channels",
       "users": "User Management",
       "models": "Model Management",
       "system": "System Settings"
     }
+  },
+  "channels": {
+    "title": "Messaging channels",
+    "subtitle": "Link Holons to an IM client so Lead can reach you — and you can reach Lead — from your phone.",
+    "telegramDesc": "Personal Telegram bot. You create the bot once via @BotFather, paste the token here, then message the bot to drive Lead from anywhere.",
+    "addTelegram": "Connect Telegram",
+    "replaceToken": "Replace token",
+    "unbind": "Unbind",
+    "confirmUnbind": "Unbind this Telegram bot from your Holons account?",
+    "disable": "Disable",
+    "enable": "Enable",
+    "status": "Status",
+    "on": "on",
+    "off": "off",
+    "bound": "Linked to chat {{id}}",
+    "awaitStart": "Bot ready — send /start to your bot in Telegram to finish the link.",
+    "instrStep1": "Talk to @BotFather in Telegram and run /newbot to create a new bot.",
+    "instrStep2": "Copy the HTTP API token BotFather gives you.",
+    "instrStep3": "Paste it below. Once saved, open your bot in Telegram and send /start.",
+    "botTokenLabel": "Bot token",
+    "saveAndVerify": "Save & verify"
   },
   "personal": {
     "accountInfo": "Account Information",

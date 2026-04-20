@@ -414,7 +414,7 @@ export interface UsageDailyRow {
 
 export const UsageAPI = {
   daily: (params: {
-    group_by: "project" | "agent" | "group" | "workflow";
+    group_by: "project" | "agent" | "group" | "workflow" | "model_client";
     days?: number;
     project_id?: number | "null";
     agent_id?: number;

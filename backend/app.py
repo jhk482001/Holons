@@ -2361,10 +2361,14 @@ def my_autotopup():
 @login_required
 def usage_daily():
     """Return per-day token + cost totals, grouped by one of:
-        project | agent | group | workflow
+        project | agent | group | workflow | model_client
     Optional scope filters restrict rows to a single parent, e.g.
     `?group_by=agent&project_id=4` returns a per-agent timeseries for
     project 4. `?days=14` controls the window (default 14, max 90).
+
+    When group_by=workflow, the label is suffixed with a 📅 marker if the
+    workflow has any schedule row so the chart legend tells
+    scheduled-triggered runs apart from manual ones at a glance.
     """
     group_by = (request.args.get("group_by") or "project").lower()
     days = max(1, min(90, int(request.args.get("days", 14))))
@@ -2372,11 +2376,19 @@ def usage_daily():
     agent_id = request.args.get("agent_id")
     workflow_id = request.args.get("workflow_id")
 
+    # Workflow labels get annotated with a 📅 when any schedule points at
+    # them — helpful for distinguishing background recurring work from
+    # ad-hoc dispatches on the same project page.
+    workflow_label = (
+        "CASE WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.workflow_id = w.id) "
+        "THEN w.name || ' 📅' ELSE w.name END"
+    )
     key_sql_map = {
-        "project": ("rs.project_id",      "COALESCE(p.name, '(adhoc)')"),
-        "agent":   ("rs.agent_id",        "a.name"),
-        "group":   ("rs.group_id",        "COALESCE(g.name, '(no group)')"),
-        "workflow":("r.workflow_id",      "w.name"),
+        "project":      ("rs.project_id",      "COALESCE(p.name, '(adhoc)')"),
+        "agent":        ("rs.agent_id",        "a.name"),
+        "group":        ("rs.group_id",        "COALESCE(g.name, '(no group)')"),
+        "workflow":     ("r.workflow_id",      workflow_label),
+        "model_client": ("a.model_client_id",  "COALESCE(mc.name, '(no client)')"),
     }
     if group_by not in key_sql_map:
         return jsonify({"error": f"invalid group_by: {group_by}"}), 400
@@ -2405,11 +2417,12 @@ def usage_daily():
                SUM(rs.input_tokens + rs.output_tokens)::bigint AS tokens,
                SUM(rs.cost_usd)::float                          AS cost
         FROM run_steps rs
-        JOIN runs r           ON r.id = rs.run_id
-        LEFT JOIN agents a    ON a.id = rs.agent_id
-        LEFT JOIN groups_tbl g ON g.id = rs.group_id
-        LEFT JOIN projects p  ON p.id = rs.project_id
-        LEFT JOIN workflows w ON w.id = r.workflow_id
+        JOIN runs r              ON r.id = rs.run_id
+        LEFT JOIN agents a       ON a.id = rs.agent_id
+        LEFT JOIN groups_tbl g   ON g.id = rs.group_id
+        LEFT JOIN projects p     ON p.id = rs.project_id
+        LEFT JOIN workflows w    ON w.id = r.workflow_id
+        LEFT JOIN model_clients mc ON mc.id = a.model_client_id
         WHERE {where}
         GROUP BY date, key, label
         ORDER BY date ASC, key ASC

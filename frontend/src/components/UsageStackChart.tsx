@@ -19,7 +19,7 @@ export default function UsageStackChart({
   height = 200,
   emptyLabel,
 }: {
-  group_by: "project" | "agent" | "group" | "workflow";
+  group_by: "project" | "agent" | "group" | "workflow" | "model_client";
   days?: number;
   project_id?: number | "null";
   agent_id?: number;

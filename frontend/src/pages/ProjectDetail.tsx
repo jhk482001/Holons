@@ -265,9 +265,9 @@ export default function ProjectDetail() {
         )}
       </Section>
 
-      {/* Daily usage chart */}
+      {/* Daily usage chart — tab-switchable slicing. */}
       <Section title={t("projectDetail.usageTitle")}>
-        <UsageStackChart group_by="agent" project_id={pid} days={14} />
+        <UsageSlicer pid={pid} />
       </Section>
 
       {/* Milestones */}
@@ -407,6 +407,43 @@ function summarizePayload(type: string, payload: any): string {
   if (type === "milestone_status_changed") return `#${payload.milestone_id} → ${payload.to}`;
   if (type === "created") return `${payload.name}`;
   return "";
+}
+
+
+/** Tab-switchable usage view: slice the project's 14-day spend by
+ *  member / workflow / model client. Workflow labels come pre-annotated
+ *  by the backend with a 📅 marker when the workflow has any schedule,
+ *  so scheduled recurring work is visually distinct from ad-hoc runs. */
+function UsageSlicer({ pid }: { pid: number }) {
+  const { t } = useTranslation();
+  const [slice, setSlice] = useState<"agent" | "workflow" | "model_client">("agent");
+  const tabs: Array<{ key: typeof slice; labelKey: string }> = [
+    { key: "agent",        labelKey: "projectDetail.sliceByMember" },
+    { key: "workflow",     labelKey: "projectDetail.sliceByWorkflow" },
+    { key: "model_client", labelKey: "projectDetail.sliceByModelClient" },
+  ];
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {tabs.map((tb) => (
+          <button
+            key={tb.key}
+            onClick={() => setSlice(tb.key)}
+            className="mbtn"
+            style={{
+              padding: "5px 12px", fontSize: 11, fontWeight: 600,
+              background: slice === tb.key ? "var(--accent)" : "var(--surface)",
+              color: slice === tb.key ? "white" : "var(--ink-2)",
+              border: `1px solid ${slice === tb.key ? "var(--accent)" : "var(--border)"}`,
+            }}
+          >
+            {t(tb.labelKey)}
+          </button>
+        ))}
+      </div>
+      <UsageStackChart group_by={slice} project_id={pid} days={14} />
+    </div>
+  );
 }
 
 

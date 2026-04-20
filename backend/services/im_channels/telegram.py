@@ -55,6 +55,26 @@ class TelegramAdapter(BasePlatformAdapter):
         return msg.get("result")
 
     # ------------------------------------------------------------------
+    def parse_update(self, update: dict) -> InboundMessage | None:
+        """Parse one Telegram Update into an InboundMessage. Returns
+        None for non-text updates. Shared by poll_once() and the
+        webhook receiver."""
+        m = update.get("message")
+        if not m:
+            return None
+        chat = m.get("chat") or {}
+        text = (m.get("text") or "").strip()
+        if not text:
+            return None
+        sender = chat.get("first_name") or chat.get("username") or f"chat:{chat.get('id')}"
+        return InboundMessage(
+            platform=self.platform,
+            external_id=str(chat.get("id")),
+            sender_display=sender,
+            text=text,
+            raw=m,
+        )
+
     def poll_once(self) -> Iterable[InboundMessage]:
         """Fetch updates via long-polling. Advances the local cursor in
         memory; the manager persists it back to `im_bindings.metadata`
@@ -72,22 +92,25 @@ class TelegramAdapter(BasePlatformAdapter):
         out: list[InboundMessage] = []
         for u in updates or []:
             self._last_update_id = max(self._last_update_id, int(u["update_id"]))
-            m = u.get("message")
-            if not m:
-                continue
-            chat = m.get("chat") or {}
-            text = (m.get("text") or "").strip()
-            if not text:
-                continue  # skip stickers/photos/etc for now
-            sender = chat.get("first_name") or chat.get("username") or f"chat:{chat.get('id')}"
-            out.append(InboundMessage(
-                platform=self.platform,
-                external_id=str(chat.get("id")),
-                sender_display=sender,
-                text=text,
-                raw=m,
-            ))
+            parsed = self.parse_update(u)
+            if parsed:
+                out.append(parsed)
         return out
+
+    # ------------------------------------------------------------------
+    def set_webhook(self, public_url: str) -> None:
+        """Register `public_url` as Telegram's callback for this bot.
+        Telegram will POST every Update there. `public_url` must be
+        https:// and reachable from the public internet."""
+        self._call("setWebhook", {
+            "url": public_url,
+            "allowed_updates": ["message"],
+            "drop_pending_updates": False,
+        })
+
+    def delete_webhook(self) -> None:
+        """Revert to polling mode — tell Telegram to stop pushing."""
+        self._call("deleteWebhook", {"drop_pending_updates": False})
 
     # ------------------------------------------------------------------
     def send(self, external_id: str, text: str) -> None:

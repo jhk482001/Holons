@@ -149,6 +149,7 @@ _AUDIT_SKIP_PREFIXES = (
     "/api/avatar/",
     "/api/health",
     "/api/notifications/unread_count",
+    "/api/im/webhook/",  # high-volume push from IM platforms
 )
 
 
@@ -656,6 +657,106 @@ def toggle_im_binding(bid: int):
     )
     im_channels.reload_user(uid)
     return jsonify({"id": bid, "enabled": new_enabled})
+
+
+@app.route("/api/im/bindings/<int:bid>/transport", methods=["POST"])
+@login_required
+def switch_im_transport(bid: int):
+    """Switch a binding between polling and webhook mode.
+    Body: {"transport": "polling" | "webhook", "public_url": "https://..."}
+    Webhook mode stores a random secret in metadata and calls the
+    platform's setWebhook API; polling mode calls deleteWebhook + spawns
+    a polling thread."""
+    import secrets as _secrets
+    from .services import asset_crypto, im_channels
+    from .services.im_channels import telegram as _tg
+
+    uid = current_user_id()
+    row = db.fetch_one(
+        "SELECT * FROM im_bindings WHERE id = %s AND user_id = %s", (bid, uid),
+    )
+    if not row:
+        return jsonify({"error": "not found"}), 404
+
+    d = request.get_json() or {}
+    mode = d.get("transport")
+    if mode not in ("polling", "webhook"):
+        return jsonify({"error": "transport must be 'polling' or 'webhook'"}), 400
+
+    metadata = dict(row.get("metadata") or {})
+    token = asset_crypto.decrypt(row["secret_encrypted"])
+
+    if mode == "webhook":
+        public_url = (d.get("public_url") or "").strip()
+        if not public_url.startswith("https://"):
+            return jsonify({"error": "public_url must be https://"}), 400
+        # Generate (or reuse) a per-binding secret so the webhook URL is
+        # unguessable — path contains /<platform>/<secret>.
+        webhook_secret = metadata.get("webhook_secret") or _secrets.token_urlsafe(24)
+        metadata["webhook_secret"] = webhook_secret
+        metadata["webhook_public_url"] = public_url
+        webhook_url = f"{public_url.rstrip('/')}/api/im/webhook/{row['platform']}/{webhook_secret}"
+        try:
+            if row["platform"] == "telegram":
+                adapter = _tg.TelegramAdapter({**row, "secret": token})
+                adapter.set_webhook(webhook_url)
+        except Exception as e:
+            return jsonify({"error": f"platform rejected webhook: {e}"}), 400
+    else:  # polling
+        try:
+            if row["platform"] == "telegram":
+                adapter = _tg.TelegramAdapter({**row, "secret": token})
+                adapter.delete_webhook()
+        except Exception:
+            pass  # if deleteWebhook fails we still flip local state
+
+    db.execute(
+        "UPDATE im_bindings SET transport = %s, metadata = %s::jsonb, updated_at = NOW() "
+        "WHERE id = %s",
+        (mode, json.dumps(metadata), bid),
+    )
+    im_channels.reload_user(uid)
+    return jsonify({
+        "id": bid, "transport": mode,
+        "webhook_url": metadata.get("webhook_public_url") if mode == "webhook" else None,
+    })
+
+
+@app.route("/api/im/webhook/<platform>/<secret>", methods=["POST"])
+def im_webhook(platform: str, secret: str):
+    """Inbound webhook. Each platform's adapter converts the incoming
+    payload into one or more InboundMessage objects and hands them to
+    the router. Endpoint is unauthenticated (no session); authorisation
+    is the per-binding secret in the URL path."""
+    from .services import asset_crypto
+    from .services.im_channels import router as _router
+    from .services.im_channels import telegram as _tg
+
+    row = db.fetch_one(
+        "SELECT * FROM im_bindings "
+        "WHERE platform = %s AND metadata->>'webhook_secret' = %s AND enabled = TRUE "
+        "  AND transport = 'webhook'",
+        (platform, secret),
+    )
+    if not row:
+        # Don't leak whether the binding exists vs. the secret is wrong.
+        return ("", 404)
+
+    payload = request.get_json(silent=True) or {}
+    token = asset_crypto.decrypt(row["secret_encrypted"])
+
+    if platform == "telegram":
+        adapter = _tg.TelegramAdapter({**row, "secret": token})
+        parsed = adapter.parse_update(payload)
+        if parsed:
+            try:
+                reply = _router.dispatch(parsed, row["user_id"])
+                if reply:
+                    adapter.send(parsed.external_id, reply)
+            except Exception:
+                app.logger.exception("webhook dispatch failed for binding %s", row["id"])
+    # Always 200 — if we 4xx/5xx, Telegram retries and we spam the user.
+    return ("", 200)
 
 
 @app.route("/api/logout", methods=["POST"])

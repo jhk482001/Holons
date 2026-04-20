@@ -656,6 +656,10 @@ DDL: list[str] = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_im_bindings_platform_ext ON im_bindings(platform, external_id)",
+    # Transport selector: polling (default, zero setup, fine for dev and
+    # single-user hobby deployments) or webhook (needs a public URL but
+    # eliminates per-binding long-poll threads — essential at scale).
+    "ALTER TABLE im_bindings ADD COLUMN IF NOT EXISTS transport VARCHAR(20) DEFAULT 'polling'",
     # Stage 1 — tool use: record each turn's tool invocations
     "ALTER TABLE run_steps ADD COLUMN IF NOT EXISTS tool_calls JSONB DEFAULT '[]'::jsonb",
     "ALTER TABLE run_steps ADD COLUMN IF NOT EXISTS turn INT DEFAULT 0",

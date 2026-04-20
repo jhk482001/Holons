@@ -113,10 +113,14 @@ class _Worker(threading.Thread):
 # ============================================================================
 
 def start_all() -> int:
-    """Called at backend startup. Spin up a worker per enabled binding."""
+    """Called at backend startup. Spin up a polling worker per enabled
+    `transport='polling'` binding. Webhook bindings don't need a thread
+    — they receive updates at the /api/im/webhook/<platform>/<secret>
+    endpoint instead."""
     rows = db.fetch_all(
-        "SELECT id, user_id, platform, external_id, secret_encrypted, metadata "
-        "FROM im_bindings WHERE enabled = TRUE",
+        "SELECT id, user_id, platform, external_id, secret_encrypted, "
+        "       metadata, transport "
+        "FROM im_bindings WHERE enabled = TRUE AND transport = 'polling'",
     )
     n = 0
     with _lock:
@@ -130,7 +134,7 @@ def start_all() -> int:
             w.start()
             _workers[r["id"]] = w
             n += 1
-    log.info("IM manager started %d worker(s)", n)
+    log.info("IM manager started %d polling worker(s)", n)
     return n
 
 
@@ -160,8 +164,10 @@ def reload_user(user_id: int) -> int:
         w.join(timeout=3)
 
     rows = db.fetch_all(
-        "SELECT id, user_id, platform, external_id, secret_encrypted, metadata "
-        "FROM im_bindings WHERE user_id = %s AND enabled = TRUE",
+        "SELECT id, user_id, platform, external_id, secret_encrypted, "
+        "       metadata, transport "
+        "FROM im_bindings WHERE user_id = %s AND enabled = TRUE "
+        "  AND transport = 'polling'",
         (user_id,),
     )
     started = 0

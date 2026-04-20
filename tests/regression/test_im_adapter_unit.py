@@ -219,6 +219,27 @@ def test_free_text_reuses_existing_thread():
     assert kwargs["thread_id"] == "ongoing-thread"
 
 
+def test_unknown_slash_command_gets_hint():
+    reply = router.dispatch(_inbound("/bogus"), user_id=1)
+    assert "/bogus" in reply.lower()
+    assert "/help" in reply.lower()
+
+
+def test_command_registry_lists_non_admin_commands():
+    from backend.services.im_channels import commands as cmd_mod
+    names = {c.name for c in cmd_mod.list_commands()}
+    # Core built-ins expected at M2
+    assert {"help", "start", "runs", "status"}.issubset(names)
+
+
+def test_command_alias_routes_to_same_handler():
+    """/h and /? should both resolve to the /help handler."""
+    reply_h = router.dispatch(_inbound("/h"), user_id=1)
+    reply_help = router.dispatch(_inbound("/help"), user_id=1)
+    # Both return the help text (same handler, identical output)
+    assert reply_h == reply_help
+
+
 def test_free_text_strips_artifact_and_proposal_fences():
     """Artifact / hire / project fences are for the web UI — replace
     them with a breadcrumb in the IM reply so the user gets a pointer

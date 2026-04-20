@@ -800,11 +800,12 @@ def im_webhook(platform: str, secret: str):
     except Exception:
         app.logger.exception("webhook parse failed for binding %s", row["id"])
 
+    from .services.im_channels import manager as _im_mgr
     for m in messages:
         try:
-            reply = _router.dispatch(m, row["user_id"])
-            if reply and adapter is not None:
-                adapter.send(m.external_id, reply)
+            result = _router.dispatch(m, row["user_id"])
+            if adapter is not None:
+                _im_mgr._deliver(adapter, m.external_id, result)
         except Exception:
             app.logger.exception("webhook dispatch failed for binding %s", row["id"])
 

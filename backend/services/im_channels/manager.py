@@ -32,6 +32,28 @@ _lock = threading.Lock()
 POLL_ERROR_BACKOFF = 10  # seconds after a poll failure before retrying
 
 
+def _deliver(adapter: BasePlatformAdapter, external_id: str,
+             result: "router.DispatchResult") -> None:
+    """Send a DispatchResult back to the user: prose first, then each
+    artifact. Artifacts use the adapter's `send_artifact` for rich
+    delivery; if that returns False, fall back to a text breadcrumb."""
+    if result.text:
+        adapter.send(external_id, result.text)
+    for art in result.artifacts or []:
+        handled = False
+        try:
+            handled = adapter.send_artifact(external_id, art)
+        except Exception:
+            log.exception("send_artifact failed on %s", adapter.platform)
+        if not handled:
+            title = art.get("title") or art.get("filename") or "(untitled)"
+            kind = art.get("kind") or "artifact"
+            adapter.send(
+                external_id,
+                f"_[{kind}: {title} — see Holons web UI]_",
+            )
+
+
 def _adapter_for(binding: dict) -> BasePlatformAdapter | None:
     """Hydrate a binding row into a concrete adapter. Returns None for
     unknown platforms (they get skipped)."""
@@ -75,9 +97,8 @@ class _Worker(threading.Thread):
                 try:
                     # Show a typing indicator while Lead thinks — nice UX.
                     self.adapter.send_typing(m.external_id)
-                    reply = router.dispatch(m, self.adapter.user_id)
-                    if reply:
-                        self.adapter.send(m.external_id, reply)
+                    result = router.dispatch(m, self.adapter.user_id)
+                    _deliver(self.adapter, m.external_id, result)
                 except Exception:
                     log.exception("dispatch failed for binding #%s", self.binding_id)
 

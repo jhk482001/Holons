@@ -141,6 +141,109 @@ class TelegramAdapter(BasePlatformAdapter):
         except Exception:
             pass  # typing is purely decorative
 
+    # ------------------------------------------------------------------
+    def _multipart(self, fields: dict, file_field: str, filename: str,
+                   data: bytes, mime: str) -> tuple[bytes, str]:
+        """Build a multipart/form-data body with one file part. Pure
+        stdlib — no requests / urllib3 dep."""
+        import uuid
+        import io
+        boundary = f"holons-{uuid.uuid4().hex}"
+        body = io.BytesIO()
+        for k, v in fields.items():
+            body.write(f"--{boundary}\r\n".encode())
+            body.write(f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode())
+            body.write(str(v).encode("utf-8"))
+            body.write(b"\r\n")
+        body.write(f"--{boundary}\r\n".encode())
+        body.write(
+            f'Content-Disposition: form-data; name="{file_field}"; '
+            f'filename="{filename}"\r\n'.encode()
+        )
+        body.write(f"Content-Type: {mime}\r\n\r\n".encode())
+        body.write(data)
+        body.write(f"\r\n--{boundary}--\r\n".encode())
+        return body.getvalue(), f"multipart/form-data; boundary={boundary}"
+
+    def _upload(self, method: str, fields: dict, file_field: str,
+                filename: str, data: bytes, mime: str) -> None:
+        if not self.secret:
+            raise RuntimeError("telegram binding has no bot token")
+        url = f"{API_ROOT}/bot{self.secret}/{method}"
+        body, ctype = self._multipart(fields, file_field, filename, data, mime)
+        req = urllib.request.Request(
+            url, data=body,
+            headers={"Content-Type": ctype, "Accept": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            msg = json.loads(r.read().decode("utf-8"))
+        if not msg.get("ok"):
+            raise RuntimeError(f"telegram API error: {msg.get('description')}")
+
+    def send_artifact(self, external_id: str, artifact: dict) -> bool:
+        """Rich delivery for html / slides / markdown / file artifacts.
+        Uses sendDocument (up to 50 MB) for everything. Short markdown
+        stays as a normal send() text message — inline is friendlier
+        than forcing a file download."""
+        kind = artifact.get("kind")
+        title = (artifact.get("title") or artifact.get("filename")
+                 or "artifact").strip()
+
+        def _safe_name(name: str, ext: str) -> str:
+            cleaned = "".join(c if c.isalnum() or c in "-_" else "_"
+                              for c in name)[:80]
+            cleaned = cleaned.strip("_") or "artifact"
+            return f"{cleaned}.{ext}"
+
+        try:
+            if kind == "html":
+                content = (artifact.get("html") or "").encode("utf-8")
+                fname = _safe_name(title, "html")
+                self._upload("sendDocument",
+                             {"chat_id": external_id, "caption": f"📄 {title}"},
+                             "document", fname, content, "text/html")
+                return True
+            if kind == "slides":
+                content = (artifact.get("html") or "").encode("utf-8")
+                fname = _safe_name(title, "html")
+                self._upload("sendDocument",
+                             {"chat_id": external_id, "caption": f"🎞 {title}"},
+                             "document", fname, content, "text/html")
+                return True
+            if kind == "markdown":
+                md = artifact.get("markdown") or ""
+                # Small markdown → just send inline. The pill that follows
+                # in the caller's text strip-then-send has already gone.
+                if len(md) < 3500:
+                    self.send(external_id, f"*{title}*\n\n{md}")
+                    return True
+                content = md.encode("utf-8")
+                fname = _safe_name(title, "md")
+                self._upload("sendDocument",
+                             {"chat_id": external_id, "caption": f"📝 {title}"},
+                             "document", fname, content, "text/markdown")
+                return True
+            if kind == "file":
+                filename = artifact.get("filename") or _safe_name(title, "bin")
+                mime = artifact.get("mime") or "application/octet-stream"
+                content_raw = artifact.get("content") or ""
+                if artifact.get("encoding") == "base64":
+                    import base64
+                    content = base64.b64decode(content_raw)
+                else:
+                    content = content_raw.encode("utf-8")
+                method = "sendPhoto" if mime.startswith("image/") else "sendDocument"
+                field = "photo" if method == "sendPhoto" else "document"
+                self._upload(method,
+                             {"chat_id": external_id, "caption": f"📎 {filename}"},
+                             field, filename, content, mime)
+                return True
+        except Exception as e:
+            log.warning("send_artifact(%s) failed: %s", kind, e)
+            return False
+        return False
+
     @property
     def last_update_id(self) -> int:
         return self._last_update_id

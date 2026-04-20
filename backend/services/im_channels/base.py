@@ -13,7 +13,7 @@ continuity, reply formatting, command dispatch) is shared.
 from __future__ import annotations
 
 import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 
@@ -25,6 +25,17 @@ class InboundMessage:
     sender_display: str    # for logs and logging
     text: str              # plain text — rich formatting stripped
     raw: dict              # original platform payload for debugging
+
+
+@dataclass
+class DispatchResult:
+    """What the router returns after processing one inbound message.
+    Text is the reply prose; artifacts is a parallel list of structured
+    artifact payloads (html/slides/markdown/file) that the adapter
+    should try to deliver in its native rich form before falling back
+    to a text breadcrumb."""
+    text: str | None = None
+    artifacts: list[dict] = field(default_factory=list)
 
 
 class BasePlatformAdapter(abc.ABC):
@@ -54,6 +65,14 @@ class BasePlatformAdapter(abc.ABC):
     @abc.abstractmethod
     def send_typing(self, external_id: str) -> None:
         """Indicate agent is working. Best-effort — may be a no-op."""
+
+    def send_artifact(self, external_id: str, artifact: dict) -> bool:
+        """Best-effort rich delivery of one artifact. Return True if
+        the adapter handled the artifact natively (file upload,
+        rendered image, etc.), False if the caller should fall back to
+        sending a text breadcrumb via `send()`. Default is False so
+        adapters that don't implement this just degrade gracefully."""
+        return False
 
     def close(self) -> None:
         """Cleanup — close any persistent connections. Default no-op."""

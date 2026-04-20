@@ -583,25 +583,38 @@ def upsert_im_binding():
     from .services import asset_crypto
     from .services import im_channels
     from .services.im_channels import telegram as _tg
+    from .services.im_channels import slack as _sl
+    from .services.im_channels import line as _ln
 
     d = request.get_json() or {}
     platform = (d.get("platform") or "").lower()
     token = (d.get("token") or "").strip()
-    if platform not in ("telegram",):
+    # Slack and LINE are webhook-only (no sane polling API for bot events).
+    # Telegram defaults to polling; user can switch via /transport.
+    if platform not in ("telegram", "slack", "line"):
         return jsonify({"error": f"unsupported platform: {platform}"}), 400
     if not token:
         return jsonify({"error": "token required"}), 400
 
-    # Verify. For Telegram: getMe.
+    # Verify — each platform has its own "whoami" check so bad tokens
+    # fail fast before we persist.
     try:
         if platform == "telegram":
             info = _tg.verify_token(token)
             display_name = f"@{info.get('username')} ({info.get('first_name')})"
+        elif platform == "slack":
+            info = _sl.verify_token(token)
+            display_name = f"{info.get('team') or 'Slack'} · bot:{info.get('user') or '?'}"
+        elif platform == "line":
+            info = _ln.verify_token(token)
+            display_name = f"LINE · @{info.get('basicId') or info.get('userId') or 'bot'}"
     except Exception as e:
         return jsonify({"error": f"token rejected by platform: {e}"}), 400
 
     enc = asset_crypto.encrypt(token)
     uid = current_user_id()
+    # Slack / LINE are webhook-only — set default transport accordingly.
+    default_transport = "polling" if platform == "telegram" else "webhook"
     existing = db.fetch_one(
         "SELECT id FROM im_bindings WHERE user_id = %s AND platform = %s",
         (uid, platform),
@@ -610,18 +623,22 @@ def upsert_im_binding():
         db.execute(
             "UPDATE im_bindings SET secret_encrypted = %s, display_name = %s, "
             "enabled = TRUE, updated_at = NOW(), external_id = NULL, "
-            "metadata = '{}'::jsonb WHERE id = %s",
-            (enc, display_name, existing["id"]),
+            "transport = %s, metadata = '{}'::jsonb WHERE id = %s",
+            (enc, display_name, default_transport, existing["id"]),
         )
         bid = existing["id"]
     else:
         bid = db.execute_returning(
             "INSERT INTO im_bindings (user_id, platform, secret_encrypted, "
-            "display_name, enabled) VALUES (%s, %s, %s, %s, TRUE) RETURNING id",
-            (uid, platform, enc, display_name),
+            "display_name, enabled, transport) "
+            "VALUES (%s, %s, %s, %s, TRUE, %s) RETURNING id",
+            (uid, platform, enc, display_name, default_transport),
         )
     im_channels.reload_user(uid)
-    return jsonify({"id": bid, "display_name": display_name, "platform": platform})
+    return jsonify({
+        "id": bid, "display_name": display_name, "platform": platform,
+        "transport": default_transport,
+    })
 
 
 @app.route("/api/im/bindings/<int:bid>", methods=["DELETE"])
@@ -682,6 +699,11 @@ def switch_im_transport(bid: int):
     mode = d.get("transport")
     if mode not in ("polling", "webhook"):
         return jsonify({"error": "transport must be 'polling' or 'webhook'"}), 400
+    # Slack and LINE can't realistically poll for bot events.
+    if mode == "polling" and row["platform"] in ("slack", "line"):
+        return jsonify({
+            "error": f"{row['platform']} is webhook-only — polling not supported",
+        }), 400
 
     metadata = dict(row.get("metadata") or {})
     token = asset_crypto.decrypt(row["secret_encrypted"])
@@ -727,10 +749,24 @@ def im_webhook(platform: str, secret: str):
     """Inbound webhook. Each platform's adapter converts the incoming
     payload into one or more InboundMessage objects and hands them to
     the router. Endpoint is unauthenticated (no session); authorisation
-    is the per-binding secret in the URL path."""
+    is the per-binding secret in the URL path.
+
+    Slack requires a `url_verification` handshake on first setup — we
+    echo the challenge back without touching any binding.
+    """
     from .services import asset_crypto
     from .services.im_channels import router as _router
     from .services.im_channels import telegram as _tg
+    from .services.im_channels import slack as _sl
+    from .services.im_channels import line as _ln
+
+    payload = request.get_json(silent=True) or {}
+
+    # Slack url_verification is a one-shot challenge at webhook setup time.
+    # It arrives BEFORE the URL is officially registered, so we answer it
+    # even without looking up a binding.
+    if platform == "slack" and payload.get("type") == "url_verification":
+        return jsonify({"challenge": payload.get("challenge", "")})
 
     row = db.fetch_one(
         "SELECT * FROM im_bindings "
@@ -742,20 +778,38 @@ def im_webhook(platform: str, secret: str):
         # Don't leak whether the binding exists vs. the secret is wrong.
         return ("", 404)
 
-    payload = request.get_json(silent=True) or {}
     token = asset_crypto.decrypt(row["secret_encrypted"])
 
-    if platform == "telegram":
-        adapter = _tg.TelegramAdapter({**row, "secret": token})
-        parsed = adapter.parse_update(payload)
-        if parsed:
-            try:
-                reply = _router.dispatch(parsed, row["user_id"])
-                if reply:
-                    adapter.send(parsed.external_id, reply)
-            except Exception:
-                app.logger.exception("webhook dispatch failed for binding %s", row["id"])
-    # Always 200 — if we 4xx/5xx, Telegram retries and we spam the user.
+    # Parse one or many messages depending on the platform envelope.
+    messages = []
+    adapter = None
+    try:
+        if platform == "telegram":
+            adapter = _tg.TelegramAdapter({**row, "secret": token})
+            parsed = adapter.parse_update(payload)
+            if parsed:
+                messages.append(parsed)
+        elif platform == "slack":
+            adapter = _sl.SlackAdapter({**row, "secret": token})
+            parsed = adapter.parse_update(payload)
+            if parsed:
+                messages.append(parsed)
+        elif platform == "line":
+            adapter = _ln.LineAdapter({**row, "secret": token})
+            messages = adapter.parse_update(payload)
+    except Exception:
+        app.logger.exception("webhook parse failed for binding %s", row["id"])
+
+    for m in messages:
+        try:
+            reply = _router.dispatch(m, row["user_id"])
+            if reply and adapter is not None:
+                adapter.send(m.external_id, reply)
+        except Exception:
+            app.logger.exception("webhook dispatch failed for binding %s", row["id"])
+
+    # Always 200 — if we 4xx/5xx the platform retries and the user sees
+    # duplicate replies.
     return ("", 200)
 
 

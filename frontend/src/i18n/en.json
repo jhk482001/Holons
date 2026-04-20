@@ -542,23 +542,45 @@
   "channels": {
     "title": "Messaging channels",
     "subtitle": "Link Holons to an IM client so Lead can reach you — and you can reach Lead — from your phone.",
-    "telegramDesc": "Personal Telegram bot. You create the bot once via @BotFather, paste the token here, then message the bot to drive Lead from anywhere.",
-    "addTelegram": "Connect Telegram",
+    "connect": "Connect {{platform}}",
     "replaceToken": "Replace token",
     "unbind": "Unbind",
-    "confirmUnbind": "Unbind this Telegram bot from your Holons account?",
+    "confirmUnbind": "Unbind this bot from your Holons account?",
     "disable": "Disable",
     "enable": "Enable",
     "status": "Status",
+    "transport": "Transport",
     "on": "on",
     "off": "off",
     "bound": "Linked to chat {{id}}",
-    "awaitStart": "Bot ready — send /start to your bot in Telegram to finish the link.",
-    "instrStep1": "Talk to @BotFather in Telegram and run /newbot to create a new bot.",
-    "instrStep2": "Copy the HTTP API token BotFather gives you.",
-    "instrStep3": "Paste it below. Once saved, open your bot in Telegram and send /start.",
-    "botTokenLabel": "Bot token",
-    "saveAndVerify": "Save & verify"
+    "awaitStart": "Bot ready — send /start to your bot to finish the link.",
+    "webhookSetPrompt": "Set a public URL below so the platform can push updates here.",
+    "switchToWebhook": "Switch to webhook",
+    "switchToPolling": "Switch to polling",
+    "updateWebhookUrl": "Update webhook URL",
+    "webhookSetupHint": "Your Holons deployment needs a publicly reachable https:// URL so the platform can deliver messages.",
+    "publicUrlLabel": "Public Holons URL (https only)",
+    "saveWebhook": "Set webhook",
+    "tokenLabel": "Token",
+    "saveAndVerify": "Save & verify",
+    "telegram": {
+      "desc": "Personal Telegram bot. Defaults to polling (zero infra). Webhook mode available once you have a public URL.",
+      "step1": "Talk to @BotFather in Telegram and run /newbot to create a new bot.",
+      "step2": "Copy the HTTP API token BotFather gives you.",
+      "step3": "Paste it below. Once saved, open your bot in Telegram and send /start."
+    },
+    "slack": {
+      "desc": "Slack workspace bot. Webhook-only — requires a public URL for Slack's Events API.",
+      "step1": "Create a Slack app at api.slack.com/apps and add a Bot User.",
+      "step2": "Under OAuth & Permissions, install to your workspace — copy the Bot User OAuth Token (xoxb-...).",
+      "step3": "Paste the token below. After saving, switch transport to webhook and configure Slack's Event Subscriptions URL."
+    },
+    "line": {
+      "desc": "LINE Messaging API bot. Webhook-only — requires a public URL for LINE's callback.",
+      "step1": "Create a Messaging API channel at developers.line.biz.",
+      "step2": "In the Messaging API tab, issue a long-lived Channel access token and copy it.",
+      "step3": "Paste the token below. After saving, set your webhook URL in the LINE console."
+    }
   },
   "personal": {
     "accountInfo": "Account Information",

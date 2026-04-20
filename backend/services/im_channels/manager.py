@@ -21,7 +21,7 @@ from typing import Dict
 from ... import db
 from ..asset_crypto import decrypt
 from .base import BasePlatformAdapter
-from . import router, telegram as telegram_mod
+from . import router, telegram as telegram_mod, slack as slack_mod, line as line_mod
 
 log = logging.getLogger("agent_company.im.manager")
 
@@ -40,6 +40,10 @@ def _adapter_for(binding: dict) -> BasePlatformAdapter | None:
     platform = binding["platform"]
     if platform == "telegram":
         return telegram_mod.TelegramAdapter(binding)
+    if platform == "slack":
+        return slack_mod.SlackAdapter(binding)
+    if platform == "line":
+        return line_mod.LineAdapter(binding)
     log.warning("unknown IM platform %r — skipping binding #%s",
                 platform, binding.get("id"))
     return None

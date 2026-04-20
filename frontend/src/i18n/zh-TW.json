@@ -542,23 +542,45 @@
   "channels": {
     "title": "通訊通道",
     "subtitle": "把 Holons 連到 IM 工具，之後走到哪都能用手機指揮 Lead、接 Lead 回報。",
-    "telegramDesc": "個人 Telegram 機器人。先在 @BotFather 建一次 bot，把 token 貼過來，之後跟 bot 聊天就等同於跟你的 Lead 聊天。",
-    "addTelegram": "綁定 Telegram",
+    "connect": "綁定 {{platform}}",
     "replaceToken": "更換 token",
     "unbind": "解除綁定",
-    "confirmUnbind": "確定要把這個 Telegram bot 從你的 Holons 帳號解除綁定嗎？",
+    "confirmUnbind": "確定要解除這個 bot 的綁定嗎？",
     "disable": "暫停",
     "enable": "啟用",
     "status": "狀態",
+    "transport": "傳輸方式",
     "on": "啟用中",
     "off": "已停用",
     "bound": "已連到 chat {{id}}",
-    "awaitStart": "Bot 已就緒 — 請到 Telegram 跟你的 bot 傳 /start 完成連線。",
-    "instrStep1": "在 Telegram 找 @BotFather，輸入 /newbot 建立新 bot。",
-    "instrStep2": "複製 BotFather 給你的 HTTP API token。",
-    "instrStep3": "貼到下面。存檔後到 Telegram 打開你的 bot，傳一個 /start。",
-    "botTokenLabel": "Bot token",
-    "saveAndVerify": "儲存並驗證"
+    "awaitStart": "Bot 已就緒 — 請到 IM 跟你的 bot 傳 /start 完成連線。",
+    "webhookSetPrompt": "下方設好公開 URL，platform 才能把訊息推過來。",
+    "switchToWebhook": "改用 webhook",
+    "switchToPolling": "改用 polling",
+    "updateWebhookUrl": "更新 webhook URL",
+    "webhookSetupHint": "你的 Holons 要有對外 https:// 網址，platform 才能送訊息過來。",
+    "publicUrlLabel": "Holons 公開 URL（需 https）",
+    "saveWebhook": "設定 webhook",
+    "tokenLabel": "Token",
+    "saveAndVerify": "儲存並驗證",
+    "telegram": {
+      "desc": "個人 Telegram 機器人。預設 polling（零設定），有公開 URL 之後可切 webhook。",
+      "step1": "在 Telegram 找 @BotFather，輸入 /newbot 建立新 bot。",
+      "step2": "複製 BotFather 給你的 HTTP API token。",
+      "step3": "貼到下面。存檔後到 Telegram 打開你的 bot，傳一個 /start。"
+    },
+    "slack": {
+      "desc": "Slack workspace bot。只能用 webhook — 需有 Holons 的公開 URL。",
+      "step1": "到 api.slack.com/apps 建一個 Slack App，加上 Bot User。",
+      "step2": "在 OAuth & Permissions 安裝到你的 workspace，複製 Bot User OAuth Token（xoxb-...）。",
+      "step3": "把 token 貼到下面。儲存後切換到 webhook，再去 Slack 的 Event Subscriptions 設定 URL。"
+    },
+    "line": {
+      "desc": "LINE Messaging API bot。只能用 webhook — 需有 Holons 的公開 URL。",
+      "step1": "到 developers.line.biz 建一個 Messaging API channel。",
+      "step2": "在 Messaging API 頁籤發 long-lived Channel access token，複製下來。",
+      "step3": "把 token 貼到下面。儲存後到 LINE console 設定 webhook URL。"
+    }
   },
   "personal": {
     "accountInfo": "帳號資料",

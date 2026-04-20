@@ -16,6 +16,21 @@ def test_unsupported_platform_rejected(test_user, holons_url):
     assert "unsupported" in r.json()["error"].lower()
 
 
+def test_supported_platforms_accept_the_post(test_user, holons_url):
+    """The three supported platforms must at least reach the token-verify
+    step. Bad tokens fail with 400 'token rejected' — that's expected."""
+    for platform in ("telegram", "slack", "line"):
+        r = test_user["session"].post(f"{holons_url}/api/im/bindings", json={
+            "platform": platform, "token": "obviously-bad-token",
+        })
+        assert r.status_code == 400, f"{platform}: {r.text}"
+        msg = r.json()["error"].lower()
+        # Two shapes of error are fine: 'unsupported' must NOT appear;
+        # either 'token rejected' or a platform-specific 'HTTP 401/404' is OK.
+        assert "unsupported" not in msg
+        assert "token" in msg or "http" in msg
+
+
 def test_empty_token_rejected(test_user, holons_url):
     r = test_user["session"].post(f"{holons_url}/api/im/bindings", json={
         "platform": "telegram", "token": "",

@@ -120,9 +120,19 @@ def test_user():
         "display_name": "QA Tester",
     }
     session = requests.Session()
-    # Register also logs in, setting the session cookie
-    r = session.post(f"{BASE_URL}/api/register", json=user, timeout=10)
-    r.raise_for_status()
+    # Register also logs in, setting the session cookie. /api/register
+    # can occasionally 500 on a Postgres deadlock when the previous
+    # test's teardown is still clearing out grants (both touch
+    # agent_model_grants). Retry a couple of times before giving up.
+    last = None
+    for attempt in range(3):
+        r = session.post(f"{BASE_URL}/api/register", json=user, timeout=10)
+        if r.ok:
+            break
+        last = r
+        time.sleep(0.5 * (attempt + 1))
+    else:
+        last.raise_for_status()
     user["id"] = r.json()["id"]
     user["session"] = session
 

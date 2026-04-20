@@ -228,8 +228,95 @@ def test_unknown_slash_command_gets_hint():
 def test_command_registry_lists_non_admin_commands():
     from backend.services.im_channels import commands as cmd_mod
     names = {c.name for c in cmd_mod.list_commands()}
-    # Core built-ins expected at M2
-    assert {"help", "start", "runs", "status"}.issubset(names)
+    # Core built-ins expected at M2 + advanced commands at M5
+    assert {"help", "start", "runs", "status",
+            "workflows", "run", "run_status",
+            "projects", "project", "hire"}.issubset(names)
+
+
+def test_run_command_rejects_bad_args():
+    reply = router.dispatch(_inbound("/run"), user_id=1)
+    assert "Usage" in reply
+    reply = router.dispatch(_inbound("/run abc"), user_id=1)
+    assert "Usage" in reply
+
+
+def test_run_command_workflow_not_yours():
+    with patch.object(router.db, "fetch_one", return_value=None):
+        reply = router.dispatch(_inbound("/run 42"), user_id=1)
+    assert "not found" in reply
+
+
+def test_run_command_dispatches_to_engine():
+    wf = {"id": 42, "name": "my workflow"}
+    with patch.object(router.db, "fetch_one", return_value=wf), \
+         patch("backend.engine.dispatch_workflow", return_value=99) as dispatch:
+        reply = router.dispatch(_inbound("/run 42 hello world"), user_id=7)
+    assert "Dispatched run #99" in reply
+    assert "my workflow" in reply
+    # engine was called with the right args
+    _, kwargs = dispatch.call_args
+    assert kwargs["workflow_id"] == 42
+    assert kwargs["user_id"] == 7
+    assert kwargs["initial_input"] == "hello world"
+    assert kwargs["trigger_source"] == "chat"
+
+
+def test_project_command_not_found():
+    with patch.object(router.db, "fetch_one", return_value=None):
+        reply = router.dispatch(_inbound("/project 999"), user_id=1)
+    assert "not found" in reply
+
+
+def test_project_command_formats_status():
+    project = {"id": 1, "name": "Kestrel", "status": "active", "goal": "G"}
+    def _fetch(sql, params):
+        if "FROM projects" in sql: return project
+        if "project_members" in sql: return {"c": 5}
+        if "FROM runs" in sql: return {"total": 12, "running": 1, "done": 10, "cost": 3.45}
+        if "project_artifacts" in sql: return {"c": 3}
+        return None
+    with patch.object(router.db, "fetch_one", side_effect=_fetch):
+        reply = router.dispatch(_inbound("/project 1"), user_id=7)
+    assert "Kestrel" in reply
+    assert "5" in reply            # member count
+    assert "12" in reply and "10" in reply  # run stats
+    assert "3" in reply            # artifact count
+    assert "$3.45" in reply
+
+
+def test_workflows_command_lists_names():
+    rows = [{"id": 5, "name": "Hourly mail triage"},
+            {"id": 3, "name": "Daily report"}]
+    with patch.object(router.db, "fetch_all", return_value=rows):
+        reply = router.dispatch(_inbound("/workflows"), user_id=1)
+    assert "#5" in reply and "Hourly mail triage" in reply
+    assert "#3" in reply and "Daily report" in reply
+
+
+def test_workflows_alias_wf():
+    with patch.object(router.db, "fetch_all", return_value=[]):
+        reply_a = router.dispatch(_inbound("/wf"), user_id=1)
+        reply_b = router.dispatch(_inbound("/workflows"), user_id=1)
+    assert reply_a == reply_b
+
+
+def test_hire_command_shortcuts_through_lead():
+    """/hire X should end up calling lead_agent.chat with a prompt that
+    asks for a hire proposal — so the web UI card flow works as normal."""
+    from backend.services.im_channels import router as _r
+    lead_response = {"thread_id": "t1", "response": "Proposing..."}
+    with patch.object(_r.db, "fetch_one", return_value=None), \
+         patch.object(_r.lead_agent, "chat", return_value=lead_response) as lead_call, \
+         patch.object(_r.db, "execute"):
+        reply = router.dispatch(_inbound("/hire data scientist"), user_id=3)
+    # lead_agent.chat was called (through _handle_lead) with our enhanced prompt
+    lead_call.assert_called_once()
+    _, kwargs = lead_call.call_args
+    # The enhanced prompt asks Lead for a hire fence
+    passed_text = lead_call.call_args[0][1]  # second positional = user_text
+    assert "hire" in passed_text.lower()
+    assert "data scientist" in passed_text.lower()
 
 
 def test_command_alias_routes_to_same_handler():

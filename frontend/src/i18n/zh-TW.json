@@ -248,7 +248,13 @@
     "histSources": "來源筆數",
     "histProduced": "產出技能",
     "histTokens": "Tokens",
-    "histCost": "成本"
+    "histCost": "成本",
+    "relearn": "從近期工作重新學習",
+    "menu": "更多動作",
+    "removeSkill": "移除技能",
+    "removing": "移除中…",
+    "removeConfirmTitle": "確定移除這條技能?",
+    "removeConfirmBody": "技能會被刪除,不再注入該 agent 的 prompt。若近期工作紀錄仍有這個 pattern,之後可以重新學習。"
   },
   "assets": {
     "help": "勾選任一資產，它就會被納入此 agent 的 tool-loop。新增資產請到側邊的「Skill / MCP / 知識庫」頁面。",
@@ -730,8 +736,9 @@
       "rag": "知識庫"
     },
     "search": "搜尋名稱或描述…",
-    "selfLearnedBanner": "你的 agents 從自己的工作紀錄中學到了 {{count}} 條技能,這些技能存在各 agent 底下（不是共享資產庫）,並會自動注入該 agent 的 prompt。",
-    "selfLearnedBannerCta": "到「技能」頁查看",
+    "selfLearnedTitle": "Agent 自學的技能",
+    "selfLearnedSubtitle": "每個 agent 從自己近期執行紀錄中萃取出的技能,會自動注入到該 agent 的 system prompt。",
+    "selfLearnedEmpty": "還沒有 agent 自學的技能。Agent 需要至少 5 筆執行紀錄才能萃取;有了歷史紀錄後,從下面的 agent 卡片觸發萃取。",
     "sort": {
       "createdDesc": "建立時間（新→舊）",
       "createdAsc": "建立時間（舊→新）",

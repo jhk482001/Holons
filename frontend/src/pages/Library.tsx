@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AssetsAPI,
@@ -12,6 +12,8 @@ import {
 import { useIsAdmin, useMe } from "../auth";
 import { api } from "../api/client";
 import Modal from "../components/Modal";
+import Avatar from "../components/Avatar";
+import Markdown from "../components/Markdown";
 import "./Records.css"; // reuses .page-tabs
 import "./Library.css";
 
@@ -71,9 +73,9 @@ export default function Library() {
         {t(currentTab.hintKey)}
       </div>
 
-      {currentTab.kind === "skill" && <SelfLearnedSkillsBanner />}
-
       <AssetKindPanel kind={currentTab.kind} isAdmin={isAdmin} />
+
+      {currentTab.kind === "skill" && <SelfLearnedSkillsSection />}
     </div>
   );
 }
@@ -848,49 +850,448 @@ function AssetDetailModal({
 }
 
 
-function SelfLearnedSkillsBanner() {
+// ==========================================================================
+// Self-learned skills section — each agent that owns any agent_skills gets
+// its own card below the shared-asset grid. Inlined here (was its own page
+// at /skills before) so everything skill-related lives under /library.
+// ==========================================================================
+
+const numCoerce = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+interface SelfLearnedSkill {
+  id: number;
+  agent_id: number;
+  slug: string;
+  name: string;
+  description: string;
+  content_md: string;
+  source: string;
+  confidence: number;
+  approved_by_user: boolean;
+  times_used: number;
+  source_run_ids?: number[];
+  extraction_model_id?: string | null;
+  extraction_input_tokens?: number | null;
+  extraction_output_tokens?: number | null;
+  extraction_cost_usd?: number | null;
+  extraction_at?: string | null;
+}
+
+interface SelfLearnedAgentBlock {
+  id: number;
+  name: string;
+  role_title: string | null;
+  avatar_config: Record<string, string>;
+  is_lead: boolean;
+  skills: SelfLearnedSkill[];
+}
+
+function SelfLearnedSkillsSection() {
   const { t } = useTranslation();
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["me-self-learned-skills"],
-    queryFn: () => api.get<{ count: number }>("/me/self_learned_skills_count"),
+    queryFn: () => api.get<{ agents: SelfLearnedAgentBlock[] }>("/me/self_learned_skills"),
     refetchInterval: 60_000,
   });
-  const count = data?.count ?? 0;
-  if (count <= 0) return null;
+  const agents = data?.agents ?? [];
+  const anySkills = agents.some((a) => a.skills.length > 0);
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{
+        display: "flex", alignItems: "baseline", gap: 10,
+        marginBottom: 8, paddingBottom: 6,
+        borderBottom: "1px solid var(--border)",
+      }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+          {t("library.selfLearnedTitle")}
+        </h2>
+        <div style={{ fontSize: 11, color: "var(--ink-4)", flex: 1 }}>
+          {t("library.selfLearnedSubtitle")}
+        </div>
+      </div>
+
+      {isLoading && (
+        <div style={{ fontSize: 12, color: "var(--ink-4)", padding: 20, textAlign: "center" }}>
+          {t("btn.loading")}
+        </div>
+      )}
+
+      {!isLoading && !anySkills && (
+        <div style={{
+          fontSize: 12, color: "var(--ink-4)",
+          padding: "20px 16px", textAlign: "center",
+          background: "var(--surface-2)", borderRadius: 10,
+          border: "1px dashed var(--border)",
+        }}>
+          {t("library.selfLearnedEmpty")}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {agents.map((a) => (
+          <AgentSelfLearnedBlock key={a.id} agent={a} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentSelfLearnedBlock({ agent }: { agent: SelfLearnedAgentBlock }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const skills = agent.skills;
+
+  const extract = useMutation({
+    mutationFn: () => api.post(`/agents/${agent.id}/skills/extract`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me-self-learned-skills"] }),
+  });
+
+  // Only render agent blocks that have at least one skill — empty blocks
+  // clutter the page. The empty-state copy at the section level tells
+  // users how to trigger extraction.
+  if (skills.length === 0) return null;
+
+  const extractionRounds = useMemo(() => {
+    const byRound = new Map<string, SelfLearnedSkill[]>();
+    for (const s of skills) {
+      if (!s.extraction_at) continue;
+      const key = new Date(s.extraction_at).toISOString().slice(0, 19);
+      const bucket = byRound.get(key) ?? [];
+      bucket.push(s);
+      byRound.set(key, bucket);
+    }
+    return Array.from(byRound.entries())
+      .map(([ts, items]) => ({
+        ts,
+        skills: items,
+        cost: items.reduce((a, s) => a + numCoerce(s.extraction_cost_usd), 0),
+        inTok: items.reduce((a, s) => a + numCoerce(s.extraction_input_tokens), 0),
+        outTok: items.reduce((a, s) => a + numCoerce(s.extraction_output_tokens), 0),
+        model: items[0]?.extraction_model_id,
+        sourceCount: items[0]?.source_run_ids?.length ?? 0,
+      }))
+      .sort((a, b) => b.ts.localeCompare(a.ts));
+  }, [skills]);
+
   return (
     <div
-      data-testid="self-learned-skills-banner"
+      data-testid={`skills-block-${agent.id}`}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "10px 14px",
-        background: "var(--accent-soft)",
-        border: "1px solid var(--accent-line)",
-        borderRadius: 10,
-        marginBottom: 14,
-        fontSize: 12,
-        color: "var(--ink-2)",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 16,
       }}
     >
-      <span style={{ fontSize: 16 }}>💡</span>
-      <span style={{ flex: 1, lineHeight: 1.5 }}>
-        {t("library.selfLearnedBanner", { count })}
-      </span>
-      <Link
-        to="/skills"
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <Avatar cfg={agent.avatar_config} size={36} title={agent.name} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{agent.name}</div>
+          <div style={{ fontSize: 11, color: "var(--ink-4)" }}>
+            {agent.role_title || "—"} · {t("skills.skillCount", { count: skills.length })}
+          </div>
+        </div>
+        <button
+          data-testid={`extract-skills-${agent.id}`}
+          onClick={() => extract.mutate()}
+          disabled={extract.isPending}
+          style={{
+            padding: "6px 12px", fontSize: 11, fontWeight: 700,
+            color: "var(--accent)",
+            background: "var(--accent-soft)",
+            border: "1px solid var(--accent-line)",
+            borderRadius: 8, cursor: "pointer",
+          }}
+        >
+          {extract.isPending ? t("skills.learning") : t("skills.relearn")}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {skills.map((s) => (
+          <SelfLearnedSkillRow key={s.id} skill={s} agentId={agent.id} />
+        ))}
+      </div>
+
+      {extractionRounds.length > 0 && (
+        <ExtractionHistory agentId={agent.id} rounds={extractionRounds} />
+      )}
+    </div>
+  );
+}
+
+function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agentId: number }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const approve = useMutation({
+    mutationFn: () => api.post(`/skills/${skill.id}/approve`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me-self-learned-skills"] }),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.post(`/skills/${skill.id}/reject`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me-self-learned-skills"] });
+      setConfirmOpen(false);
+    },
+  });
+
+  const inTok = numCoerce(skill.extraction_input_tokens);
+  const outTok = numCoerce(skill.extraction_output_tokens);
+  const cost = numCoerce(skill.extraction_cost_usd);
+
+  return (
+    <>
+      <div
+        data-testid={`skill-row-${skill.id}`}
         style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: "white",
-          background: "var(--accent)",
-          padding: "6px 12px",
-          borderRadius: 6,
-          textDecoration: "none",
+          background: skill.approved_by_user ? "var(--good-soft)" : "var(--surface-2)",
+          border: "1px solid " + (skill.approved_by_user ? "rgba(95, 181, 126, 0.3)" : "var(--border)"),
+          borderRadius: 8, overflow: "hidden",
         }}
       >
-        {t("library.selfLearnedBannerCta")}
-      </Link>
+        <div
+          data-testid={`skill-row-header-${skill.id}`}
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            padding: "10px 12px",
+            display: "flex", alignItems: "center", gap: 10,
+            cursor: "pointer", userSelect: "none",
+          }}
+        >
+          <span style={{
+            fontSize: 11, color: "var(--ink-3)",
+            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.12s ease",
+            display: "inline-block", width: 11,
+          }}>▶</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800 }}>{skill.name}</div>
+              {skill.approved_by_user && (
+                <span style={{
+                  fontSize: 8.5, fontWeight: 800, letterSpacing: 0.8,
+                  background: "rgba(95, 181, 126, 0.15)", color: "var(--good)",
+                  padding: "1px 7px", borderRadius: 999,
+                }}>APPROVED</span>
+              )}
+            </div>
+            {skill.description && (
+              <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2, lineHeight: 1.4 }}>
+                {skill.description}
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <span>{t("skills.confidence")} {numCoerce(skill.confidence).toFixed(2)}</span>
+              {skill.extraction_model_id && <span>🧠 {skill.extraction_model_id}</span>}
+              {inTok > 0 && <span>↓{inTok} ↑{outTok}</span>}
+              {cost > 0 && <span>${cost.toFixed(4)}</span>}
+              {skill.extraction_at && <span>{new Date(skill.extraction_at).toLocaleString()}</span>}
+            </div>
+          </div>
+
+          {!skill.approved_by_user && (
+            <button
+              data-testid={`approve-skill-${skill.id}`}
+              onClick={(e) => { e.stopPropagation(); approve.mutate(); }}
+              disabled={approve.isPending}
+              style={{
+                padding: "5px 10px", fontSize: 11, fontWeight: 700,
+                background: "var(--accent)", color: "white",
+                border: "none", borderRadius: 6, cursor: "pointer",
+              }}
+            >
+              {t("skills.approve")}
+            </button>
+          )}
+
+          <div
+            style={{ position: "relative" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              data-testid={`skill-menu-${skill.id}`}
+              aria-label={t("skills.menu")}
+              onClick={() => setMenuOpen(!menuOpen)}
+              style={{
+                padding: "3px 8px", fontSize: 14, fontWeight: 800,
+                color: "var(--ink-3)", background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 6, cursor: "pointer",
+                lineHeight: 1,
+              }}
+            >⋯</button>
+            {menuOpen && (
+              <>
+                {/* click-outside backstop */}
+                <div
+                  onClick={() => setMenuOpen(false)}
+                  style={{ position: "fixed", inset: 0, zIndex: 10 }}
+                />
+                <div
+                  data-testid={`skill-menu-popup-${skill.id}`}
+                  style={{
+                    position: "absolute", right: 0, top: "calc(100% + 4px)",
+                    zIndex: 11,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                    minWidth: 160, padding: 4,
+                  }}
+                >
+                  <button
+                    data-testid={`skill-remove-${skill.id}`}
+                    onClick={() => { setMenuOpen(false); setConfirmOpen(true); }}
+                    style={{
+                      display: "block", width: "100%",
+                      padding: "8px 12px", fontSize: 12, fontWeight: 600,
+                      color: "var(--danger)",
+                      background: "transparent", border: "none",
+                      textAlign: "left", cursor: "pointer",
+                      borderRadius: 6,
+                    }}
+                  >
+                    {t("skills.removeSkill")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {expanded && (
+          <div
+            data-testid={`skill-row-body-${skill.id}`}
+            style={{
+              borderTop: "1px solid " + (skill.approved_by_user ? "rgba(95, 181, 126, 0.3)" : "var(--border)"),
+              padding: "12px 16px",
+              background: "var(--surface)",
+            }}
+          >
+            {skill.content_md ? (
+              <Markdown content={skill.content_md} />
+            ) : (
+              <div style={{ fontSize: 11, color: "var(--ink-4)", fontStyle: "italic" }}>
+                {t("skills.noContent")}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={t("skills.removeConfirmTitle")}
+        subtitle={skill.name}
+        size="sm"
+        footer={
+          <>
+            <button className="mbtn" onClick={() => setConfirmOpen(false)} disabled={remove.isPending}>
+              {t("btn.cancel")}
+            </button>
+            <button
+              className="mbtn danger"
+              data-testid={`skill-remove-confirm-${skill.id}`}
+              onClick={() => remove.mutate()}
+              disabled={remove.isPending}
+            >
+              {remove.isPending ? t("skills.removing") : t("skills.removeSkill")}
+            </button>
+          </>
+        }
+      >
+        <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
+          {t("skills.removeConfirmBody")}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+function ExtractionHistory({
+  agentId,
+  rounds,
+}: {
+  agentId: number;
+  rounds: Array<{
+    ts: string;
+    skills: SelfLearnedSkill[];
+    cost: number;
+    inTok: number;
+    outTok: number;
+    model: string | null | undefined;
+    sourceCount: number;
+  }>;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <button
+        data-testid={`extraction-history-toggle-${agentId}`}
+        onClick={() => setOpen(!open)}
+        style={{
+          fontSize: 11, fontWeight: 700, color: "var(--ink-3)",
+          background: "transparent", border: "none",
+          cursor: "pointer", padding: "3px 0",
+          display: "flex", alignItems: "center", gap: 6,
+        }}
+      >
+        <span style={{
+          fontSize: 9,
+          transform: open ? "rotate(90deg)" : "rotate(0deg)",
+          transition: "transform 0.12s ease",
+          display: "inline-block", width: 9,
+        }}>▶</span>
+        {t("skills.extractionHistory", { count: rounds.length })}
+      </button>
+      {open && (
+        <div style={{
+          marginTop: 6,
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          borderRadius: 6, overflow: "hidden",
+        }}>
+          <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "var(--surface)", color: "var(--ink-4)" }}>
+                <th style={{ padding: "6px 10px", textAlign: "left" }}>{t("skills.histWhen")}</th>
+                <th style={{ padding: "6px 10px", textAlign: "left" }}>{t("skills.histModel")}</th>
+                <th style={{ padding: "6px 10px", textAlign: "right" }}>{t("skills.histSources")}</th>
+                <th style={{ padding: "6px 10px", textAlign: "right" }}>{t("skills.histProduced")}</th>
+                <th style={{ padding: "6px 10px", textAlign: "right" }}>{t("skills.histTokens")}</th>
+                <th style={{ padding: "6px 10px", textAlign: "right" }}>{t("skills.histCost")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rounds.map((r) => (
+                <tr key={r.ts} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "6px 10px" }}>{new Date(r.ts + "Z").toLocaleString()}</td>
+                  <td style={{ padding: "6px 10px", color: "var(--ink-3)" }}>{r.model || "—"}</td>
+                  <td style={{ padding: "6px 10px", textAlign: "right" }}>{r.sourceCount}</td>
+                  <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700 }}>{r.skills.length}</td>
+                  <td style={{ padding: "6px 10px", textAlign: "right", color: "var(--ink-3)" }}>
+                    ↓{r.inTok} ↑{r.outTok}
+                  </td>
+                  <td style={{ padding: "6px 10px", textAlign: "right", fontFamily: "var(--font-mono)" }}>
+                    ${r.cost.toFixed(4)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

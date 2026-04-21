@@ -14,7 +14,6 @@ import ProjectDetail from "./pages/ProjectDetail";
 import Runs from "./pages/Runs";
 import RunDetail from "./pages/RunDetail";
 import Schedules from "./pages/Schedules";
-import Skills from "./pages/Skills";
 import Library from "./pages/Library";
 import Settings from "./pages/Settings";
 import Search from "./pages/Search";
@@ -68,7 +67,6 @@ export default function App() {
         <Route path="/runs" element={<Runs />} />
         <Route path="/runs/:id" element={<RunDetail />} />
         <Route path="/schedules" element={<Schedules />} />
-        <Route path="/skills" element={<Skills />} />
         <Route path="/library" element={<Library />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/search" element={<Search />} />

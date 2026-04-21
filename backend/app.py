@@ -3355,22 +3355,46 @@ def export_skills_route(aid):
     return jsonify(skill_extractor.export_skills(aid))
 
 
-@app.route("/api/me/self_learned_skills_count")
+@app.route("/api/me/self_learned_skills")
 @login_required
-def self_learned_skills_count():
-    """Lightweight count for the Library → Skill tab banner that points
-    users at the /skills page when they have self-learned skills they
-    haven't noticed yet."""
-    row = db.fetch_one(
+def self_learned_skills_route():
+    """Return every self-learned skill owned by the current user, along
+    with the source agent's name / role / avatar. Used by the Library →
+    Skill tab to render the "learned by your agents" section without N
+    round-trips per agent."""
+    uid = current_user_id()
+    agents = db.fetch_all(
+        "SELECT id, name, role_title, avatar_config, is_lead "
+        "FROM agents WHERE user_id = %s ORDER BY id",
+        (uid,),
+    )
+    skills = db.fetch_all(
         """
-        SELECT COUNT(*) AS n
+        SELECT s.*
         FROM agent_skills s
         JOIN agents a ON a.id = s.agent_id
-        WHERE a.user_id = %s AND s.source = 'self_learned'
+        WHERE a.user_id = %s
+        ORDER BY s.agent_id, s.confidence DESC, s.id
         """,
-        (current_user_id(),),
+        (uid,),
     )
-    return jsonify({"count": int((row or {}).get("n") or 0)})
+    by_agent: dict = {}
+    for s in skills:
+        by_agent.setdefault(s["agent_id"], []).append(s)
+    return jsonify({
+        "agents": [
+            {
+                "id": a["id"],
+                "name": a["name"],
+                "role_title": a.get("role_title"),
+                "avatar_config": a.get("avatar_config") or {},
+                "is_lead": bool(a.get("is_lead")),
+                "skills": by_agent.get(a["id"], []),
+            }
+            for a in agents
+            if not a.get("is_lead")
+        ],
+    })
 
 
 # ============================================================================

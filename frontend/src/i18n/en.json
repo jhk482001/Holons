@@ -248,7 +248,13 @@
     "histSources": "Sources",
     "histProduced": "Skills",
     "histTokens": "Tokens",
-    "histCost": "Cost"
+    "histCost": "Cost",
+    "relearn": "Re-learn from recent work",
+    "menu": "More actions",
+    "removeSkill": "Remove skill",
+    "removing": "Removing…",
+    "removeConfirmTitle": "Remove this skill?",
+    "removeConfirmBody": "The skill will be deleted and stop being injected into the agent's prompt. You can re-learn it later if the pattern still shows up in recent work."
   },
   "assets": {
     "help": "Check any asset to add it to this agent's tool-loop. Add assets on the Library page.",
@@ -730,8 +736,9 @@
       "rag": "Knowledge Base"
     },
     "search": "Search name or description…",
-    "selfLearnedBanner": "Your agents have self-learned {{count}} skills from their own work history. They live on each agent (not in the shared library) and are automatically injected into that agent's prompt.",
-    "selfLearnedBannerCta": "View on Skills page",
+    "selfLearnedTitle": "Self-learned skills",
+    "selfLearnedSubtitle": "Skills each agent mined from its own recent runs. Automatically injected into that agent's system prompt.",
+    "selfLearnedEmpty": "No self-learned skills yet. An agent needs ≥5 run steps before it can learn. Trigger extraction from an agent block once they have history.",
     "sort": {
       "createdDesc": "Created (Newest)",
       "createdAsc": "Created (Oldest)",

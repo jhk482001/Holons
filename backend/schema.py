@@ -642,6 +642,25 @@ DDL: list[str] = [
     "ALTER TABLE model_clients ADD COLUMN IF NOT EXISTS last_test_at TIMESTAMPTZ",
     "ALTER TABLE model_clients ADD COLUMN IF NOT EXISTS last_test_status VARCHAR(20)",
     "ALTER TABLE model_clients ADD COLUMN IF NOT EXISTS last_test_message TEXT",
+    # Scheduled workflow runs may scope to a project — when set, runs
+    # dispatched from this schedule carry project_id through for quota
+    # attribution, and the coordinator sees them in project usage slices.
+    "ALTER TABLE schedules ADD COLUMN IF NOT EXISTS project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL",
+    "CREATE INDEX IF NOT EXISTS idx_schedules_project ON schedules(project_id) WHERE project_id IS NOT NULL",
+    # Backfill: older projects might have a coordinator that isn't in
+    # project_members (pre-fix behaviour), which broke quota checks and
+    # caused coordinator dispatches to infinite-retry. One-shot add with
+    # 100/100 allocation, skipping any pair that already exists.
+    """
+    INSERT INTO project_members (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
+    SELECT p.id, p.coordinator_agent_id, 100.0, 100.0
+    FROM projects p
+    WHERE p.coordinator_agent_id IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM project_members pm
+          WHERE pm.project_id = p.id AND pm.agent_id = p.coordinator_agent_id
+      )
+    """,
     # IM channel bindings — one row per (user, platform) pair. Bot token
     # / webhook secret / etc. live encrypted in `secret_encrypted`.
     # External id is populated lazily on first `/start` contact so we

@@ -743,6 +743,32 @@ def _execute_with_tools(task: dict, payload: dict, agent: dict,
 # Callbacks from worker
 # ============================================================================
 
+def _persist_step_artifacts(project_id: int, agent_id: int,
+                             step_id: int | None, text: str) -> None:
+    """Extract ```artifact-*``` fences from a step response and write a
+    row to project_artifacts per artifact. Mirrors the lead_agent.chat
+    artifact persistence path so workflow-driven agents inside a project
+    also surface their artifacts on the project detail page."""
+    from .services import lead_agent as _la  # avoid cycles at import time
+    artifacts = _la._extract_artifacts(text or "")
+    if not artifacts:
+        return
+    for a in artifacts:
+        db.execute(
+            """
+            INSERT INTO project_artifacts
+                (project_id, agent_id, source, source_ref,
+                 kind, title, payload)
+            VALUES (%s, %s, 'run_step', %s, %s, %s, %s::jsonb)
+            """,
+            (project_id, agent_id,
+             int(step_id) if step_id is not None else None,
+             a.get("kind"),
+             (a.get("title") or a.get("filename") or None),
+             json.dumps(a)),
+        )
+
+
 def on_task_complete(task: dict, result: dict) -> None:
     """Called by worker after successful task execution.
 
@@ -761,10 +787,25 @@ def on_task_complete(task: dict, result: dict) -> None:
     workflow_id = payload.get("workflow_id")
 
     # Check run status — could be cancelled mid-flight
-    run = db.fetch_one("SELECT status FROM runs WHERE id = %s", (run_id,))
+    run = db.fetch_one("SELECT status, project_id FROM runs WHERE id = %s", (run_id,))
     if run and run["status"] in ("cancelling", "cancelled"):
         _maybe_finalize_cancelled(run_id)
         return
+
+    # Project-scoped runs — persist every artifact-* fence emitted by a step
+    # to project_artifacts, mirroring what lead_agent.chat does for project
+    # chat. Safe to skip silently: artifacts still live in the step response.
+    project_id = (run or {}).get("project_id")
+    if project_id and result.get("text"):
+        try:
+            _persist_step_artifacts(
+                project_id=int(project_id),
+                agent_id=task["agent_id"],
+                step_id=result.get("step_id"),
+                text=result["text"],
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("artifact persist failed for run %s: %s", run_id, e)
 
     if kind == "agent_node":
         _advance_to_next_node(

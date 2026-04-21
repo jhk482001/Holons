@@ -44,6 +44,7 @@ def _tick() -> int:
                 trigger_source="schedule",
                 trigger_context={"schedule_id": sched["id"], "name": sched.get("name")},
                 priority=sched.get("priority") or "normal",
+                project_id=sched.get("project_id"),
             )
             log.info("scheduled run %s dispatched from schedule %s", run_id, sched["id"])
             fired += 1
@@ -226,12 +227,14 @@ def create_schedule(user_id: int, data: dict) -> int:
     else:
         next_run = now
 
+    project_id = data.get("project_id")
     return db.execute_returning(
         """
         INSERT INTO schedules
             (user_id, workflow_id, name, trigger_type, cron_expression,
-             interval_seconds, default_input, priority, next_run_at, enabled)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+             interval_seconds, default_input, priority, next_run_at, enabled,
+             project_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
         RETURNING id
         """,
         (
@@ -244,6 +247,7 @@ def create_schedule(user_id: int, data: dict) -> int:
             data.get("default_input"),
             data.get("priority") or "normal",
             next_run,
+            int(project_id) if project_id else None,
         ),
     )
 

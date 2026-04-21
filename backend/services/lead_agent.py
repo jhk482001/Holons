@@ -587,13 +587,32 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
     )
     prompt = user_message if not history_text else f"{history_text}\n\n[user] {user_message}"
 
-    # Get the lead agent (used both for model client dispatch and model id fallback)
-    lead_agent = db.fetch_one(
-        "SELECT id, primary_model_id FROM agents WHERE user_id = %s AND is_lead = TRUE LIMIT 1",
-        (user_id,),
-    )
-    lead_agent_id = (lead_agent or {}).get("id")
-    model = (lead_agent or {}).get("primary_model_id") or None
+    # Pick the acting agent:
+    #   - project chat → the project's coordinator (if set)
+    #   - otherwise → the user's Lead (is_lead=TRUE)
+    # This lets the project's actual coordinator voice the reply, not a
+    # generic Lead pretending to be the coordinator (the old behaviour).
+    # If the project has no coordinator assigned, we fall through to Lead.
+    acting_agent = None
+    if project_id:
+        row = db.fetch_one(
+            """
+            SELECT a.id, a.primary_model_id
+            FROM projects p
+            JOIN agents a ON a.id = p.coordinator_agent_id
+            WHERE p.id = %s AND p.user_id = %s
+            """,
+            (project_id, user_id),
+        )
+        if row:
+            acting_agent = row
+    if not acting_agent:
+        acting_agent = db.fetch_one(
+            "SELECT id, primary_model_id FROM agents WHERE user_id = %s AND is_lead = TRUE LIMIT 1",
+            (user_id,),
+        )
+    lead_agent_id = (acting_agent or {}).get("id")
+    model = (acting_agent or {}).get("primary_model_id") or None
 
     # Invoke LLM via the agent's assigned model client. We lift max_tokens
     # well above the 4K default because Lead increasingly outputs long
@@ -1399,6 +1418,15 @@ def accept_project_proposal(user_id: int, message_id: int,
             """INSERT INTO project_members (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
                VALUES (%s, %s, %s, %s)""",
             (pid, aid_i, 100.0, 100.0),
+        )
+    # Coordinator must be a project member — quota middleware rejects any
+    # agent that isn't in project_members when a dispatch carries project_id.
+    coord_id = effective.get("coordinator_agent_id")
+    if coord_id and int(coord_id) not in seen:
+        db.execute(
+            """INSERT INTO project_members (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
+               VALUES (%s, %s, 100.0, 100.0)""",
+            (pid, int(coord_id)),
         )
 
     meta["created_project_id"] = int(pid)

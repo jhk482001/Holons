@@ -2100,6 +2100,7 @@ def create_project():
     name = (d.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name required"}), 400
+    coord_id = d.get("coordinator_agent_id")
     pid = db.execute_returning(
         """
         INSERT INTO projects (user_id, name, description, goal, status, coordinator_agent_id)
@@ -2111,24 +2112,39 @@ def create_project():
             d.get("description"),
             d.get("goal"),
             d.get("status", "active"),
-            d.get("coordinator_agent_id"),
+            coord_id,
         ),
     )
+    member_ids: set[int] = set()
     for m in d.get("members") or []:
         if not m.get("agent_id"):
             continue
+        aid = int(m["agent_id"])
+        if aid in member_ids:
+            continue
+        member_ids.add(aid)
         db.execute(
             """
             INSERT INTO project_members
                 (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
             VALUES (%s, %s, %s, %s)
             """,
-            (pid, int(m["agent_id"]),
+            (pid, aid,
              float(m.get("daily_alloc_pct", 100.0)),
              float(m.get("monthly_alloc_pct", 100.0))),
         )
+    # Coordinator must be a project member so quota middleware doesn't reject
+    # its own dispatches (quotas.check_project_allocation returns not_member).
+    if coord_id and int(coord_id) not in member_ids:
+        db.execute(
+            """INSERT INTO project_members
+               (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
+               VALUES (%s, %s, 100.0, 100.0)""",
+            (pid, int(coord_id)),
+        )
+        member_ids.add(int(coord_id))
     _log_project_event(pid, "created",
-                       {"name": name, "member_count": len(d.get("members") or [])})
+                       {"name": name, "member_count": len(member_ids)})
     return jsonify({"id": pid})
 
 
@@ -2159,20 +2175,54 @@ def update_project(pid: int):
         if "coordinator_agent_id" in d:
             _log_project_event(pid, "coordinator_changed",
                                {"to_agent_id": d["coordinator_agent_id"]})
+            # If coordinator changed and members aren't being rewritten below,
+            # ensure the new coord is in project_members.
+            new_coord = d.get("coordinator_agent_id")
+            if new_coord and "members" not in d:
+                exists = db.fetch_one(
+                    "SELECT 1 FROM project_members WHERE project_id = %s AND agent_id = %s",
+                    (pid, int(new_coord)),
+                )
+                if not exists:
+                    db.execute(
+                        """INSERT INTO project_members
+                           (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
+                           VALUES (%s, %s, 100.0, 100.0)""",
+                        (pid, int(new_coord)),
+                    )
     if "members" in d:
         db.execute("DELETE FROM project_members WHERE project_id = %s", (pid,))
+        member_ids: set[int] = set()
         for m in d["members"] or []:
             if not m.get("agent_id"):
                 continue
+            aid = int(m["agent_id"])
+            if aid in member_ids:
+                continue
+            member_ids.add(aid)
             db.execute(
                 """INSERT INTO project_members
                    (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
                    VALUES (%s, %s, %s, %s)""",
-                (pid, int(m["agent_id"]),
+                (pid, aid,
                  float(m.get("daily_alloc_pct", 100.0)),
                  float(m.get("monthly_alloc_pct", 100.0))),
             )
-        _log_project_event(pid, "members_updated", {"member_count": len(d["members"] or [])})
+        # Keep the coordinator in project_members regardless of what the
+        # client sent — quota middleware requires it.
+        coord_row = db.fetch_one(
+            "SELECT coordinator_agent_id FROM projects WHERE id = %s", (pid,),
+        )
+        coord_id = (coord_row or {}).get("coordinator_agent_id")
+        if coord_id and int(coord_id) not in member_ids:
+            db.execute(
+                """INSERT INTO project_members
+                   (project_id, agent_id, daily_alloc_pct, monthly_alloc_pct)
+                   VALUES (%s, %s, 100.0, 100.0)""",
+                (pid, int(coord_id)),
+            )
+            member_ids.add(int(coord_id))
+        _log_project_event(pid, "members_updated", {"member_count": len(member_ids)})
     return jsonify({"ok": True})
 
 

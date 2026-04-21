@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, WorkflowsAPI } from "../api/client";
+import { api, WorkflowsAPI, ProjectsAPI } from "../api/client";
 import Modal from "../components/Modal";
 
 interface Schedule {
@@ -198,9 +198,15 @@ function CreateScheduleModal({
     queryFn: () => WorkflowsAPI.list(),
     enabled: open,
   });
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects", "active"],
+    queryFn: () => ProjectsAPI.list("active"),
+    enabled: open,
+  });
 
   const [name, setName] = useState("");
   const [workflowId, setWorkflowId] = useState<number | null>(null);
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [triggerType, setTriggerType] = useState<"interval" | "cron">("interval");
   const [intervalSeconds, setIntervalSeconds] = useState(3600);
   const [cronExpression, setCronExpression] = useState("0 * * * *");
@@ -211,6 +217,7 @@ function CreateScheduleModal({
     mutationFn: () =>
       api.post<{ id: number }>("/schedules", {
         workflow_id: workflowId,
+        project_id: projectId,
         name,
         trigger_type: triggerType,
         interval_seconds: triggerType === "interval" ? intervalSeconds : null,
@@ -222,6 +229,7 @@ function CreateScheduleModal({
       qc.invalidateQueries({ queryKey: ["schedules"] });
       setName("");
       setWorkflowId(null);
+      setProjectId(null);
       setTriggerType("interval");
       setIntervalSeconds(3600);
       setCronExpression("0 * * * *");
@@ -276,6 +284,20 @@ function CreateScheduleModal({
             <option key={w.id} value={w.id}>{w.name || `#${w.id}`}</option>
           ))}
         </select>
+      </div>
+      <div className="modal-field">
+        <label>{t("schedules.projectLabel")}</label>
+        <select
+          data-testid="new-schedule-project"
+          value={projectId ?? ""}
+          onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
+        >
+          <option value="">{t("schedules.noProject")}</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <div className="hint">{t("schedules.projectHint")}</div>
       </div>
       <div className="modal-field">
         <label>{t("schedules.triggerType")}</label>

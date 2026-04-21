@@ -34,6 +34,36 @@ We'll move to Apple Developer ID + notarization (one-click install,
 no warnings) once there's meaningful adoption. In the meantime the
 right-click-Open flow is the standard friction path for OSS Mac apps.
 
+### Upgrading to a new version
+
+Your data is stored **outside the app bundle**, at
+`~/.agent_company/data.db`. Replacing `Holons.app` never touches that
+directory, so upgrades are non-destructive by default:
+
+1. **Recommended**: open Holons → Settings → Personal → Backup & export
+   → **Download backup (.db)** before installing the new version.
+2. Quit the running app (Cmd-Q).
+3. Drag the new `Holons.app` into `Applications`, overwriting the old one.
+4. Re-open. On startup, schema migrations run automatically
+   (they're additive — `ALTER TABLE ADD COLUMN IF NOT EXISTS`, never
+   destructive), so new features light up without losing existing rows.
+
+**If something goes wrong after upgrade**, restore the backup:
+
+1. Quit Holons completely.
+2. Copy your `holons-backup-*.db` to `~/.agent_company/data.db`
+   (overwrite).
+3. Remove WAL sidecars: `rm -f ~/.agent_company/data.db-shm ~/.agent_company/data.db-wal`
+4. Reopen Holons.
+
+### Downgrade
+
+Generally supported — the schema only adds columns/tables, never drops
+them. But if you opened your DB with a much newer version and then
+tried to run a much older one, unknown columns will be ignored and
+some features just won't surface. Restore from a backup taken before
+you upgraded if anything looks off.
+
 ### Uninstall
 
 ```bash

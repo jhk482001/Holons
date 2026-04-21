@@ -14,7 +14,7 @@ import time
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, jsonify, request, send_file, send_from_directory, session
 from flask_cors import CORS
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -812,6 +812,101 @@ def im_webhook(platform: str, secret: str):
     # Always 200 — if we 4xx/5xx the platform retries and the user sees
     # duplicate replies.
     return ("", 200)
+
+
+# ============================================================================
+# Backup / export — the user's safety net before app upgrades.
+#
+# Personal-mode SQLite can be dumped live via sqlite3.Connection.backup()
+# which is safe under active writes (it uses the WAL correctly). Enterprise
+# Postgres is assumed to have its own backup tooling (pg_dump, managed
+# snapshots, etc.) so we report "use your cluster's tooling" there rather
+# than reinvent a half-baked dump.
+#
+# Admin-only — a backup contains every user's data on the deployment.
+# In personal mode there's only one admin, so this is effectively
+# "export my install". In enterprise mode it's an admin operation.
+# ============================================================================
+
+
+def _current_db_info() -> dict:
+    """Return {backend, path, size_bytes, modified_at} for the active DB."""
+    from . import config as _cfg
+    backend = (_cfg.CFG.get("DB_BACKEND") or os.environ.get("DB_BACKEND") or "").lower()
+    if backend == "postgres":
+        return {
+            "backend": "postgres",
+            "exportable": False,
+            "reason": "Postgres backups are managed by your cluster. "
+                      "Use pg_dump, pg_basebackup, or your managed provider.",
+        }
+    # SQLite default
+    db_path = (_cfg.CFG.get("SQLITE_PATH") or os.environ.get("SQLITE_PATH")
+               or str(Path.home() / ".agent_company" / "data.db"))
+    p = Path(db_path)
+    info = {
+        "backend": "sqlite",
+        "exportable": True,
+        "path": str(p),
+        "exists": p.exists(),
+    }
+    if p.exists():
+        stat = p.stat()
+        info["size_bytes"] = stat.st_size
+        info["modified_at"] = int(stat.st_mtime)
+    return info
+
+
+@app.route("/api/backup/info")
+@admin_required
+def backup_info():
+    return jsonify(_current_db_info())
+
+
+@app.route("/api/backup/download")
+@admin_required
+def backup_download():
+    """Stream a consistent SQLite snapshot. Uses the online-backup API
+    so a long-running write transaction doesn't block us and we don't
+    capture a half-written page. File is created in a tempdir and
+    handed off via send_file's after_this_request unlink handler."""
+    import sqlite3
+    import tempfile
+    import datetime as _dt
+    info = _current_db_info()
+    if not info.get("exportable"):
+        return jsonify({
+            "error": info.get("reason") or "backup not supported on this backend",
+        }), 501
+    src_path = info["path"]
+    if not Path(src_path).exists():
+        return jsonify({"error": f"no database file at {src_path}"}), 404
+
+    tmp = tempfile.NamedTemporaryFile(
+        suffix=".db",
+        prefix=f"holons-backup-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-",
+        delete=False,
+    )
+    tmp_path = tmp.name
+    tmp.close()
+
+    # sqlite3.Connection.backup is atomic from readers' POV + correct
+    # under concurrent writers (iterates pages, yields on contention).
+    src = sqlite3.connect(src_path)
+    dst = sqlite3.connect(tmp_path)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+
+    nice_name = f"holons-backup-{_dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+    return send_file(
+        tmp_path,
+        mimetype="application/x-sqlite3",
+        as_attachment=True,
+        download_name=nice_name,
+    )
 
 
 @app.route("/api/logout", methods=["POST"])

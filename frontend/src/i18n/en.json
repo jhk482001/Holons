@@ -799,6 +799,19 @@
     "runHistory": "Run History ({{count}})",
     "viewRun": "View →"
   },
+  "backup": {
+    "title": "Backup & export",
+    "subtitle": "Before upgrading, download a snapshot of your local database. Your data lives at ~/.agent_company/ and is not deleted when the app is replaced — but a manual backup is your safety net.",
+    "backend": "Backend",
+    "size": "Size",
+    "modified": "Last modified",
+    "downloadBtn": "Download backup (.db)",
+    "restoreHow": "How to restore from a backup",
+    "restoreStep1": "Quit the Holons app completely (Cmd-Q, not just close the window).",
+    "restoreStep2": "Move your downloaded .db file to ~/.agent_company/data.db (overwrite the existing one).",
+    "restoreStep3": "Remove the WAL sidecars if present: rm -f ~/.agent_company/data.db-shm ~/.agent_company/data.db-wal",
+    "restoreStep4": "Re-open the Holons app. The new data is loaded on startup."
+  },
   "artifactBubble": {
     "htmlBadge": "HTML prototype",
     "slidesBadge": "Slide deck",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AuthAPI, api } from "../../api/client";
 import { useMe } from "../../auth";
@@ -305,7 +305,96 @@ export default function PersonalTab() {
       </section>
 
       <AutoTopupSection />
+      <BackupSection />
     </div>
+  );
+}
+
+
+interface BackupInfo {
+  backend: string;
+  exportable: boolean;
+  path?: string;
+  exists?: boolean;
+  size_bytes?: number;
+  modified_at?: number;
+  reason?: string;
+}
+
+
+function BackupSection() {
+  const { t } = useTranslation();
+  const { data, isLoading } = useQuery({
+    queryKey: ["backup-info"],
+    queryFn: () => api.get<BackupInfo>("/backup/info"),
+  });
+  const fmt = (n: number) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(2)} MB`;
+  };
+  return (
+    <section style={{ marginTop: 28 }}>
+      <h3 style={{ fontSize: 14, marginBottom: 10 }}>{t("backup.title")}</h3>
+      <p style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 0 }}>
+        {t("backup.subtitle")}
+      </p>
+      {isLoading && (
+        <div style={{ fontSize: 12, color: "var(--ink-4)" }}>
+          {t("btn.loading")}
+        </div>
+      )}
+      {data && data.exportable && data.exists !== false && (
+        <div style={{
+          padding: 12, background: "var(--surface-2)",
+          borderRadius: 8, fontSize: 12, color: "var(--ink-2)",
+          marginBottom: 12,
+        }}>
+          <div><strong>{t("backup.backend")}:</strong> {data.backend}</div>
+          <div style={{ fontFamily: "monospace", fontSize: 11, marginTop: 4 }}>
+            {data.path}
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <strong>{t("backup.size")}:</strong> {data.size_bytes ? fmt(data.size_bytes) : "—"}
+            {data.modified_at && (
+              <>{"  · "}<strong>{t("backup.modified")}:</strong>{" "}
+              {new Date(data.modified_at * 1000).toLocaleString()}</>
+            )}
+          </div>
+        </div>
+      )}
+      {data && !data.exportable && (
+        <div style={{
+          padding: 12, background: "var(--warn-soft)",
+          borderRadius: 8, fontSize: 12, color: "var(--warn)",
+          marginBottom: 12,
+        }}>
+          {data.reason}
+        </div>
+      )}
+      {data && data.exportable && (
+        <a
+          href="/api/backup/download"
+          className="mbtn primary"
+          download
+          style={{ display: "inline-block", textDecoration: "none",
+            padding: "8px 16px", fontSize: 13 }}
+        >
+          {t("backup.downloadBtn")}
+        </a>
+      )}
+      <details style={{ marginTop: 16, fontSize: 12 }}>
+        <summary style={{ cursor: "pointer", color: "var(--ink-3)" }}>
+          {t("backup.restoreHow")}
+        </summary>
+        <ol style={{ color: "var(--ink-2)", lineHeight: 1.7, marginTop: 8 }}>
+          <li>{t("backup.restoreStep1")}</li>
+          <li>{t("backup.restoreStep2")}</li>
+          <li>{t("backup.restoreStep3")}</li>
+          <li>{t("backup.restoreStep4")}</li>
+        </ol>
+      </details>
+    </section>
   );
 }
 

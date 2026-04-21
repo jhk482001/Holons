@@ -799,6 +799,19 @@
     "runHistory": "執行紀錄（{{count}}）",
     "viewRun": "查看 →"
   },
+  "backup": {
+    "title": "備份與匯出",
+    "subtitle": "升級前先下載一份本機資料庫快照。你的資料放在 ~/.agent_company/，App 被替換時不會被刪除 — 但手動備份是你的保險絲。",
+    "backend": "資料庫",
+    "size": "大小",
+    "modified": "最後修改",
+    "downloadBtn": "下載備份檔 (.db)",
+    "restoreHow": "如何從備份還原",
+    "restoreStep1": "完全退出 Holons App（Cmd-Q，不是只關窗）。",
+    "restoreStep2": "把下載的 .db 檔搬到 ~/.agent_company/data.db（覆蓋現有的）。",
+    "restoreStep3": "若有 WAL 輔助檔要一起刪：rm -f ~/.agent_company/data.db-shm ~/.agent_company/data.db-wal",
+    "restoreStep4": "重新打開 Holons App，啟動時就會載入新資料。"
+  },
   "artifactBubble": {
     "htmlBadge": "HTML 原型",
     "slidesBadge": "投影片",

@@ -235,7 +235,12 @@
     "failure": "失敗",
     "collapse": "收合",
     "expand": "展開",
-    "subtitle": "每個 agent 內化的技能，可以核可、拒絕、匯出"
+    "subtitle": "每個 agent 內化的技能，可以核可、拒絕、匯出",
+    "auditModel": "萃取模型",
+    "auditTokens": "萃取 tokens（輸入 / 輸出）",
+    "auditCost": "萃取成本（USD）",
+    "auditSource": "來源 run steps",
+    "sourceSteps": "筆"
   },
   "assets": {
     "help": "勾選任一資產，它就會被納入此 agent 的 tool-loop。新增資產請到側邊的「Skill / MCP / 知識庫」頁面。",
@@ -614,6 +619,10 @@
     "leadMaxTokensHint": "一次 workflow 執行的預估 token 總量上限。每個 agent 節點大約消耗 3,000–5,000 tokens。超過時 Lead 會警告你。",
     "leadHowItWorks": "Lead 如何規劃 Workflow",
     "leadHowItWorksContent": "當你請 Lead 規劃 workflow 時，它會：\n1. 分析你的需求並拆解成步驟\n2. 檢查每位 agent 目前的工作量（佇列深度）\n3. 為每個步驟分配最合適的 agent — 如果專長 agent 忙碌，會安排閒置的 agent 搭配臨時角色覆蓋\n4. 尊重並行原則：可同時做的步驟會並行\n5. 遵守你的步驟數和 token 預算上限\n\n你可以在執行前自由編輯 Lead 提出的 workflow。",
+    "skillsTitle": "技能學習",
+    "skillsDesc": "當 agent 累積夠多工作紀錄時，你可以在「技能」頁按「從工作紀錄學習」讓它自動從自己的歷史萃取可複用的模式。每次萃取的 token 數與成本都會逐條記錄。",
+    "skillsAutoApprove": "萃取後自動套用到原來源 agent",
+    "skillsAutoApproveHint": "開啟時，新萃取的技能會立刻注入該 agent 的 system prompt；關掉的話改成先待審核，到「技能」頁逐條點核可。",
     "hardLimit": "硬上限：{{limit}}",
     "english": "English",
     "chineseTraditional": "繁體中文 (Traditional Chinese)",

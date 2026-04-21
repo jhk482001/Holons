@@ -50,6 +50,10 @@ content_md 是 agent 未來會貼到自己 system prompt 裡的技能文檔，�
 def extract_for_agent(agent_id: int, *, max_records: int = 30) -> list[dict]:
     """Analyze recent run_steps and extract candidate skills.
     Returns the list of saved skills (may be empty).
+
+    Side-effect: each saved skill captures the full extraction audit
+    (model, tokens, cost, prompt + response previews) so a user can
+    inspect any one skill and see exactly where it came from.
     """
     agent = db.fetch_one("SELECT * FROM agents WHERE id = %s", (agent_id,))
     if not agent:
@@ -74,36 +78,80 @@ def extract_for_agent(agent_id: int, *, max_records: int = 30) -> list[dict]:
     )
     prompt = EXTRACTOR_PROMPT.format(records=records_text)
 
+    # 16K output ceiling: skill content_md is meaty markdown — at 4K the
+    # JSON gets truncated mid-string, the regex fails silently, and we
+    # end up with "no skills" even when Haiku found several. 16K safely
+    # covers 3–5 skills per agent without runaway cost.
     result = llm_invoke(
         agent_id=agent["id"],
         model_key=agent.get("primary_model_id") or None,
         system_prompt="你是一位分析師，擅長從工作紀錄中提取可複用的技能模式。",
         user_text=prompt,
+        max_tokens=16384,
     )
 
     text = result.get("text", "")
-    # Parse JSON
-    m = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
-    if not m:
+    # Parse JSON. The outer fence is ```json ... ``` but skills frequently
+    # embed prompt examples inside their content_md that include their own
+    # triple-backticks — a non-greedy match stops at the first inner ```
+    # and truncates the JSON. Anchor on the OUTER pair: ```json<newline>
+    # at the start, and the LAST standalone ``` in the response as the
+    # end. Falls back to the first bare [...] if no fence is present.
+    candidates = None
+    open_m = re.search(r"```json\s*\n", text)
+    if open_m:
+        body = text[open_m.end():]
+        # Find the last ``` that sits alone on its own line — that's the
+        # outer closing fence.
+        end_matches = list(re.finditer(r"\n```\s*(?:\n|$)", body))
+        if end_matches:
+            payload = body[: end_matches[-1].start()]
+            try:
+                candidates = json.loads(payload)
+            except json.JSONDecodeError:
+                candidates = None
+    if candidates is None:
         m = re.search(r"(\[.*\])", text, re.DOTALL)
-    if not m:
-        return []
-    try:
-        candidates = json.loads(m.group(1))
-    except json.JSONDecodeError:
-        return []
+        if not m:
+            return []
+        try:
+            candidates = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            return []
 
-    return _save_candidates(agent, candidates, [r["id"] for r in records])
+    audit = {
+        "model_id": result.get("model_id"),
+        "input_tokens": int(result.get("input_tokens") or 0),
+        "output_tokens": int(result.get("output_tokens") or 0),
+        "cost_usd": float(result.get("cost_usd") or 0.0),
+        "prompt_preview": prompt[:2000],
+        "response_preview": text[:2000],
+    }
+    return _save_candidates(agent, candidates, [r["id"] for r in records], audit)
 
 
-def _save_candidates(agent: dict, candidates: list[dict], source_run_ids: list[int]) -> list[dict]:
-    """Persist proposals to agent_skills, auto-approving high-confidence ones.
+def _save_candidates(agent: dict, candidates: list[dict],
+                      source_run_ids: list[int],
+                      audit: dict | None = None) -> list[dict]:
+    """Persist proposals to agent_skills with full extraction audit.
     Also applies guardrails.
+
+    Auto-approval: if the user's `skills_auto_approve` flag is ON (default),
+    every extracted skill is saved as approved so it immediately enters
+    the source agent's working set. Users who want human-in-the-loop
+    review flip that switch off in Personal settings and extracted skills
+    land as proposals (approved_by_user=FALSE) with a notification.
     """
     if not isinstance(candidates, list):
         return []
 
+    audit = audit or {}
     user_id = agent["user_id"]
+    user_row = db.fetch_one(
+        "SELECT skills_auto_approve FROM as_users WHERE id = %s", (user_id,),
+    )
+    auto_approve_all = bool((user_row or {}).get("skills_auto_approve", True))
+
     # Load guardrails
     rules = db.fetch_all(
         """
@@ -129,17 +177,35 @@ def _save_candidates(agent: dict, candidates: list[dict], source_run_ids: list[i
             "SELECT id, times_used, approved_by_user FROM agent_skills WHERE agent_id = %s AND slug = %s",
             (agent["id"], slug),
         )
-        auto_approved = confidence > 0.9
+        # Default ON: every extraction gets auto-approved. The legacy
+        # confidence>0.9 bar is kept only as a safety-net for users who
+        # toggled auto-approve OFF — high-confidence skills still go
+        # straight in even when the manual-review switch is on.
+        auto_approved = auto_approve_all or confidence > 0.9
         if existing:
             db.execute(
                 """
                 UPDATE agent_skills
                 SET content_md = %s, confidence = %s,
                     source_run_ids = %s::jsonb,
+                    extraction_model_id = %s,
+                    extraction_input_tokens = %s,
+                    extraction_output_tokens = %s,
+                    extraction_cost_usd = %s,
+                    extraction_prompt_preview = %s,
+                    extraction_response_preview = %s,
+                    extraction_at = NOW(),
                     updated_at = NOW()
                 WHERE id = %s
                 """,
-                (content_md, confidence, json.dumps(source_run_ids), existing["id"]),
+                (content_md, confidence, json.dumps(source_run_ids),
+                 audit.get("model_id"),
+                 audit.get("input_tokens"),
+                 audit.get("output_tokens"),
+                 audit.get("cost_usd"),
+                 audit.get("prompt_preview"),
+                 audit.get("response_preview"),
+                 existing["id"]),
             )
             skill_id = existing["id"]
         else:
@@ -147,17 +213,31 @@ def _save_candidates(agent: dict, candidates: list[dict], source_run_ids: list[i
                 """
                 INSERT INTO agent_skills
                     (agent_id, slug, name, description, content_md, source,
-                     source_run_ids, confidence, approved_by_user)
-                VALUES (%s, %s, %s, %s, %s, 'self_learned', %s::jsonb, %s, %s)
+                     source_run_ids, confidence, approved_by_user,
+                     extraction_model_id, extraction_input_tokens,
+                     extraction_output_tokens, extraction_cost_usd,
+                     extraction_prompt_preview, extraction_response_preview,
+                     extraction_at)
+                VALUES (%s, %s, %s, %s, %s, 'self_learned', %s::jsonb, %s, %s,
+                        %s, %s, %s, %s, %s, %s, NOW())
                 RETURNING id
                 """,
                 (
                     agent["id"], slug, name, c.get("description"), content_md,
                     json.dumps(source_run_ids), confidence, auto_approved,
+                    audit.get("model_id"),
+                    audit.get("input_tokens"),
+                    audit.get("output_tokens"),
+                    audit.get("cost_usd"),
+                    audit.get("prompt_preview"),
+                    audit.get("response_preview"),
                 ),
             )
 
-        saved.append({"id": skill_id, "slug": slug, "name": name, "confidence": confidence, "auto_approved": auto_approved})
+        saved.append({
+            "id": skill_id, "slug": slug, "name": name,
+            "confidence": confidence, "auto_approved": auto_approved,
+        })
 
         if not auto_approved:
             notifications.emit(

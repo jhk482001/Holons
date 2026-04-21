@@ -235,7 +235,12 @@
     "failure": "failure",
     "collapse": "Collapse",
     "expand": "Expand",
-    "subtitle": "Skills internalized by each agent — approve, reject, export"
+    "subtitle": "Skills internalized by each agent — approve, reject, export",
+    "auditModel": "Extraction model",
+    "auditTokens": "Extraction tokens (in / out)",
+    "auditCost": "Extraction cost (USD)",
+    "auditSource": "Source run steps",
+    "sourceSteps": "steps"
   },
   "assets": {
     "help": "Check any asset to add it to this agent's tool-loop. Add assets on the Library page.",
@@ -614,6 +619,10 @@
     "leadMaxTokensHint": "Estimated maximum total tokens for a workflow run. Each agent node uses roughly 3,000–5,000 tokens. Lead will warn you if the design exceeds this budget.",
     "leadHowItWorks": "How Lead Plans Workflows",
     "leadHowItWorksContent": "When you ask Lead to plan a workflow, it:\n1. Analyzes your request and breaks it into steps\n2. Checks each agent's current workload (queue depth)\n3. Assigns the best-fit agent for each step — if the specialist is busy, it may assign an idle agent with a temporary role override\n4. Respects parallelism: independent steps run simultaneously\n5. Stays within your max steps and token budget\n\nYou can always edit the proposed workflow before running it.",
+    "skillsTitle": "Skill learning",
+    "skillsDesc": "Each time an agent runs enough work, you can click \"Learn from Work Record\" on the Skills page to have it mine its own history for re-usable patterns. Extraction cost + token usage are recorded per skill.",
+    "skillsAutoApprove": "Auto-apply extracted skills to the source agent",
+    "skillsAutoApproveHint": "When on, every newly-extracted skill is immediately injected into the agent's system prompt. Turn off if you'd rather review each one on the Skills page first.",
     "hardLimit": "Hard limit: {{limit}}",
     "english": "English",
     "chineseTraditional": "繁體中文 (Traditional Chinese)",

@@ -14,6 +14,14 @@ interface Skill {
   confidence: number;
   approved_by_user: boolean;
   times_used: number;
+  source_run_ids?: number[];
+  extraction_model_id?: string | null;
+  extraction_input_tokens?: number | null;
+  extraction_output_tokens?: number | null;
+  extraction_cost_usd?: number | null;
+  extraction_prompt_preview?: string | null;
+  extraction_response_preview?: string | null;
+  extraction_at?: string | null;
 }
 
 export default function Skills() {
@@ -188,6 +196,36 @@ function AgentSkillsBlock({
               <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 4 }}>
                 {s.source} · {t("skills.confidence")} {(s.confidence || 0).toFixed(2)} · {t("skills.used", { count: s.times_used })}
               </div>
+              {(s.extraction_model_id || (s.extraction_input_tokens ?? 0) > 0) && (
+                <div style={{
+                  fontSize: 10,
+                  color: "var(--ink-4)",
+                  marginTop: 3,
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}>
+                  {s.extraction_model_id && (
+                    <span title={t("skills.auditModel")}>🧠 {s.extraction_model_id}</span>
+                  )}
+                  {(s.extraction_input_tokens ?? 0) > 0 && (
+                    <span title={t("skills.auditTokens")}>
+                      ↓{s.extraction_input_tokens} ↑{s.extraction_output_tokens}
+                    </span>
+                  )}
+                  {(s.extraction_cost_usd ?? 0) > 0 && (
+                    <span title={t("skills.auditCost")}>${(s.extraction_cost_usd ?? 0).toFixed(4)}</span>
+                  )}
+                  {s.source_run_ids && s.source_run_ids.length > 0 && (
+                    <span title={t("skills.auditSource")}>
+                      ← {s.source_run_ids.length} {t("skills.sourceSteps")}
+                    </span>
+                  )}
+                  {s.extraction_at && (
+                    <span>{new Date(s.extraction_at).toLocaleString()}</span>
+                  )}
+                </div>
+              )}
             </div>
             {!s.approved_by_user && (
               <button

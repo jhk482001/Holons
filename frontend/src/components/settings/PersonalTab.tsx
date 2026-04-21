@@ -13,12 +13,17 @@ export default function PersonalTab() {
   const [language, setLanguage] = useState("en");
   const [maxSteps, setMaxSteps] = useState(10);
   const [maxTokens, setMaxTokens] = useState(50000);
+  const [skillsAutoApprove, setSkillsAutoApprove] = useState(true);
   useEffect(() => {
     if (me?.display_name) setDisplayName(me.display_name);
     if ((me as any)?.language) setLanguage((me as any).language);
     if ((me as any)?.lead_max_steps) setMaxSteps((me as any).lead_max_steps);
     if ((me as any)?.lead_max_tokens) setMaxTokens((me as any).lead_max_tokens);
-  }, [me?.display_name, (me as any)?.language, (me as any)?.lead_max_steps, (me as any)?.lead_max_tokens]);
+    if (typeof (me as any)?.skills_auto_approve === "boolean") {
+      setSkillsAutoApprove((me as any).skills_auto_approve);
+    }
+  }, [me?.display_name, (me as any)?.language, (me as any)?.lead_max_steps,
+      (me as any)?.lead_max_tokens, (me as any)?.skills_auto_approve]);
 
   const [savedProfile, setSavedProfile] = useState(false);
   const saveProfile = useMutation({
@@ -28,6 +33,7 @@ export default function PersonalTab() {
         language,
         lead_max_steps: maxSteps,
         lead_max_tokens: maxTokens,
+        skills_auto_approve: skillsAutoApprove,
       });
     },
     onSuccess: () => {
@@ -74,7 +80,8 @@ export default function PersonalTab() {
     (displayName.trim() !== (me?.display_name || "") && displayName.trim().length > 0) ||
     language !== ((me as any)?.language || "en") ||
     maxSteps !== ((me as any)?.lead_max_steps || 10) ||
-    maxTokens !== ((me as any)?.lead_max_tokens || 50000);
+    maxTokens !== ((me as any)?.lead_max_tokens || 50000) ||
+    skillsAutoApprove !== ((me as any)?.skills_auto_approve ?? true);
 
   return (
     <div data-testid="settings-personal-tab">
@@ -302,6 +309,52 @@ export default function PersonalTab() {
             {t("personal.leadHowItWorksContent")}
           </div>
         </details>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>{t("personal.skillsTitle")}</h3>
+        <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 16, lineHeight: 1.6 }}>
+          {t("personal.skillsDesc")}
+        </div>
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 16,
+            padding: 20,
+          }}
+        >
+          <label style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            cursor: "pointer",
+            fontSize: 13,
+          }}>
+            <input
+              type="checkbox"
+              data-testid="skills-auto-approve-toggle"
+              checked={skillsAutoApprove}
+              onChange={(e) => setSkillsAutoApprove(e.target.checked)}
+              style={{ width: 18, height: 18 }}
+            />
+            <span>
+              <div style={{ fontWeight: 700 }}>{t("personal.skillsAutoApprove")}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                {t("personal.skillsAutoApproveHint")}
+              </div>
+            </span>
+          </label>
+          <div style={{ marginTop: 14 }}>
+            <button
+              className="mbtn primary"
+              onClick={() => saveProfile.mutate()}
+              disabled={!profileDirty || saveProfile.isPending}
+            >
+              {saveProfile.isPending ? t("personal.saving") : t("personal.save")}
+            </button>
+          </div>
+        </div>
       </section>
 
       <AutoTopupSection />

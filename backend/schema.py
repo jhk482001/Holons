@@ -647,6 +647,21 @@ DDL: list[str] = [
     # attribution, and the coordinator sees them in project usage slices.
     "ALTER TABLE schedules ADD COLUMN IF NOT EXISTS project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL",
     "CREATE INDEX IF NOT EXISTS idx_schedules_project ON schedules(project_id) WHERE project_id IS NOT NULL",
+    # Skill extractor audit trail — every auto-learned skill now records
+    # which model ran the extraction, how many tokens / USD it cost, and
+    # a preview of both the prompt and the LLM's reasoning so a user can
+    # scrutinise the call later. Complements source_run_ids (already on
+    # the table) which captures WHICH runs the skill was mined from.
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_model_id VARCHAR(100)",
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_input_tokens BIGINT",
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_output_tokens BIGINT",
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_cost_usd NUMERIC(12,6)",
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_prompt_preview TEXT",
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_response_preview TEXT",
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_at TIMESTAMPTZ",
+    # Per-user knob — default ON. When off, extracted skills stay as
+    # proposals (approved_by_user=FALSE) until the user clicks Approve.
+    "ALTER TABLE as_users ADD COLUMN IF NOT EXISTS skills_auto_approve BOOLEAN DEFAULT TRUE",
     # Backfill: older projects might have a coordinator that isn't in
     # project_members (pre-fix behaviour), which broke quota checks and
     # caused coordinator dispatches to infinite-retry. One-shot add with

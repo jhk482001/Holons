@@ -928,7 +928,7 @@ def me():
         return jsonify({"authenticated": False})
     u = db.fetch_one(
         "SELECT id, username, display_name, default_lead_agent_id, role, language, "
-        "       lead_max_steps, lead_max_tokens "
+        "       lead_max_steps, lead_max_tokens, skills_auto_approve "
         "FROM as_users WHERE id = %s",
         (uid,),
     )
@@ -966,6 +966,9 @@ def update_me():
         val = max(1000, min(hard, int(d["lead_max_tokens"])))
         sets.append("lead_max_tokens = %s")
         params.append(val)
+    if "skills_auto_approve" in d:
+        sets.append("skills_auto_approve = %s")
+        params.append(bool(d["skills_auto_approve"]))
     if not sets:
         return jsonify({"ok": True})
     params.append(current_user_id())

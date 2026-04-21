@@ -328,6 +328,40 @@ def execute_task(task: dict, ctx: dict) -> dict:
     except Exception as e:  # noqa: BLE001
         log.warning("asset gather failed for agent %s: %s", agent.get("id"), e)
 
+    # Self-learned skills (agent_skills rows approved_by_user=TRUE) — the
+    # extractor writes these directly, bypassing the asset library, so
+    # they need a separate load here. Flat-dedup against asset-library
+    # skills by slug/name so a skill that was also published as an asset
+    # doesn't double-print.
+    try:
+        learned = db.fetch_all(
+            """
+            SELECT name, content_md
+            FROM agent_skills
+            WHERE agent_id = %s AND approved_by_user = TRUE
+              AND content_md IS NOT NULL AND content_md <> ''
+            ORDER BY times_used DESC, updated_at DESC
+            """,
+            (agent["id"],),
+        )
+        if learned:
+            seen_names = {
+                s.partition("\n")[0].lstrip("# ").strip()
+                for s in (asset_ctx["skill_snips"] or [])
+            }
+            extra = []
+            for row in learned:
+                n = (row.get("name") or "").strip()
+                if n and n in seen_names:
+                    continue
+                extra.append(f"### {n}\n{row['content_md']}")
+            if extra:
+                system_prompt = (
+                    system_prompt + "\n\n" + "\n\n".join(extra)
+                ).strip()
+    except Exception as e:  # noqa: BLE001
+        log.warning("agent_skills load failed for agent %s: %s", agent.get("id"), e)
+
     if tool_names or mcp_tools or asset_ctx["rag"]:
         return _execute_with_tools(task, payload, agent, prompt, system_prompt,
                                     model_id, tool_names, mcp_tools,

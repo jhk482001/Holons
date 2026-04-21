@@ -43,7 +43,8 @@
       "sidecar/agent-company-backend": "agent-company-backend"
     },
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "-"
     }
   }
 }

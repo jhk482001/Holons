@@ -668,6 +668,18 @@
     "defaultForNewAuto": "新使用者預設啟用（自動授權）",
     "credentialSet": "已設定憑證",
     "credentialUnset": "（未設定憑證）",
+    "testNow": "測試",
+    "testing": "測試中…",
+    "testPass": "可用",
+    "testFail": "失敗",
+    "testUntested": "尚未測試",
+    "testUntestedHint": "按「測試」驗證這條連線能通 — 跑 5 token round-trip。",
+    "viewSample": "查看範例",
+    "hideSample": "收起範例",
+    "sampleCopy": "複製",
+    "sampleCopied": "已複製 ✓",
+    "sampleDownload": "下載 .json",
+    "sampleUseAsTemplate": "套用到欄位",
     "assignedAgents": "指派 agent",
     "grantedUsers": "授權使用者",
     "deleteConfirm": "確定要刪除「{{name}}」？已指派此連線的 agent 會被重置為無連線。",
@@ -798,6 +810,13 @@
     "running": "執行中…",
     "runHistory": "執行紀錄（{{count}}）",
     "viewRun": "查看 →"
+  },
+  "noModel": {
+    "title": "沒有可用的 model 連線",
+    "noneExist": "你還沒設定任何 LLM 連線。至少要有一個可用的連線，agent 才能跑。",
+    "noneUsable": "你的 model 連線全部缺 credential 或被停用。至少要有一個能用，agent 才跑得動。",
+    "allFailing": "所有 model 連線上次測試都失敗。至少要有一個能通過測試，agent 才能跑。",
+    "goFix": "前往 Models 設定"
   },
   "backup": {
     "title": "備份與匯出",

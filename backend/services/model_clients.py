@@ -36,42 +36,82 @@ KIND_SCHEMAS: dict[str, dict[str, Any]] = {
         "credential_fields": ["access_key", "secret_key"],
         "config_fields": ["region", "models"],
         "hint": "region points to an AWS Bedrock-supported region; models is the list of model ids available through this connection.",
+        "example_config": {
+            "region": "us-east-1",
+            "models": [
+                "anthropic.claude-3-5-haiku-20241022-v1:0",
+                "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            ],
+        },
+        "example_credential": {
+            "access_key": "AKIAIOSFODNN7EXAMPLE",
+            "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        },
     },
     "claude_native": {
         "label": "Anthropic Claude (native API)",
         "credential_fields": ["api_key"],
         "config_fields": ["base_url", "models"],
         "hint": "base_url defaults to https://api.anthropic.com; API keys are formatted as sk-ant-…",
+        "example_config": {
+            "base_url": "https://api.anthropic.com",
+            "models": ["claude-3-5-haiku-latest", "claude-sonnet-4-5-latest"],
+        },
+        "example_credential": {"api_key": "sk-ant-api03-XXXXXXXXXXXXXXXXXXXX"},
     },
     "openai": {
         "label": "OpenAI",
         "credential_fields": ["api_key"],
         "config_fields": ["base_url", "organization", "models"],
         "hint": "base_url defaults to https://api.openai.com/v1; organization is optional.",
+        "example_config": {
+            "base_url": "https://api.openai.com/v1",
+            "organization": "org-optional-remove-if-unused",
+            "models": ["gpt-4o-mini", "gpt-4o"],
+        },
+        "example_credential": {"api_key": "sk-proj-XXXXXXXXXXXXXXXXXXXX"},
     },
     "azure_openai": {
         "label": "Azure OpenAI",
         "credential_fields": ["api_key"],
         "config_fields": ["endpoint", "api_version", "deployments"],
         "hint": "endpoint example: https://<resource>.openai.azure.com; deployments is an array of Azure deployment names.",
+        "example_config": {
+            "endpoint": "https://your-resource.openai.azure.com",
+            "api_version": "2024-06-01",
+            "deployments": ["gpt-4o-mini-deployment", "gpt-4o-deployment"],
+        },
+        "example_credential": {"api_key": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"},
     },
     "gemini": {
         "label": "Google Gemini",
         "credential_fields": ["api_key"],
         "config_fields": ["models"],
         "hint": "Uses your Google AI Studio API key; models is a list of gemini-* model ids.",
+        "example_config": {"models": ["gemini-2.0-flash", "gemini-2.5-pro"]},
+        "example_credential": {"api_key": "AIzaSyXXXXXXXXXXXXXXXXXXXX"},
     },
     "minimax": {
         "label": "Minimax",
         "credential_fields": ["api_key"],
         "config_fields": ["group_id", "models"],
         "hint": "Minimax chatcompletion v2 API; group_id is your account's groupId.",
+        "example_config": {
+            "group_id": "1234567890123456",
+            "models": ["MiniMax-Text-01", "abab6.5s-chat"],
+        },
+        "example_credential": {"api_key": "eyJhbGciOiJSUzI1NiIs..."},
     },
     "local": {
         "label": "Local / OpenAI-compatible",
         "credential_fields": ["api_key"],
         "config_fields": ["base_url", "models"],
         "hint": "OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, etc.). Example base_url: http://localhost:11434/v1; api_key may be blank or any placeholder string.",
+        "example_config": {
+            "base_url": "http://localhost:11434/v1",
+            "models": ["llama3.1:8b", "qwen2.5:14b"],
+        },
+        "example_credential": {"api_key": "ollama"},
     },
 }
 
@@ -99,6 +139,9 @@ def _row_to_dict(row: dict, *, include_grants: bool = False) -> dict:
         "created_by": row.get("created_by"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
+        "last_test_at": row.get("last_test_at"),
+        "last_test_status": row.get("last_test_status"),
+        "last_test_message": row.get("last_test_message"),
     }
     if include_grants:
         out["grant_count"] = int(row.get("grant_count") or 0)
@@ -273,6 +316,70 @@ def remove(client_id: int) -> None:
     """Delete a client. Agents referencing it will have
     `model_client_id` reset to NULL via FK ON DELETE SET NULL."""
     db.execute("DELETE FROM model_clients WHERE id = %s", (client_id,))
+
+
+# ============================================================================
+# Test — minimal round-trip to verify credentials + connectivity work.
+# ============================================================================
+
+def run_test(client_id: int) -> dict:
+    """Fire a tiny "say OK" prompt through the client's LLM. Updates
+    last_test_at / last_test_status / last_test_message on the row
+    and returns the same status dict.
+
+    Intentionally minimal: 1-2 input tokens, max_tokens=5 → roughly
+    1/1000 of a cent per test on most providers. Safe to spam.
+    """
+    import time as _time
+    row = get_raw(client_id)
+    if not row:
+        return {"ok": False, "message": "client not found"}
+    result = {"ok": False, "message": "", "latency_ms": 0,
+              "input_tokens": 0, "output_tokens": 0, "model": None}
+    start = _time.time()
+    try:
+        from ..llm_clients import invoke_via_client
+        models = (row.get("config") or {}).get("models") or []
+        if not models:
+            raise RuntimeError("client has no models configured")
+        if not row.get("credential"):
+            raise RuntimeError("client has no credential set")
+        # `models` may be either a list of strings (simple shape) or a list
+        # of {id, label, price_in, price_out} dicts (richer shape used by
+        # the admin's Bedrock client). Extract the string id from either.
+        first = models[0]
+        model_id = first["id"] if isinstance(first, dict) else first
+        resp = invoke_via_client(
+            client_row=row,
+            model_id=model_id,
+            system_prompt="Respond with exactly: OK",
+            messages=[{"role": "user", "content": [{"text": "ping"}]}],
+            max_tokens=5,
+            temperature=0.0,
+        )
+        if resp.get("error"):
+            raise RuntimeError(resp["error"])
+        result["ok"] = True
+        result["model"] = model_id
+        result["input_tokens"] = int(resp.get("input_tokens") or 0)
+        result["output_tokens"] = int(resp.get("output_tokens") or 0)
+        result["message"] = "ok"
+    except Exception as e:
+        import traceback
+        import logging
+        logging.getLogger("agent_company.model_clients").warning(
+            "test failed for client %s: %s\n%s", client_id, e, traceback.format_exc(),
+        )
+        result["ok"] = False
+        result["message"] = str(e)[:500] or type(e).__name__
+    result["latency_ms"] = int((_time.time() - start) * 1000)
+
+    db.execute(
+        "UPDATE model_clients SET last_test_at = NOW(), "
+        "last_test_status = %s, last_test_message = %s WHERE id = %s",
+        ("ok" if result["ok"] else "fail", result["message"], client_id),
+    )
+    return result
 
 
 # ============================================================================

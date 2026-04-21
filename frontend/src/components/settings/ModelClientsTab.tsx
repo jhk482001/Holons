@@ -192,6 +192,7 @@ function ClientCard({
         ) : (
           <span style={{ fontSize: 10, color: "var(--ink-4)" }}>{t("models.credentialUnset")}</span>
         )}
+        <TestStatusPill row={row} />
       </div>
       {row.description && (
         <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 4 }}>{row.description}</div>
@@ -231,6 +232,7 @@ function ClientCard({
           {t("models.defaultForNew")}
         </label>
         <div style={{ flex: 1 }} />
+        <TestButton clientId={row.id} />
         <button
           className="mbtn"
           data-testid={`model-client-grants-${row.id}`}
@@ -458,7 +460,14 @@ function ClientFormModal({
       </div>
 
       <div className="modal-field">
-        <label>Config (JSON)</label>
+        <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span>Config (JSON)</span>
+          <SampleHelper
+            kind={kind}
+            field="config"
+            onFill={(text) => setConfigJson(text)}
+          />
+        </label>
         <textarea
           data-testid="model-client-config-input"
           rows={8}
@@ -477,11 +486,16 @@ function ClientFormModal({
       </div>
 
       <div className="modal-field">
-        <label>
-          Credential (JSON){" "}
+        <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span>Credential (JSON)</span>
           {initial?.has_credential && (
             <span style={{ color: "var(--ok)", fontSize: 10 }}>🔒 {t("models.credentialSet")}</span>
           )}
+          <SampleHelper
+            kind={kind}
+            field="credential"
+            onFill={(text) => setCredentialJson(text)}
+          />
         </label>
         <textarea
           data-testid="model-client-credential-input"
@@ -688,5 +702,158 @@ function GrantModal({
         <button className="mbtn" onClick={onClose}>{t("btn.close")}</button>
       </div>
     </Modal>
+  );
+}
+
+
+// ============================================================================
+// Test status pill on each card
+// ============================================================================
+
+function TestStatusPill({ row }: { row: ModelClientRow }) {
+  const { t } = useTranslation();
+  let color = "var(--ink-4)";
+  let label: string;
+  let title: string;
+  if (row.last_test_status === "ok") {
+    color = "var(--good)";
+    label = `✓ ${t("models.testPass")}`;
+    title = `Passed${row.last_test_at ? ` · ${new Date(row.last_test_at).toLocaleString()}` : ""}`;
+  } else if (row.last_test_status === "fail") {
+    color = "var(--bad)";
+    label = `✗ ${t("models.testFail")}`;
+    title = (row.last_test_message || "Test failed") +
+            (row.last_test_at ? ` · ${new Date(row.last_test_at).toLocaleString()}` : "");
+  } else {
+    label = t("models.testUntested");
+    title = t("models.testUntestedHint");
+  }
+  return (
+    <span
+      title={title}
+      style={{
+        fontSize: 10, color, fontWeight: 700, letterSpacing: "0.02em",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+
+// ============================================================================
+// Test button — minimal LLM round-trip
+// ============================================================================
+
+function TestButton({ clientId }: { clientId: number }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [msg, setMsg] = useState<string>("");
+  const test = useMutation({
+    mutationFn: () => ModelClientsAPI.test(clientId),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["model-clients"] });
+      qc.invalidateQueries({ queryKey: ["model-client-usable-count"] });
+      if (r.ok) {
+        setMsg(`${t("models.testPass")} · ${r.latency_ms}ms · ${r.input_tokens}→${r.output_tokens} tok`);
+      } else {
+        setMsg(`${t("models.testFail")}: ${r.message}`);
+      }
+      setTimeout(() => setMsg(""), 6000);
+    },
+    onError: (e: Error) => {
+      setMsg(`${t("models.testFail")}: ${e.message}`);
+      setTimeout(() => setMsg(""), 6000);
+    },
+  });
+  return (
+    <>
+      <button
+        className="mbtn"
+        data-testid={`model-client-test-${clientId}`}
+        onClick={() => test.mutate()}
+        disabled={test.isPending}
+        style={{ fontSize: 11 }}
+      >
+        {test.isPending ? t("models.testing") : t("models.testNow")}
+      </button>
+      {msg && (
+        <span style={{ fontSize: 10, color: "var(--ink-3)",
+          maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {msg}
+        </span>
+      )}
+    </>
+  );
+}
+
+
+// ============================================================================
+// Sample helper — "View sample" expandable with copy + download JSON
+// ============================================================================
+
+function SampleHelper({ kind, field, onFill }: {
+  kind: ModelClientKind;
+  field: "config" | "credential";
+  onFill: (text: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["model-client-sample", kind],
+    queryFn: () => ModelClientsAPI.sample(kind),
+    enabled: open,
+  });
+  const sampleObj = data ? (data as any)[field] : null;
+  const sampleText = sampleObj ? JSON.stringify(sampleObj, null, 2) : "";
+
+  function copy() {
+    navigator.clipboard.writeText(sampleText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  function download() {
+    const blob = new Blob([sampleText], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${kind}-${field}-sample.json`;
+    a.click();
+  }
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <button
+        type="button"
+        className="mbtn"
+        style={{ fontSize: 10, padding: "2px 8px" }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? t("models.hideSample") : t("models.viewSample")}
+      </button>
+      {open && sampleText && (
+        <>
+          <pre style={{
+            background: "var(--surface-2)", border: "1px solid var(--border)",
+            borderRadius: 4, padding: "4px 8px", fontSize: 10,
+            lineHeight: 1.4, margin: 0, maxWidth: 360, overflow: "auto",
+            fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace",
+          }}>{sampleText}</pre>
+          <button type="button" className="mbtn"
+            style={{ fontSize: 10, padding: "2px 8px" }} onClick={copy}>
+            {copied ? t("models.sampleCopied") : t("models.sampleCopy")}
+          </button>
+          <button type="button" className="mbtn"
+            style={{ fontSize: 10, padding: "2px 8px" }} onClick={download}>
+            {t("models.sampleDownload")}
+          </button>
+          <button type="button" className="mbtn"
+            style={{ fontSize: 10, padding: "2px 8px" }}
+            onClick={() => onFill(sampleText)}>
+            {t("models.sampleUseAsTemplate")}
+          </button>
+        </>
+      )}
+    </span>
   );
 }

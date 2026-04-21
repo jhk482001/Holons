@@ -636,6 +636,12 @@ DDL: list[str] = [
     "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS source_platform VARCHAR(30)",
     "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS source_external_id VARCHAR(200)",
     "CREATE INDEX IF NOT EXISTS idx_lead_conv_source ON lead_conversations(source_platform, source_external_id)",
+    # Model client health — populated by the per-client "Test" action in
+    # Settings → Models. `last_test_status` is one of
+    # 'ok' | 'fail' | NULL (= never tested).
+    "ALTER TABLE model_clients ADD COLUMN IF NOT EXISTS last_test_at TIMESTAMPTZ",
+    "ALTER TABLE model_clients ADD COLUMN IF NOT EXISTS last_test_status VARCHAR(20)",
+    "ALTER TABLE model_clients ADD COLUMN IF NOT EXISTS last_test_message TEXT",
     # IM channel bindings — one row per (user, platform) pair. Bot token
     # / webhook secret / etc. live encrypted in `secret_encrypted`.
     # External id is populated lazily on first `/start` contact so we

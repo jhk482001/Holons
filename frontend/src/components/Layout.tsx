@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AuthAPI } from "../api/client";
 import { useSyncLanguage } from "../auth";
 import NotificationBell from "./NotificationBell";
+import NoModelClientBanner from "./NoModelClientBanner";
 import "./Layout.css";
 
 export default function Layout() {
@@ -45,6 +46,7 @@ export default function Layout() {
         </div>
       </aside>
       <main className="main">
+        <NoModelClientBanner />
         <Outlet />
       </main>
     </div>

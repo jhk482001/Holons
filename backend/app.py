@@ -4201,6 +4201,37 @@ def model_clients_kinds():
     ])
 
 
+@app.route("/api/model_clients/kinds/<kind>/sample")
+@login_required
+def model_clients_kind_sample(kind: str):
+    """Return a {config, credential} example for this kind so the UI
+    can show a "View sample / Copy template" affordance when the user
+    is filling in the create / edit form."""
+    from .services.model_clients import KIND_SCHEMAS
+    spec = KIND_SCHEMAS.get(kind)
+    if not spec:
+        return jsonify({"error": f"unknown kind {kind}"}), 404
+    return jsonify({
+        "kind": kind,
+        "label": spec.get("label"),
+        "hint": spec.get("hint"),
+        "config": spec.get("example_config", {}),
+        "credential": spec.get("example_credential", {}),
+    })
+
+
+@app.route("/api/model_clients/<int:cid>/test", methods=["POST"])
+@admin_required
+def model_clients_test(cid: int):
+    """Fire a minimal "say OK" prompt through this client. Records
+    status on the row; returns the result immediately. Cost is ~5
+    tokens per invocation — safe to click repeatedly."""
+    from .services import model_clients as mc
+    if not mc.get(cid):
+        return jsonify({"error": "not found"}), 404
+    return jsonify(mc.run_test(cid))
+
+
 @app.route("/api/model_clients")
 @login_required
 def model_clients_list():

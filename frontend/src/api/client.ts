@@ -991,6 +991,28 @@ export interface ModelClientRow {
   updated_at?: string;
   grant_count?: number;
   agent_count?: number;
+  // Populated by the "Test" button — last run status, ok/fail/null,
+  // short message (the error string on fail, "ok" on pass).
+  last_test_at?: string | null;
+  last_test_status?: "ok" | "fail" | null;
+  last_test_message?: string | null;
+}
+
+export interface ModelClientSample {
+  kind: string;
+  label: string;
+  hint: string;
+  config: Record<string, unknown>;
+  credential: Record<string, string>;
+}
+
+export interface ModelClientTestResult {
+  ok: boolean;
+  message: string;
+  latency_ms: number;
+  input_tokens: number;
+  output_tokens: number;
+  model: string | null;
 }
 
 export interface ModelClientGrantRow {
@@ -1031,4 +1053,9 @@ export const ModelClientsAPI = {
     api.post<{ ok: true }>(`/model_clients/${id}/grants`, { user_id }),
   revoke: (id: number, user_id: number) =>
     api.del<{ ok: true }>(`/model_clients/${id}/grants/${user_id}`),
+
+  sample: (kind: string) =>
+    api.get<ModelClientSample>(`/model_clients/kinds/${kind}/sample`),
+  test: (id: number) =>
+    api.post<ModelClientTestResult>(`/model_clients/${id}/test`),
 };

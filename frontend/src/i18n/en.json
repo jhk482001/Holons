@@ -668,6 +668,18 @@
     "defaultForNewAuto": "Default for New Users (auto-grant)",
     "credentialSet": "Credential set",
     "credentialUnset": "(No credential)",
+    "testNow": "Test",
+    "testing": "Testing…",
+    "testPass": "working",
+    "testFail": "failed",
+    "testUntested": "never tested",
+    "testUntestedHint": "Click Test to verify this connection works — runs a 5-token round-trip.",
+    "viewSample": "View sample",
+    "hideSample": "Hide sample",
+    "sampleCopy": "Copy",
+    "sampleCopied": "Copied ✓",
+    "sampleDownload": "Download .json",
+    "sampleUseAsTemplate": "Use as template",
     "assignedAgents": "Assigned agents",
     "grantedUsers": "Granted users",
     "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? Agents assigned this connection will be reset.",
@@ -798,6 +810,13 @@
     "running": "Running…",
     "runHistory": "Run History ({{count}})",
     "viewRun": "View →"
+  },
+  "noModel": {
+    "title": "No usable model connection",
+    "noneExist": "You haven't set up any LLM connection yet. At least one working connection is required before any agent can run.",
+    "noneUsable": "Every model connection is either missing a credential or disabled. Configure one or re-enable one.",
+    "allFailing": "Every model connection failed its last test. Fix at least one so agents can make LLM calls.",
+    "goFix": "Go to Models settings"
   },
   "backup": {
     "title": "Backup & export",

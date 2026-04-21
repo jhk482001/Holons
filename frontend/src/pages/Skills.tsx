@@ -5,6 +5,14 @@ import { AgentsAPI, api } from "../api/client";
 import Avatar from "../components/Avatar";
 import Markdown from "../components/Markdown";
 
+// Postgres NUMERIC columns (extraction_cost_usd, confidence) come back
+// as strings once Flask jsonify walks the Decimal. Coerce at the edge so
+// callers can call .toFixed / arithmetic without type-checks.
+const num = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
 interface Skill {
   id: number;
   agent_id: number;
@@ -114,9 +122,9 @@ function AgentSkillsBlock({
     }
     return Array.from(byRound.entries())
       .map(([ts, items]) => {
-        const cost = items.reduce((a, s) => a + (s.extraction_cost_usd ?? 0), 0);
-        const inTok = items.reduce((a, s) => a + (s.extraction_input_tokens ?? 0), 0);
-        const outTok = items.reduce((a, s) => a + (s.extraction_output_tokens ?? 0), 0);
+        const cost = items.reduce((a, s) => a + num(s.extraction_cost_usd), 0);
+        const inTok = items.reduce((a, s) => a + num(s.extraction_input_tokens), 0);
+        const outTok = items.reduce((a, s) => a + num(s.extraction_output_tokens), 0);
         return {
           ts,
           skills: items,
@@ -247,7 +255,7 @@ function AgentSkillsBlock({
                     </div>
                   )}
                   <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 4 }}>
-                    {s.source} · {t("skills.confidence")} {(s.confidence || 0).toFixed(2)} · {t("skills.used", { count: s.times_used })}
+                    {s.source} · {t("skills.confidence")} {num(s.confidence).toFixed(2)} · {t("skills.used", { count: s.times_used })}
                   </div>
                   {(s.extraction_model_id || (s.extraction_input_tokens ?? 0) > 0) && (
                     <div style={{
@@ -261,13 +269,13 @@ function AgentSkillsBlock({
                       {s.extraction_model_id && (
                         <span title={t("skills.auditModel")}>🧠 {s.extraction_model_id}</span>
                       )}
-                      {(s.extraction_input_tokens ?? 0) > 0 && (
+                      {num(s.extraction_input_tokens) > 0 && (
                         <span title={t("skills.auditTokens")}>
-                          ↓{s.extraction_input_tokens} ↑{s.extraction_output_tokens}
+                          ↓{num(s.extraction_input_tokens)} ↑{num(s.extraction_output_tokens)}
                         </span>
                       )}
-                      {(s.extraction_cost_usd ?? 0) > 0 && (
-                        <span title={t("skills.auditCost")}>${(s.extraction_cost_usd ?? 0).toFixed(4)}</span>
+                      {num(s.extraction_cost_usd) > 0 && (
+                        <span title={t("skills.auditCost")}>${num(s.extraction_cost_usd).toFixed(4)}</span>
                       )}
                       {s.source_run_ids && s.source_run_ids.length > 0 && (
                         <span title={t("skills.auditSource")}>

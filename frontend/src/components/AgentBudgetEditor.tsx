@@ -17,6 +17,7 @@ export default function AgentBudgetEditor({ agent }: { agent: Agent }) {
   const [dailyTokens, setDailyTokens] = useState<string>(agent.daily_token_quota?.toString() ?? "");
   const [monthlyCost, setMonthlyCost] = useState<string>(agent.monthly_cost_quota?.toString() ?? "");
   const [monthlyTokens, setMonthlyTokens] = useState<string>(agent.monthly_token_quota?.toString() ?? "");
+  const [queueLimit, setQueueLimit] = useState<string>(agent.max_queue_depth?.toString() ?? "");
 
   const { data: usage } = useQuery({
     queryKey: ["agent-usage", agent.id],
@@ -32,13 +33,15 @@ export default function AgentBudgetEditor({ agent }: { agent: Agent }) {
     setDailyTokens(agent.daily_token_quota?.toString() ?? "");
     setMonthlyCost(agent.monthly_cost_quota?.toString() ?? "");
     setMonthlyTokens(agent.monthly_token_quota?.toString() ?? "");
+    setQueueLimit(agent.max_queue_depth?.toString() ?? "");
   }, [agent.id]);
 
   const dirty =
     dailyCost !== (agent.daily_cost_quota?.toString() ?? "") ||
     dailyTokens !== (agent.daily_token_quota?.toString() ?? "") ||
     monthlyCost !== (agent.monthly_cost_quota?.toString() ?? "") ||
-    monthlyTokens !== (agent.monthly_token_quota?.toString() ?? "");
+    monthlyTokens !== (agent.monthly_token_quota?.toString() ?? "") ||
+    queueLimit !== (agent.max_queue_depth?.toString() ?? "");
 
   const toNullable = (s: string) => s.trim() === "" ? null : Number(s);
 
@@ -48,6 +51,7 @@ export default function AgentBudgetEditor({ agent }: { agent: Agent }) {
       daily_token_quota: toNullable(dailyTokens),
       monthly_cost_quota: toNullable(monthlyCost),
       monthly_token_quota: toNullable(monthlyTokens),
+      max_queue_depth: queueLimit.trim() === "" ? null : Math.max(1, parseInt(queueLimit, 10) || 1),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent", agent.id] });
@@ -86,6 +90,18 @@ export default function AgentBudgetEditor({ agent }: { agent: Agent }) {
         <NumberField label={t("agentBudget.dailyTokens")} value={dailyTokens} setValue={setDailyTokens} placeholder="e.g. 100000" />
         <NumberField label={t("agentBudget.monthlyCost")} value={monthlyCost} setValue={setMonthlyCost} placeholder="e.g. 50" />
         <NumberField label={t("agentBudget.monthlyTokens")} value={monthlyTokens} setValue={setMonthlyTokens} placeholder="e.g. 3000000" />
+      </div>
+
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed var(--border)" }}>
+        <NumberField
+          label={t("agentBudget.queueLimit")}
+          value={queueLimit}
+          setValue={setQueueLimit}
+          placeholder="e.g. 1440"
+        />
+        <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 4, lineHeight: 1.5 }}>
+          {t("agentBudget.queueLimitHint")}
+        </div>
       </div>
 
       <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>

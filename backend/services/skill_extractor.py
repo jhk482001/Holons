@@ -284,13 +284,19 @@ def _passes_guardrails(content: str, name: str, rules: list[dict]) -> bool:
 # ============================================================================
 
 def approve(skill_id: int, user_id: int) -> None:
+    set_approved(skill_id, user_id, True)
+
+
+def set_approved(skill_id: int, user_id: int, approved: bool) -> None:
+    """Enable / disable a skill without deleting it. Disabled skills stop
+    being injected into the agent's system prompt on the next run."""
     db.execute(
         """
         UPDATE agent_skills
-        SET approved_by_user = TRUE
+        SET approved_by_user = %s
         WHERE id = %s AND agent_id IN (SELECT id FROM agents WHERE user_id = %s)
         """,
-        (skill_id, user_id),
+        (bool(approved), skill_id, user_id),
     )
 
 

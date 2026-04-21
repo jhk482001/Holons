@@ -105,7 +105,17 @@
     "dailyCost": "每日成本上限 (USD)",
     "dailyTokens": "每日 tokens 上限",
     "monthlyCost": "每月成本上限 (USD)",
-    "monthlyTokens": "每月 tokens 上限"
+    "monthlyTokens": "每月 tokens 上限",
+    "queueLimit": "佇列深度上限",
+    "queueLimitHint": "這位 agent 佇列最多能排多少任務。觸及後新的派發會被擋下。預設 1440。"
+  },
+  "agentStatus": {
+    "active": "上線中",
+    "paused": "暫停",
+    "offline": "離線",
+    "offDuty": "下班中",
+    "budgetExceeded": "預算超支",
+    "quotaExceeded": "配額超支"
   },
   "agentDetail": {
     "back": "返回員工列表",
@@ -254,7 +264,10 @@
     "removeSkill": "移除技能",
     "removing": "移除中…",
     "removeConfirmTitle": "確定移除這條技能?",
-    "removeConfirmBody": "技能會被刪除,不再注入該 agent 的 prompt。若近期工作紀錄仍有這個 pattern,之後可以重新學習。"
+    "removeConfirmBody": "技能會被刪除,不再注入該 agent 的 prompt。若近期工作紀錄仍有這個 pattern,之後可以重新學習。",
+    "lastUsed": "最近使用",
+    "learnedAt": "學習於",
+    "timesUsedShort": "使用次數"
   },
   "assets": {
     "help": "勾選任一資產，它就會被納入此 agent 的 tool-loop。新增資產請到側邊的「Skill / MCP / 知識庫」頁面。",
@@ -739,6 +752,8 @@
     "selfLearnedTitle": "Agent 自學的技能",
     "selfLearnedSubtitle": "每個 agent 從自己近期執行紀錄中萃取出的技能,會自動注入到該 agent 的 system prompt。",
     "selfLearnedEmpty": "還沒有 agent 自學的技能。Agent 需要至少 5 筆執行紀錄才能萃取;有了歷史紀錄後,從下面的 agent 卡片觸發萃取。",
+    "viewList": "列表",
+    "viewCards": "卡片",
     "sort": {
       "createdDesc": "建立時間（新→舊）",
       "createdAsc": "建立時間（舊→新）",

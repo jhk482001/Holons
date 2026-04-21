@@ -336,7 +336,7 @@ def execute_task(task: dict, ctx: dict) -> dict:
     try:
         learned = db.fetch_all(
             """
-            SELECT name, content_md
+            SELECT id, name, content_md
             FROM agent_skills
             WHERE agent_id = %s AND approved_by_user = TRUE
               AND content_md IS NOT NULL AND content_md <> ''
@@ -350,15 +350,32 @@ def execute_task(task: dict, ctx: dict) -> dict:
                 for s in (asset_ctx["skill_snips"] or [])
             }
             extra = []
+            used_ids: list[int] = []
             for row in learned:
                 n = (row.get("name") or "").strip()
                 if n and n in seen_names:
                     continue
                 extra.append(f"### {n}\n{row['content_md']}")
+                used_ids.append(int(row["id"]))
             if extra:
                 system_prompt = (
                     system_prompt + "\n\n" + "\n\n".join(extra)
                 ).strip()
+            # Bump times_used + last_used_at on every skill we actually
+            # injected. Single UPDATE for the batch to keep this cheap.
+            if used_ids:
+                try:
+                    db.execute(
+                        """
+                        UPDATE agent_skills
+                        SET times_used = COALESCE(times_used, 0) + 1,
+                            last_used_at = NOW()
+                        WHERE id = ANY(%s)
+                        """,
+                        (used_ids,),
+                    )
+                except Exception as e:  # noqa: BLE001
+                    log.warning("agent_skills usage bump failed: %s", e)
     except Exception as e:  # noqa: BLE001
         log.warning("agent_skills load failed for agent %s: %s", agent.get("id"), e)
 

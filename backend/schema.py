@@ -659,6 +659,10 @@ DDL: list[str] = [
     "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_prompt_preview TEXT",
     "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_response_preview TEXT",
     "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS extraction_at TIMESTAMPTZ",
+    # Usage tracking parity with asset_items so the Library view shows
+    # "used N× · last X ago" for self-learned skills too. Updated by the
+    # engine whenever a skill is injected into an agent's system prompt.
+    "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ",
     # Per-user knob — default ON. When off, extracted skills stay as
     # proposals (approved_by_user=FALSE) until the user clicks Approve.
     "ALTER TABLE as_users ADD COLUMN IF NOT EXISTS skills_auto_approve BOOLEAN DEFAULT TRUE",

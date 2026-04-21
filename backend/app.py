@@ -3342,6 +3342,16 @@ def approve_skill(sid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/skills/<int:sid>/set_approved", methods=["POST"])
+@login_required
+def set_skill_approved(sid):
+    """Toggle approved_by_user without deleting the row. Used by the
+    Library's enable/disable switch on each self-learned skill."""
+    approved = bool((request.get_json() or {}).get("approved"))
+    skill_extractor.set_approved(sid, current_user_id(), approved)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/skills/<int:sid>/reject", methods=["POST"])
 @login_required
 def reject_skill(sid):

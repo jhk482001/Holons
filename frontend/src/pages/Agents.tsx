@@ -245,15 +245,51 @@ function AgentCard({
           </strong>
         </div>
       ) : (
-        <>
-          <div style={{ fontSize: 11, color: "var(--ink-3)" }}>
-            {t("agents.status")}<strong style={{ color: "var(--ink)" }}>{agent.status}</strong>
-          </div>
-          <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
-            {t("agents.queueLimit")}<strong style={{ color: "var(--ink)" }}>{agent.max_queue_depth}</strong>
-          </div>
-        </>
+        <StatusPill status={agent.status} />
       )}
+    </div>
+  );
+}
+
+// Status visual: small filled dot with a subtle halo, plus the status
+// label next to it. Colors are stable across light/dark themes.
+const STATUS_STYLE: Record<string, { color: string; labelKey: string }> = {
+  active:          { color: "#5fb57e", labelKey: "agentStatus.active" },
+  paused:          { color: "#e0a835", labelKey: "agentStatus.paused" },
+  offline:         { color: "#9aa0a6", labelKey: "agentStatus.offline" },
+  off_duty:        { color: "#9aa0a6", labelKey: "agentStatus.offDuty" },
+  budget_exceeded: { color: "#e86450", labelKey: "agentStatus.budgetExceeded" },
+  quota_exceeded:  { color: "#e86450", labelKey: "agentStatus.quotaExceeded" },
+};
+
+function StatusPill({ status }: { status: string }) {
+  const { t } = useTranslation();
+  const s = STATUS_STYLE[status] ?? { color: "#9aa0a6", labelKey: "" };
+  const label = s.labelKey ? t(s.labelKey) : status;
+  const isActive = status === "active";
+  return (
+    <div
+      data-testid="agent-status-pill"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 700,
+        color: "var(--ink-2)",
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: s.color,
+          boxShadow: isActive ? `0 0 0 4px ${s.color}22, 0 0 6px ${s.color}88` : "none",
+          display: "inline-block",
+        }}
+      />
+      {label}
     </div>
   );
 }

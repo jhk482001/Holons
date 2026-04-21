@@ -105,7 +105,17 @@
     "dailyCost": "Daily cost cap (USD)",
     "dailyTokens": "Daily token cap",
     "monthlyCost": "Monthly cost cap (USD)",
-    "monthlyTokens": "Monthly token cap"
+    "monthlyTokens": "Monthly token cap",
+    "queueLimit": "Queue depth limit",
+    "queueLimitHint": "Max number of tasks the queue will hold for this agent. New dispatches are rejected once this cap is reached. Default 1440."
+  },
+  "agentStatus": {
+    "active": "Active",
+    "paused": "Paused",
+    "offline": "Offline",
+    "offDuty": "Off duty",
+    "budgetExceeded": "Budget exceeded",
+    "quotaExceeded": "Quota exceeded"
   },
   "agentDetail": {
     "back": "Back to Employees",
@@ -254,7 +264,10 @@
     "removeSkill": "Remove skill",
     "removing": "Removing…",
     "removeConfirmTitle": "Remove this skill?",
-    "removeConfirmBody": "The skill will be deleted and stop being injected into the agent's prompt. You can re-learn it later if the pattern still shows up in recent work."
+    "removeConfirmBody": "The skill will be deleted and stop being injected into the agent's prompt. You can re-learn it later if the pattern still shows up in recent work.",
+    "lastUsed": "Last used",
+    "learnedAt": "Learned",
+    "timesUsedShort": "Times used"
   },
   "assets": {
     "help": "Check any asset to add it to this agent's tool-loop. Add assets on the Library page.",
@@ -739,6 +752,8 @@
     "selfLearnedTitle": "Self-learned skills",
     "selfLearnedSubtitle": "Skills each agent mined from its own recent runs. Automatically injected into that agent's system prompt.",
     "selfLearnedEmpty": "No self-learned skills yet. An agent needs ≥5 run steps before it can learn. Trigger extraction from an agent block once they have history.",
+    "viewList": "List",
+    "viewCards": "Cards",
     "sort": {
       "createdDesc": "Created (Newest)",
       "createdAsc": "Created (Oldest)",

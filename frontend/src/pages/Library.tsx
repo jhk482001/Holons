@@ -34,11 +34,23 @@ const SORT_OPTIONS: { key: SortKey; labelKey: string }[] = [
   { key: "name_desc", labelKey: "library.sort.nameDesc" },
 ];
 
+export type ViewMode = "card" | "list";
+const VIEW_MODE_KEY = "library-view-mode";
+
 export default function Library() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const raw = params.get("tab") as TabKey | null;
   const tab: TabKey = (raw && TABS.some((tb) => tb.key === raw)) ? raw : "skill";
+
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    return stored === "card" ? "card" : "list";
+  });
+  const setViewMode = (m: ViewMode) => {
+    setViewModeState(m);
+    localStorage.setItem(VIEW_MODE_KEY, m);
+  };
 
   function setTab(k: TabKey) {
     const next = new URLSearchParams(params);
@@ -69,19 +81,70 @@ export default function Library() {
         ))}
       </nav>
 
-      <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 14 }}>
-        {t(currentTab.hintKey)}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 14,
+      }}>
+        <div style={{ fontSize: 12, color: "var(--ink-3)", flex: 1 }}>
+          {t(currentTab.hintKey)}
+        </div>
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
-      <AssetKindPanel kind={currentTab.kind} isAdmin={isAdmin} />
+      <AssetKindPanel kind={currentTab.kind} isAdmin={isAdmin} viewMode={viewMode} />
 
-      {currentTab.kind === "skill" && <SelfLearnedSkillsSection />}
+      {currentTab.kind === "skill" && <SelfLearnedSkillsSection viewMode={viewMode} />}
+    </div>
+  );
+}
+
+function ViewModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: ViewMode;
+  onChange: (m: ViewMode) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="library-view-toggle"
+      style={{
+        display: "inline-flex",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      {(["list", "card"] as ViewMode[]).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            data-testid={`library-view-${m}`}
+            onClick={() => onChange(m)}
+            style={{
+              padding: "5px 12px",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+              background: active ? "var(--accent)" : "var(--surface)",
+              color: active ? "white" : "var(--ink-3)",
+              border: "none",
+            }}
+          >
+            {t(m === "list" ? "library.viewList" : "library.viewCards")}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 
-function AssetKindPanel({ kind, isAdmin }: { kind: AssetKind; isAdmin: boolean }) {
+function AssetKindPanel({ kind, isAdmin, viewMode }: { kind: AssetKind; isAdmin: boolean; viewMode: ViewMode }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: rows = [], isLoading } = useQuery({
@@ -239,10 +302,28 @@ function AssetKindPanel({ kind, isAdmin }: { kind: AssetKind; isAdmin: boolean }
         <div className="library-empty" data-testid={`library-no-match-${kind}`}>
           {t("library.noMatch", { kind: t(`common.${kind}`), search })}
         </div>
-      ) : (
+      ) : viewMode === "card" ? (
         <div className="library-grid" data-testid={`library-grid-${kind}`}>
           {visibleRows.map((row) => (
             <AssetCard
+              key={row.id}
+              row={row}
+              onOpen={() => setDetail(row)}
+              onToggle={(enabled) =>
+                toggleEnabled.mutate({ id: row.id, enabled })
+              }
+              onDelete={() => {
+                if (confirm(t("library.confirmDelete", { name: row.name }))) {
+                  deleteAsset.mutate(row.id);
+                }
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <div data-testid={`library-list-${kind}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {visibleRows.map((row) => (
+            <AssetListRow
               key={row.id}
               row={row}
               onOpen={() => setDetail(row)}
@@ -360,6 +441,89 @@ function AssetCard({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function AssetListRow({
+  row,
+  onOpen,
+  onToggle,
+  onDelete,
+}: {
+  row: AssetRow;
+  onOpen: () => void;
+  onToggle: (enabled: boolean) => void;
+  onDelete: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid={`asset-row-${row.id}`}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 14px",
+        background: row.enabled ? "var(--surface)" : "var(--surface-2)",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        opacity: row.enabled ? 1 : 0.65,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+          {row.name}
+          {row.has_credential && (
+            <span style={{ fontSize: 9, color: "var(--ink-4)" }}>🔒</span>
+          )}
+        </div>
+        {row.description && (
+          <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {row.description}
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <span>{t("library.owner")}{row.owner_display_name || row.owner_username || `#${row.owner_user_id}`}</span>
+          <span>{t("library.assignedAgents")}{row.assigned_agent_count ?? 0}</span>
+          <span>{t("library.totalCalls")}{row.total_calls ?? 0}</span>
+          {row.last_used_at && (
+            <span>{t("library.lastUsed")}{new Date(row.last_used_at).toLocaleString()}</span>
+          )}
+        </div>
+      </div>
+
+      <label
+        className="library-toggle"
+        title={row.enabled ? t("library.disabled") : t("library.enabled")}
+        style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+      >
+        <input
+          type="checkbox"
+          checked={row.enabled}
+          onChange={(e) => onToggle(e.target.checked)}
+          data-testid={`asset-toggle-${row.id}`}
+        />
+        <span>{row.enabled ? t("library.enabled") : t("library.disabled")}</span>
+      </label>
+
+      <button
+        className="mbtn"
+        onClick={onOpen}
+        data-testid={`asset-detail-${row.id}`}
+        style={{ fontSize: 11 }}
+      >
+        {t("library.detail")}
+      </button>
+      <button
+        className="mbtn danger"
+        onClick={onDelete}
+        data-testid={`asset-delete-${row.id}`}
+        style={{ fontSize: 11 }}
+      >
+        {t("library.delete")}
+      </button>
     </div>
   );
 }
@@ -878,6 +1042,7 @@ interface SelfLearnedSkill {
   extraction_output_tokens?: number | null;
   extraction_cost_usd?: number | null;
   extraction_at?: string | null;
+  last_used_at?: string | null;
 }
 
 interface SelfLearnedAgentBlock {
@@ -889,7 +1054,7 @@ interface SelfLearnedAgentBlock {
   skills: SelfLearnedSkill[];
 }
 
-function SelfLearnedSkillsSection() {
+function SelfLearnedSkillsSection({ viewMode }: { viewMode: ViewMode }) {
   const { t } = useTranslation();
   const { data, isLoading } = useQuery({
     queryKey: ["me-self-learned-skills"],
@@ -933,14 +1098,14 @@ function SelfLearnedSkillsSection() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {agents.map((a) => (
-          <AgentSelfLearnedBlock key={a.id} agent={a} />
+          <AgentSelfLearnedBlock key={a.id} agent={a} viewMode={viewMode} />
         ))}
       </div>
     </div>
   );
 }
 
-function AgentSelfLearnedBlock({ agent }: { agent: SelfLearnedAgentBlock }) {
+function AgentSelfLearnedBlock({ agent, viewMode }: { agent: SelfLearnedAgentBlock; viewMode: ViewMode }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const skills = agent.skills;
@@ -1011,11 +1176,19 @@ function AgentSelfLearnedBlock({ agent }: { agent: SelfLearnedAgentBlock }) {
         </button>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {skills.map((s) => (
-          <SelfLearnedSkillRow key={s.id} skill={s} agentId={agent.id} />
-        ))}
-      </div>
+      {viewMode === "card" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+          {skills.map((s) => (
+            <SelfLearnedSkillCard key={s.id} skill={s} agentId={agent.id} />
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {skills.map((s) => (
+            <SelfLearnedSkillRow key={s.id} skill={s} agentId={agent.id} />
+          ))}
+        </div>
+      )}
 
       {extractionRounds.length > 0 && (
         <ExtractionHistory agentId={agent.id} rounds={extractionRounds} />
@@ -1024,28 +1197,31 @@ function AgentSelfLearnedBlock({ agent }: { agent: SelfLearnedAgentBlock }) {
   );
 }
 
-function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agentId: number }) {
-  const { t } = useTranslation();
+function useSelfLearnedSkillMutations(skill: SelfLearnedSkill) {
   const qc = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const approve = useMutation({
-    mutationFn: () => api.post(`/skills/${skill.id}/approve`),
+  const setApproved = useMutation({
+    mutationFn: (approved: boolean) =>
+      api.post(`/skills/${skill.id}/set_approved`, { approved }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["me-self-learned-skills"] }),
   });
   const remove = useMutation({
     mutationFn: () => api.post(`/skills/${skill.id}/reject`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["me-self-learned-skills"] });
-      setConfirmOpen(false);
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me-self-learned-skills"] }),
   });
+  return { setApproved, remove };
+}
+
+function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agentId: number }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { setApproved, remove } = useSelfLearnedSkillMutations(skill);
 
   const inTok = numCoerce(skill.extraction_input_tokens);
   const outTok = numCoerce(skill.extraction_output_tokens);
   const cost = numCoerce(skill.extraction_cost_usd);
+  const timesUsed = numCoerce(skill.times_used);
 
   return (
     <>
@@ -1073,16 +1249,7 @@ function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agen
             display: "inline-block", width: 11,
           }}>▶</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 800 }}>{skill.name}</div>
-              {skill.approved_by_user && (
-                <span style={{
-                  fontSize: 8.5, fontWeight: 800, letterSpacing: 0.8,
-                  background: "rgba(95, 181, 126, 0.15)", color: "var(--good)",
-                  padding: "1px 7px", borderRadius: 999,
-                }}>APPROVED</span>
-              )}
-            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 800 }}>{skill.name}</div>
             {skill.description && (
               <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2, lineHeight: 1.4 }}>
                 {skill.description}
@@ -1090,27 +1257,33 @@ function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agen
             )}
             <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <span>{t("skills.confidence")} {numCoerce(skill.confidence).toFixed(2)}</span>
+              <span>{t("skills.used", { count: timesUsed })}</span>
+              {skill.last_used_at && (
+                <span>{t("skills.lastUsed")} {new Date(skill.last_used_at).toLocaleString()}</span>
+              )}
               {skill.extraction_model_id && <span>🧠 {skill.extraction_model_id}</span>}
               {inTok > 0 && <span>↓{inTok} ↑{outTok}</span>}
               {cost > 0 && <span>${cost.toFixed(4)}</span>}
-              {skill.extraction_at && <span>{new Date(skill.extraction_at).toLocaleString()}</span>}
+              {skill.extraction_at && <span>{t("skills.learnedAt")} {new Date(skill.extraction_at).toLocaleString()}</span>}
             </div>
           </div>
 
-          {!skill.approved_by_user && (
-            <button
-              data-testid={`approve-skill-${skill.id}`}
-              onClick={(e) => { e.stopPropagation(); approve.mutate(); }}
-              disabled={approve.isPending}
-              style={{
-                padding: "5px 10px", fontSize: 11, fontWeight: 700,
-                background: "var(--accent)", color: "white",
-                border: "none", borderRadius: 6, cursor: "pointer",
-              }}
-            >
-              {t("skills.approve")}
-            </button>
-          )}
+          <label
+            onClick={(e) => e.stopPropagation()}
+            title={skill.approved_by_user ? t("library.enabled") : t("library.disabled")}
+            style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <input
+              type="checkbox"
+              data-testid={`skill-toggle-${skill.id}`}
+              checked={skill.approved_by_user}
+              onChange={(e) => setApproved.mutate(e.target.checked)}
+              disabled={setApproved.isPending}
+            />
+            <span style={{ color: "var(--ink-3)" }}>
+              {skill.approved_by_user ? t("library.enabled") : t("library.disabled")}
+            </span>
+          </label>
 
           <div
             style={{ position: "relative" }}
@@ -1201,7 +1374,7 @@ function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agen
             <button
               className="mbtn danger"
               data-testid={`skill-remove-confirm-${skill.id}`}
-              onClick={() => remove.mutate()}
+              onClick={() => remove.mutate(undefined, { onSuccess: () => setConfirmOpen(false) })}
               disabled={remove.isPending}
             >
               {remove.isPending ? t("skills.removing") : t("skills.removeSkill")}
@@ -1216,6 +1389,180 @@ function SelfLearnedSkillRow({ skill, agentId }: { skill: SelfLearnedSkill; agen
     </>
   );
 }
+
+function SelfLearnedSkillCard({ skill, agentId }: { skill: SelfLearnedSkill; agentId: number }) {
+  const { t } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const { setApproved, remove } = useSelfLearnedSkillMutations(skill);
+  const timesUsed = numCoerce(skill.times_used);
+  const cost = numCoerce(skill.extraction_cost_usd);
+
+  return (
+    <>
+      <div
+        data-testid={`skill-card-${skill.id}`}
+        className={`library-card ${skill.approved_by_user ? "" : "disabled"}`}
+        style={{ padding: 14 }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>{skill.name}</div>
+            {skill.description && (
+              <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 3, lineHeight: 1.4 }}>
+                {skill.description}
+              </div>
+            )}
+          </div>
+          <label
+            title={skill.approved_by_user ? t("library.enabled") : t("library.disabled")}
+            style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
+          >
+            <input
+              type="checkbox"
+              data-testid={`skill-toggle-${skill.id}`}
+              checked={skill.approved_by_user}
+              onChange={(e) => setApproved.mutate(e.target.checked)}
+              disabled={setApproved.isPending}
+            />
+            <span style={{ color: "var(--ink-3)" }}>
+              {skill.approved_by_user ? t("library.enabled") : t("library.disabled")}
+            </span>
+          </label>
+        </div>
+
+        <div className="library-card-stats" style={{ marginTop: 6 }}>
+          <div className="library-stat">
+            <div className="library-stat-value">{timesUsed}</div>
+            <div className="library-stat-label">{t("skills.timesUsedShort")}</div>
+          </div>
+          <div className="library-stat">
+            <div className="library-stat-value">{numCoerce(skill.confidence).toFixed(2)}</div>
+            <div className="library-stat-label">{t("skills.confidence")}</div>
+          </div>
+          <div className="library-stat">
+            <div className="library-stat-value" style={{ fontFamily: "var(--font-mono)" }}>
+              ${cost.toFixed(4)}
+            </div>
+            <div className="library-stat-label">{t("skills.histCost")}</div>
+          </div>
+        </div>
+
+        {skill.last_used_at && (
+          <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 8 }}>
+            {t("skills.lastUsed")} {new Date(skill.last_used_at).toLocaleString()}
+          </div>
+        )}
+
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginTop: 10,
+        }}>
+          <button
+            className="mbtn"
+            onClick={() => setDetailOpen(!detailOpen)}
+            style={{ fontSize: 11 }}
+          >
+            {detailOpen ? t("skills.collapse") : t("skills.expand")}
+          </button>
+          <div style={{ position: "relative" }}>
+            <button
+              data-testid={`skill-menu-${skill.id}`}
+              aria-label={t("skills.menu")}
+              onClick={() => setMenuOpen(!menuOpen)}
+              style={{
+                padding: "3px 10px", fontSize: 14, fontWeight: 800,
+                color: "var(--ink-3)", background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 6, cursor: "pointer", lineHeight: 1,
+              }}
+            >⋯</button>
+            {menuOpen && (
+              <>
+                <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+                <div
+                  data-testid={`skill-menu-popup-${skill.id}`}
+                  style={{
+                    position: "absolute", right: 0, top: "calc(100% + 4px)",
+                    zIndex: 11,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                    minWidth: 160, padding: 4,
+                  }}
+                >
+                  <button
+                    data-testid={`skill-remove-${skill.id}`}
+                    onClick={() => { setMenuOpen(false); setConfirmOpen(true); }}
+                    style={{
+                      display: "block", width: "100%",
+                      padding: "8px 12px", fontSize: 12, fontWeight: 600,
+                      color: "var(--danger)",
+                      background: "transparent", border: "none",
+                      textAlign: "left", cursor: "pointer",
+                      borderRadius: 6,
+                    }}
+                  >
+                    {t("skills.removeSkill")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {detailOpen && (
+          <div
+            data-testid={`skill-card-body-${skill.id}`}
+            style={{
+              borderTop: "1px solid var(--border)",
+              marginTop: 10, paddingTop: 10,
+              fontSize: 12,
+            }}
+          >
+            {skill.content_md ? (
+              <Markdown content={skill.content_md} />
+            ) : (
+              <div style={{ fontSize: 11, color: "var(--ink-4)", fontStyle: "italic" }}>
+                {t("skills.noContent")}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={t("skills.removeConfirmTitle")}
+        subtitle={skill.name}
+        size="sm"
+        footer={
+          <>
+            <button className="mbtn" onClick={() => setConfirmOpen(false)} disabled={remove.isPending}>
+              {t("btn.cancel")}
+            </button>
+            <button
+              className="mbtn danger"
+              data-testid={`skill-remove-confirm-${skill.id}`}
+              onClick={() => remove.mutate(undefined, { onSuccess: () => setConfirmOpen(false) })}
+              disabled={remove.isPending}
+            >
+              {remove.isPending ? t("skills.removing") : t("skills.removeSkill")}
+            </button>
+          </>
+        }
+      >
+        <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
+          {t("skills.removeConfirmBody")}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 
 function ExtractionHistory({
   agentId,

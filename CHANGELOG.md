@@ -4,6 +4,100 @@ All notable changes to Holons are documented here. The format roughly
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 versions use [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-04-21
+
+### Added
+
+- **IM channel bindings** — Lead is now reachable from your phone.
+  First platform is Telegram; Slack and LINE follow behind the same
+  `BasePlatformAdapter` abstraction. Per-user bot tokens, saved in
+  Settings → Channels; polling or webhook transport per binding.
+  Commands include `/help /runs /status /workflows /run <id> [input]
+  /run_status <id> /projects /project <id> /hire <role>` plus free
+  text which goes straight to Lead chat. Session continuity across
+  platforms — starting a thread on the web and replying from Telegram
+  continues the same Lead conversation.
+- **Artifact rich delivery over IM** — html / slides / markdown / file
+  artifacts emitted by Lead get uploaded as real documents in Telegram
+  (multipart sendDocument / sendPhoto, stdlib only). Short markdown
+  goes inline as a regular message. Slack + LINE fall back to a
+  "see web UI" breadcrumb until their file APIs are wired (next release).
+- **Backup & export** for the personal-mode SQLite store. New
+  `GET /api/backup/download` streams a consistent snapshot taken via
+  `sqlite3.Connection.backup()` (safe under concurrent writes).
+  Settings → Personal gains a "Backup & export" section showing
+  backend / path / size / mtime, a one-click download, and a
+  collapsible "How to restore" recipe. Complemented by a new
+  `docs/install.md` section explaining the upgrade/downgrade story.
+- **Model client UX** — four interlocking affordances so users stop
+  getting "silent failure" from misconfigured LLMs:
+  - `GET /api/model_clients/kinds/<kind>/sample` returns an example
+    config + credential pair per provider. Create/edit modal shows
+    "View sample" with Copy / Download .json / Use-as-template.
+  - `POST /api/model_clients/<id>/test` fires a 5-token round-trip
+    through the real LLM pipeline; result writes back to
+    `last_test_at / last_test_status / last_test_message` columns.
+  - Per-card status pill: 🟢 working / 🔴 failed / ⚪ never tested,
+    hover for timestamp + error.
+  - Global yellow banner in the app shell whenever no usable model
+    client exists (0 clients / all disabled / all failed). Links
+    straight to Settings → Models.
+- **Ad-hoc codesigned macOS bundle** — `tauri.conf.json` sets
+  `signingIdentity: "-"` so `cargo-bundle` invokes `codesign -s -`
+  after assembly. The .app now carries a valid signature (flags
+  `adhoc,runtime`), so macOS shows the real "unidentified developer"
+  dialog instead of the misleading "is damaged" false-positive. Still
+  not Apple Developer-ID signed, but the first-open UX is dramatically
+  better.
+- **Live-DB regression harness** at `tests/regression/` — pytest suite
+  that spins up a throwaway user per test and cascades-cleans after,
+  so it runs safely against a backend holding real tenant data
+  (unlike the `tests/test_*.py` suite which TRUNCATEs the schema).
+  Covers auth, agents CRUD, dashboard, workflows, projects, Lead
+  threads (listing only — skips Bedrock spend), cast_layout round-trip,
+  IM bindings + webhook endpoint, model-client sample + test,
+  backup download. 82 tests, ~10s locally. Used as the gate before
+  every feature-branch push since v0.4 development started.
+
+### Changed
+
+- `im_channels.router.dispatch` now returns a `DispatchResult(text,
+  artifacts)` instead of `str | None`. Lets the manager / webhook
+  endpoint hand the artifact list to the adapter for native rich
+  delivery rather than stripping it into a breadcrumb.
+- Mock replenishment-order dedup in the demo ERP MCP — agents running
+  hourly sweeps no longer pile up N identical draft POs per day.
+  (This is in the demo-side `Holons-demo/mocks/mcp_erp.py`, not
+  product code, but worth flagging.)
+
+### Fixed
+
+- Nothing structural in this cycle; v0.4 is mostly additive. Minor:
+  `python-telegram-bot` isn't needed — adapter uses stdlib `urllib`
+  only, keeping the dep footprint unchanged from v0.3.
+
+### Known limitations
+
+- Slack + LINE adapters don't yet implement rich artifact delivery
+  (`send_artifact` falls through to the base class no-op and the
+  router breadcrumbs the text). Telegram is fully featured.
+- Webhook HMAC verification isn't enforced — the URL-path secret is
+  the only authorisation. For production deployments, add a reverse
+  proxy that verifies Slack's `X-Slack-Signature` and LINE's
+  `X-Line-Signature` headers.
+- Desktop bundle is ad-hoc signed only. Apple Developer ID +
+  notarization is the next upgrade — requires a paid Apple account,
+  out of scope for v0.4.
+
+### Release notes
+
+Verified end-to-end: scheduler enabled for both demo tenants
+(jay/molly), 1,070 fake historical runs seeded across 7 days for
+dashboard population, real Telegram bot round-trip tested via
+regression harness with mocked urllib. Model-client Test endpoint
+round-tripped against live Bedrock (15 input + 4 output tokens,
+1075 ms, $0.0001 per test click).
+
 ## [0.3.0] — 2026-04-20
 
 ### Added
@@ -149,6 +243,7 @@ First public release.
 - Pluggable LLMs: Bedrock, Anthropic, OpenAI, Gemini, MiniMax
 - MIT license
 
+[0.4.0]: https://github.com/jhk482001/Holons/releases/tag/v0.4.0
 [0.3.0]: https://github.com/jhk482001/Holons/releases/tag/v0.3.0
 [0.2.0]: https://github.com/jhk482001/Holons/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jhk482001/Holons/releases/tag/v0.1.0

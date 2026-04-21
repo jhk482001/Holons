@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AssetsAPI,
@@ -10,6 +10,7 @@ import {
   AdminUsersAPI,
 } from "../api/client";
 import { useIsAdmin, useMe } from "../auth";
+import { api } from "../api/client";
 import Modal from "../components/Modal";
 import "./Records.css"; // reuses .page-tabs
 import "./Library.css";
@@ -69,6 +70,8 @@ export default function Library() {
       <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 14 }}>
         {t(currentTab.hintKey)}
       </div>
+
+      {currentTab.kind === "skill" && <SelfLearnedSkillsBanner />}
 
       <AssetKindPanel kind={currentTab.kind} isAdmin={isAdmin} />
     </div>
@@ -841,5 +844,53 @@ function AssetDetailModal({
         <button className="mbtn" onClick={onClose}>{t("btn.close")}</button>
       </div>
     </Modal>
+  );
+}
+
+
+function SelfLearnedSkillsBanner() {
+  const { t } = useTranslation();
+  const { data } = useQuery({
+    queryKey: ["me-self-learned-skills"],
+    queryFn: () => api.get<{ count: number }>("/me/self_learned_skills_count"),
+    refetchInterval: 60_000,
+  });
+  const count = data?.count ?? 0;
+  if (count <= 0) return null;
+  return (
+    <div
+      data-testid="self-learned-skills-banner"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 14px",
+        background: "var(--accent-soft)",
+        border: "1px solid var(--accent-line)",
+        borderRadius: 10,
+        marginBottom: 14,
+        fontSize: 12,
+        color: "var(--ink-2)",
+      }}
+    >
+      <span style={{ fontSize: 16 }}>💡</span>
+      <span style={{ flex: 1, lineHeight: 1.5 }}>
+        {t("library.selfLearnedBanner", { count })}
+      </span>
+      <Link
+        to="/skills"
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: "white",
+          background: "var(--accent)",
+          padding: "6px 12px",
+          borderRadius: 6,
+          textDecoration: "none",
+        }}
+      >
+        {t("library.selfLearnedBannerCta")}
+      </Link>
+    </div>
   );
 }

@@ -391,7 +391,7 @@ def _build_team_roster(user_id: int, exclude_lead: bool = True) -> str:
         params,
     )
     if not rows:
-        return "（目前沒有可用的 agent）"
+        return "(no agents available)"
 
     lines = []
     for a in rows:
@@ -401,14 +401,14 @@ def _build_team_roster(user_id: int, exclude_lead: bool = True) -> str:
         if status != "active":
             load = f"⚠️ {status}"
         elif depth == 0:
-            load = "✅ 閒置"
+            load = "✅ idle"
         elif depth >= max_d:
-            load = f"🔴 佇列已滿 ({depth}/{max_d})"
+            load = f"🔴 queue full ({depth}/{max_d})"
         else:
-            load = f"🟡 忙碌中 ({depth}/{max_d})"
+            load = f"🟡 busy ({depth}/{max_d})"
         lines.append(
             f"- **{a['name']}** (id={a['id']}) — {a.get('role_title') or ''}"
-            f"\n    {a.get('description') or ''}\n    負載：{load}"
+            f"\n    {a.get('description') or ''}\n    load: {load}"
         )
     return "\n".join(lines)
 
@@ -548,7 +548,7 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         "SELECT username, display_name, lead_max_steps, lead_max_tokens FROM as_users WHERE id = %s",
         (user_id,),
     )
-    user_name = (user or {}).get("display_name") or (user or {}).get("username") or "使用者"
+    user_name = (user or {}).get("display_name") or (user or {}).get("username") or "user"
     max_steps = (user or {}).get("lead_max_steps") or 10
     max_tokens = (user or {}).get("lead_max_tokens") or 50000
 
@@ -890,7 +890,7 @@ def _persist_draft_workflow(user_id: int, proposed: dict) -> int | None:
             """,
             (
                 user_id,
-                proposed.get("name") or "Lead 建議的工作流",
+                proposed.get("name") or "Lead-proposed workflow",
                 proposed.get("description"),
                 bool(proposed.get("loop_enabled")),
                 int(proposed.get("max_loops", 1)),
@@ -1134,8 +1134,8 @@ def chat_with_agent(
     system_prompt = (agent.get("system_prompt") or "").strip()
     if not system_prompt:
         system_prompt = (
-            f"你是 {agent['name']}。"
-            f"{agent.get('role_title') or ''}。"
+            f"You are {agent['name']}. "
+            f"{agent.get('role_title') or ''}. "
             f"{agent.get('description') or ''}"
         ).strip()
 
@@ -1476,20 +1476,20 @@ def detect_conflicts(user_id: int, agent_ids: list[int]) -> list[dict]:
                 "type": "queue_near_full",
                 "agent_id": aid,
                 "agent_name": a["name"],
-                "detail": f"排隊 {depth}/{a['max_queue_depth']}",
+                "detail": f"queued {depth}/{a['max_queue_depth']}",
             })
         if a["status"] == "off_duty":
             conflicts.append({
                 "type": "off_duty",
                 "agent_id": aid,
                 "agent_name": a["name"],
-                "detail": "下班中",
+                "detail": "off duty",
             })
         if a["status"] == "quota_exceeded":
             conflicts.append({
                 "type": "budget_exceeded",
                 "agent_id": aid,
                 "agent_name": a["name"],
-                "detail": "預算超支",
+                "detail": "budget exceeded",
             })
     return conflicts

@@ -23,26 +23,28 @@ from ..llm_clients import invoke_for_agent as llm_invoke
 from . import notifications
 
 
-EXTRACTOR_PROMPT = """以下是某位 agent 近期的工作紀錄（每項是一次任務與 response 摘要）。請分析其中是否出現可以被提取成「技能」的重複模式、有效的 prompt 結構、或可複用的處理步驟。
+EXTRACTOR_PROMPT = """Below are recent work records from an agent (each is a task + response summary). Analyze them for patterns that could be captured as a re-usable "skill" — a recurring workflow, an effective prompt structure, or a repeatable processing procedure.
 
-如果有發現，請以下列 JSON 陣列格式回覆（可多條）；如果沒有明顯 pattern，就回空陣列 `[]`。
+**Output language**: produce the skill `name`, `description`, and `content_md` in **{output_language}**. Slug stays lowercase-kebab English. If no clear pattern emerges, return an empty array `[]`.
+
+Reply with a JSON array inside a ```json fence (multiple skills allowed):
 
 ```json
 [
   {{
     "slug": "three-act-outline",
-    "name": "三幕劇大綱產生法",
-    "description": "...",
-    "content_md": "## 適用情境\\n...\\n\\n## 步驟\\n1. ...",
+    "name": "<skill title in {output_language}>",
+    "description": "<one-sentence summary in {output_language}>",
+    "content_md": "## When to apply\\n...\\n\\n## Steps\\n1. ...",
     "confidence": 0.85
   }}
 ]
 ```
 
-confidence 是你對這個技能是否真的 recurring + useful 的自評（0-1）。
-content_md 是 agent 未來會貼到自己 system prompt 裡的技能文檔，盡量精煉。
+- `confidence` (0–1): your self-rating of how recurring + re-usable this pattern really is.
+- `content_md`: the markdown doc the agent will paste into its own system prompt — keep it concise and actionable.
 
-=== 工作紀錄 ===
+=== Work records ===
 {records}
 """
 
@@ -76,7 +78,19 @@ def extract_for_agent(agent_id: int, *, max_records: int = 30) -> list[dict]:
         f"#{r['id']}\nprompt: {(r['prompt'] or '')[:300]}\nresponse: {(r['response'] or '')[:500]}"
         for r in records
     )
-    prompt = EXTRACTOR_PROMPT.format(records=records_text)
+    # Output language follows the owning user's UI language — molly (en)
+    # shouldn't see Chinese skill titles just because the last extractor
+    # prompt was Chinese.
+    user_row = db.fetch_one(
+        "SELECT language FROM as_users WHERE id = %s", (agent["user_id"],),
+    )
+    lang_code = (user_row or {}).get("language") or "en"
+    output_language = {
+        "zh-TW": "Traditional Chinese (繁體中文)",
+        "zh-CN": "Simplified Chinese",
+        "en": "English",
+    }.get(lang_code, "English")
+    prompt = EXTRACTOR_PROMPT.format(records=records_text, output_language=output_language)
 
     # 16K output ceiling: skill content_md is meaty markdown — at 4K the
     # JSON gets truncated mid-string, the regex fails silently, and we
@@ -85,7 +99,7 @@ def extract_for_agent(agent_id: int, *, max_records: int = 30) -> list[dict]:
     result = llm_invoke(
         agent_id=agent["id"],
         model_key=agent.get("primary_model_id") or None,
-        system_prompt="你是一位分析師，擅長從工作紀錄中提取可複用的技能模式。",
+        system_prompt="You are an analyst skilled at mining recurring, re-usable skill patterns from work records.",
         user_text=prompt,
         max_tokens=16384,
     )
@@ -244,8 +258,8 @@ def _save_candidates(agent: dict, candidates: list[dict],
                 user_id,
                 "skill_suggested",
                 severity="info",
-                title=f"{agent['name']} 學到了新技能：{name}",
-                body=f"信心度 {confidence:.2f}，等待你的核可",
+                title=f"{agent['name']} proposed a new skill: {name}",
+                body=f"Confidence {confidence:.2f} — waiting for your review.",
                 related_agent_id=agent["id"],
                 action_payload={"skill_id": skill_id, "content_md": content_md[:500]},
             )
@@ -310,9 +324,9 @@ def compose_system_prompt(agent_id: int) -> str:
     if not skills:
         return base
 
-    parts = [base, "", "---", "", "## 你已掌握的技能", ""]
+    parts = [base, "", "---", "", "## Your learned skills", ""]
     for s in skills:
-        parts.append(f"### {s['name']}  (使用 {s['times_used']} 次)")
+        parts.append(f"### {s['name']}  (used {s['times_used']}×)")
         parts.append(s["content_md"])
         parts.append("")
     return "\n".join(parts)

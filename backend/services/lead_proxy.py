@@ -48,9 +48,9 @@ Rules:
      "I'll confirm when I'm back."
   2. If the question is informational (clarification, preferences that
      can be guessed from context), answer briefly in first person from
-     the user's point of view in zh-TW.
+     the user's point of view, in the language the Lead used.
   3. Keep the reply under 120 characters.
-  4. End every reply with: "（Lead 代答，未經本人確認）"
+  4. End every reply with: "(Proxied by Lead — not confirmed by me.)"
 """
 
 
@@ -176,8 +176,8 @@ def _proxy_answer(row: dict, reason: str) -> None:
         # even calling the LLM. The proposal stays pending; the user can
         # dispatch it manually when they come back.
         answer_text = (
-            "我暫時先不執行這個 workflow，等我回來再確認。"
-            "（Lead 代答，未經本人確認）"
+            "Holding off on this workflow until I'm back to confirm. "
+            "(Proxied by Lead — not confirmed by me.)"
         )
         llm_used = False
     else:
@@ -197,15 +197,15 @@ def _proxy_answer(row: dict, reason: str) -> None:
                 agent_id=dispatch_agent_id,
                 model_key=None,
                 system_prompt=PROXY_SYSTEM_PROMPT,
-                user_text=f"Lead 剛剛問我：\n\n{question}\n\n請以我的身分簡短回覆。",
+                user_text=f"Lead just asked me:\n\n{question}\n\nReply briefly on my behalf.",
             )
             answer_text = (result.get("text") or "").strip()
             if not answer_text:
-                answer_text = "好的，晚點我會回覆這個問題。（Lead 代答，未經本人確認）"
+                answer_text = "Got it — I'll follow up on this later. (Proxied by Lead — not confirmed by me.)"
             llm_used = True
         except Exception:  # noqa: BLE001
             log.exception("lead_proxy: LLM invocation failed")
-            answer_text = "好的，晚點我會回覆這個問題。（Lead 代答，未經本人確認）"
+            answer_text = "Got it — I'll follow up on this later. (Proxied by Lead — not confirmed by me.)"
             llm_used = False
 
     proxy_metadata = {

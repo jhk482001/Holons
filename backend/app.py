@@ -3355,6 +3355,24 @@ def export_skills_route(aid):
     return jsonify(skill_extractor.export_skills(aid))
 
 
+@app.route("/api/me/self_learned_skills_count")
+@login_required
+def self_learned_skills_count():
+    """Lightweight count for the Library → Skill tab banner that points
+    users at the /skills page when they have self-learned skills they
+    haven't noticed yet."""
+    row = db.fetch_one(
+        """
+        SELECT COUNT(*) AS n
+        FROM agent_skills s
+        JOIN agents a ON a.id = s.agent_id
+        WHERE a.user_id = %s AND s.source = 'self_learned'
+        """,
+        (current_user_id(),),
+    )
+    return jsonify({"count": int((row or {}).get("n") or 0)})
+
+
 # ============================================================================
 # Agent sharing
 # ============================================================================

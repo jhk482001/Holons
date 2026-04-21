@@ -240,7 +240,15 @@
     "auditTokens": "Extraction tokens (in / out)",
     "auditCost": "Extraction cost (USD)",
     "auditSource": "Source run steps",
-    "sourceSteps": "steps"
+    "sourceSteps": "steps",
+    "noContent": "(No content — this skill has no markdown body.)",
+    "extractionHistory": "Extraction history ({{count}})",
+    "histWhen": "When",
+    "histModel": "Model",
+    "histSources": "Sources",
+    "histProduced": "Skills",
+    "histTokens": "Tokens",
+    "histCost": "Cost"
   },
   "assets": {
     "help": "Check any asset to add it to this agent's tool-loop. Add assets on the Library page.",
@@ -722,6 +730,8 @@
       "rag": "Knowledge Base"
     },
     "search": "Search name or description…",
+    "selfLearnedBanner": "Your agents have self-learned {{count}} skills from their own work history. They live on each agent (not in the shared library) and are automatically injected into that agent's prompt.",
+    "selfLearnedBannerCta": "View on Skills page",
     "sort": {
       "createdDesc": "Created (Newest)",
       "createdAsc": "Created (Oldest)",

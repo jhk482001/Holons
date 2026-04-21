@@ -130,8 +130,8 @@ def consume(agent_id: int, input_tokens: int, output_tokens: int, cost_usd: floa
                 agent["user_id"],
                 "budget_exceeded",
                 severity="error",
-                title=f"{agent['name']} 超出預算",
-                body=f"Quota「{q['name']}」已觸頂，agent 已暫停接新任務。",
+                title=f"{agent['name']} exceeded budget",
+                body=f"Quota \"{q['name']}\" hit the cap — agent paused until the window resets.",
                 related_agent_id=agent_id,
                 action_payload={"quota_id": q["id"]},
             )
@@ -157,8 +157,8 @@ def consume(agent_id: int, input_tokens: int, output_tokens: int, cost_usd: floa
                     agent["user_id"],
                     "budget_warning",
                     severity="warn",
-                    title=f"{agent['name']} 接近預算上限",
-                    body=f"Quota「{q['name']}」已使用 {int(max(pct_tokens, pct_cost) * 100)}%",
+                    title=f"{agent['name']} nearing budget cap",
+                    body=f"Quota \"{q['name']}\" used {int(max(pct_tokens, pct_cost) * 100)}%.",
                     related_agent_id=agent_id,
                 )
 

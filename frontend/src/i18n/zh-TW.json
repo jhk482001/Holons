@@ -240,7 +240,15 @@
     "auditTokens": "萃取 tokens（輸入 / 輸出）",
     "auditCost": "萃取成本（USD）",
     "auditSource": "來源 run steps",
-    "sourceSteps": "筆"
+    "sourceSteps": "筆",
+    "noContent": "（這個技能沒有 markdown 內容）",
+    "extractionHistory": "萃取紀錄（{{count}} 次）",
+    "histWhen": "時間",
+    "histModel": "模型",
+    "histSources": "來源筆數",
+    "histProduced": "產出技能",
+    "histTokens": "Tokens",
+    "histCost": "成本"
   },
   "assets": {
     "help": "勾選任一資產，它就會被納入此 agent 的 tool-loop。新增資產請到側邊的「Skill / MCP / 知識庫」頁面。",
@@ -722,6 +730,8 @@
       "rag": "知識庫"
     },
     "search": "搜尋名稱或描述…",
+    "selfLearnedBanner": "你的 agents 從自己的工作紀錄中學到了 {{count}} 條技能,這些技能存在各 agent 底下（不是共享資產庫）,並會自動注入該 agent 的 prompt。",
+    "selfLearnedBannerCta": "到「技能」頁查看",
     "sort": {
       "createdDesc": "建立時間（新→舊）",
       "createdAsc": "建立時間（舊→新）",

@@ -4,6 +4,135 @@ All notable changes to Holons are documented here. The format roughly
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 versions use [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-04-22
+
+### Added
+
+- **Workspaces** — first-class scratchpad filesystems that agents can
+  read and write across a workflow. Each workspace is a directory on
+  the backend host (`~/.agent_company/workspaces/` in personal mode,
+  `/var/lib/holons/workspaces/` in enterprise, overridable via
+  `HOLONS_WORKSPACE_ROOT`). Cross-user isolation via subdir; every file
+  op funnels through a realpath + commonpath clamp so a prompt that
+  calls `file_write("../../etc/passwd", ...)` bounces. Includes
+  `workspaces` table + `/api/workspaces/...` REST endpoints, plus a
+  `/workspaces` list page and `/workspaces/:id` detail page with flat
+  file tree, markdown/plain-text viewer, and `.zip` download.
+- **File tools** — `file_write` / `file_read` / `file_list` /
+  `file_glob` / `file_delete`, registered into the built-in tool
+  registry. Tasks pick up their workspace binding from either the
+  enqueued payload (per-node) or the run-level `runs.workspace_id`, so
+  agents can plumb artifacts between turns without copy-paste. 10 MiB
+  per-file cap.
+- **Code execution sandbox** — new `run_code(lang, code, timeout_s)`
+  tool supporting `python / node / bash / sh`. Three pluggable
+  runners:
+    - `LocalSubprocessRunner` (default personal): wraps call in
+      `sandbox-exec` on macOS with a profile that denies network and
+      only permits writes inside the workspace, plus `RLIMIT_AS` +
+      timeout.
+    - `DockerRunner`: `docker run --rm --network=none --cap-drop=ALL
+      --user=nobody` with memory / CPU caps. Enterprise opt-in.
+    - `DisabledRunner` (default enterprise): returns a clear error.
+  Selected via `CODE_EXECUTION_BACKEND=disabled|local|docker`. Per-user
+  `as_users.enable_code_execution` flag gates use — Settings → Personal
+  has a toggle that opens a warning modal the first time it flips on.
+- **Named handoff payloads** — workflow nodes gain an `input_bindings`
+  JSONB column. Each binding names an upstream value
+  (`{"source": "original_input" | "prev_output", "as": "brief"}` or
+  `{"from_node_position": 3, "as": "architect_doc"}`), and the engine
+  resolves them into `{{name}}` placeholders in the node's prompt
+  template. Back-compat with existing `{{input}} / {{prev_output}}`
+  templates is preserved.
+- **Unified Library experience** — `/skills` page retired and its
+  content folded into `/library?tab=skill` as a "Self-learned skills"
+  section below the shared-asset grid. Skill rows and asset rows share
+  a Cards / List view toggle (stored in localStorage, default List).
+  Self-learned skills reach parity with shared assets: enable/disable
+  checkbox, `times_used` + `last_used_at` tracked and displayed,
+  kebab-menu with a confirmation modal replaces the old always-visible
+  Reject button.
+- **Skill extractor** — full audit trail columns
+  (`extraction_model_id`, `extraction_input_tokens`,
+  `extraction_output_tokens`, `extraction_cost_usd`,
+  `extraction_prompt_preview`, `extraction_response_preview`,
+  `extraction_at`). Per-user `skills_auto_approve` flag (ON by default)
+  so extracted skills immediately inject into the source agent's system
+  prompt. Engine now reads `agent_skills` during `execute_task` and
+  bumps `times_used` + `last_used_at` on every injection. Output
+  language of the extractor follows the user's `language` setting —
+  molly (en) gets English skill titles, jay (zh-TW) gets Chinese.
+- **Agent card polish** — status text replaced with a colored dot
+  (active=green with halo, paused=yellow, offline/off_duty=gray,
+  budget_exceeded/quota_exceeded=red). "Queue depth limit" line
+  removed from the card and moved into the agent detail page's Budget
+  / Quotas tab, where the other caps already live.
+- **Prompts in English** — every LLM-facing system prompt in the
+  backend (skill extractor, Lead team roster + default agent voice,
+  `chat_with_agent`, `lead_proxy`, `escalation` peer consult, quota
+  notifications) now uses English. The extractor's user-facing
+  *output* still honours the owning user's `language` so the two
+  concerns are decoupled.
+
+### Fixed
+
+- Postgres `NUMERIC` columns (`extraction_cost_usd`, `confidence`) come
+  back from Flask jsonify as strings. The Skills page called
+  `.toFixed()` on them and crashed with `TypeError`. Added a
+  defensive `num()` coercion helper at the edge.
+- `POST /api/agents` silently dropped `tool_config` — the PUT handler
+  honoured it but the create path did not. Brand-new agents always
+  started with an empty tool set, which surfaced as "my BackendArchitect
+  won't actually call `file_write`, it just emits code as chat text."
+- Project workflow engine: four coordinated bugs fixed in one pass:
+  - `scheduler._tick()` now passes `project_id` to `dispatch_workflow`
+    via a new `schedules.project_id` column + UI dropdown.
+  - Workflow-path steps that emit `artifact-*` fences are persisted to
+    `project_artifacts`, not just kept on the lead_message.
+  - `lead_agent.chat` resolves the acting agent from the project's
+    `coordinator_agent_id` when `project_id` is set, falling back to
+    Lead only if none is assigned.
+  - Projects auto-add the coordinator to `project_members` on create /
+    update so the quota middleware doesn't reject the coord's own
+    dispatches. One-shot schema backfill for existing rows.
+
+### Changed
+
+- `workflow_nodes` gains `input_bindings JSONB DEFAULT '[]'`. Existing
+  nodes with no bindings behave exactly as before.
+- `runs` and `agent_tasks` gain a `workspace_id` column so the engine
+  can thread workspace context through every task it enqueues from a
+  given dispatch.
+- `agent_skills` gains `last_used_at` (in addition to `times_used`)
+  so the Library view can show "used N× · last X ago" parity with
+  shared assets.
+- `as_users` gains `skills_auto_approve BOOLEAN DEFAULT TRUE` and
+  `enable_code_execution BOOLEAN DEFAULT FALSE`.
+
+### Known limitations
+
+- Workflow editor UI still needs a form to edit `input_bindings` —
+  for v0.5 you can set them via direct API PUT. Editor UI is a v0.6
+  candidate.
+- `run_code` stdout is not yet rendered in the RunDetail page (you
+  see it via the DB / zip download). UI trace panel is next.
+- DockerRunner does not yet stream logs; stdout arrives at the end.
+
+### Release notes
+
+Verified end-to-end with a live BackendArchitect agent (Haiku 4.5 /
+Bedrock) that was asked to build a Flask todo API + pytest suite in an
+empty workspace. Over 10 tool-loop turns it wrote `app.py` (767 B),
+`test_app.py` (1975 B), iterated through three `run_code` attempts
+that failed on PATH / import issues, rewrote its own test file, then
+ran `python3 -m pytest -v -p no:logging` successfully (6/6 tests
+passing). 30 s wall-clock, $0.0535 in Bedrock spend. Artefacts live in
+the workspace and survive restart. This is the "agency-agents style"
+workflow the Tier-1 redesign was meant to unlock.
+
+97 → 98 regression tests passing. Playwright smoke (admin + molly +
+jay) across every major page: zero console errors.
+
 ## [0.4.0] — 2026-04-21
 
 ### Added
@@ -243,6 +372,7 @@ First public release.
 - Pluggable LLMs: Bedrock, Anthropic, OpenAI, Gemini, MiniMax
 - MIT license
 
+[0.5.0]: https://github.com/jhk482001/Holons/releases/tag/v0.5.0
 [0.4.0]: https://github.com/jhk482001/Holons/releases/tag/v0.4.0
 [0.3.0]: https://github.com/jhk482001/Holons/releases/tag/v0.3.0
 [0.2.0]: https://github.com/jhk482001/Holons/releases/tag/v0.2.0

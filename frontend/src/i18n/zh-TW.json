@@ -155,6 +155,9 @@
     "noModel": "（此連線沒定義 model）",
     "unsavedConnection": "有未儲存的連線變更",
     "saveConnection": "儲存連線",
+    "fallbackModel": "備援模型（可選）",
+    "fallbackNone": "— 不設定（錯誤直接回傳）—",
+    "fallbackHint": "主模型碰到暫時性錯誤（限流、逾時、無法使用）時,平台會自動用備援模型重試一次。清單中只列同一個 client 底下的模型。",
     "appearance": "外觀（捏臉）",
     "unsavedAppearance": "有未儲存的外觀變更",
     "saveAppearance": "儲存外觀"

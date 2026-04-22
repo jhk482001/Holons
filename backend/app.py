@@ -1098,9 +1098,9 @@ def create_agent():
     aid = db.execute_returning(
         """
         INSERT INTO agents (user_id, owner_user_id, name, role_title, description,
-                           system_prompt, few_shot, primary_model_id, avatar_config,
-                           model_client_id, tool_config)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb)
+                           system_prompt, few_shot, primary_model_id, fallback_model_id,
+                           avatar_config, model_client_id, tool_config)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb)
         RETURNING id
         """,
         (
@@ -1108,6 +1108,7 @@ def create_agent():
             d.get("name"), d.get("role_title"), d.get("description"),
             d.get("system_prompt"), d.get("few_shot"),
             primary_model_id,
+            d.get("fallback_model_id"),
             json.dumps(d.get("avatar_config") or {}),
             client_id,
             json.dumps(d.get("tool_config") or []),
@@ -1154,7 +1155,8 @@ def update_agent(aid: int):
 
     fields, params = [], []
     for key in ("name", "role_title", "description", "system_prompt",
-                "few_shot", "primary_model_id", "status", "max_queue_depth",
+                "few_shot", "primary_model_id", "fallback_model_id",
+                "status", "max_queue_depth",
                 "model_client_id",
                 "daily_token_quota", "daily_cost_quota",
                 "monthly_token_quota", "monthly_cost_quota"):

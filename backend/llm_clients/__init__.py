@@ -171,16 +171,26 @@ def invoke_for_agent(
             temperature=temperature,
         )
 
-    # Resolve the model id the caller wants. If they didn't pass one, use
-    # the agent's primary_model_id. If *that* is blank, fall back to the
-    # first entry in the client's config.models list.
+    # Resolve primary + fallback model ids. Caller-supplied model_key
+    # wins for primary; if not supplied, we read both columns off the
+    # agent row in one go so the fallback path below doesn't re-query.
+    fallback_model: str | None = None
     resolved_model = model_key
     if not resolved_model:
         from .. import db as _db
         agent_row = _db.fetch_one(
-            "SELECT primary_model_id FROM agents WHERE id = %s", (agent_id,)
-        )
-        resolved_model = (agent_row or {}).get("primary_model_id") or ""
+            "SELECT primary_model_id, fallback_model_id FROM agents WHERE id = %s",
+            (agent_id,),
+        ) or {}
+        resolved_model = (agent_row.get("primary_model_id") or "")
+        fallback_model = (agent_row.get("fallback_model_id") or None) or None
+    else:
+        # Caller pinned a specific model — still look up fallback.
+        from .. import db as _db
+        agent_row = _db.fetch_one(
+            "SELECT fallback_model_id FROM agents WHERE id = %s", (agent_id,),
+        ) or {}
+        fallback_model = (agent_row.get("fallback_model_id") or None) or None
     if not resolved_model:
         cfg_models = (client_row.get("config") or {}).get("models") or []
         if cfg_models:
@@ -204,12 +214,52 @@ def invoke_for_agent(
         if user_text:
             msgs.append({"role": "user", "content": [{"text": user_text}]})
 
-    return invoke_via_client(
-        client_row,
-        model_id=resolved_model,
-        system_prompt=system_prompt,
-        messages=msgs,
-        tool_config=tool_config,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
+    def _call(mid: str) -> dict:
+        return invoke_via_client(
+            client_row,
+            model_id=mid,
+            system_prompt=system_prompt,
+            messages=msgs,
+            tool_config=tool_config,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+    result = _call(resolved_model)
+
+    # Fallback routing — if the primary call returned an error AND the
+    # agent has a fallback model configured, retry once with the
+    # fallback. We only switch on errors that are LIKELY transient or
+    # model-specific (throttling, model not available, bad request
+    # about a model feature). Agent quota / auth errors propagate.
+    if result.get("error") and fallback_model and fallback_model != resolved_model:
+        err_text = (result.get("error") or "").lower()
+        transient_markers = (
+            "throttl", "rate limit", "429", "500", "502", "503", "504",
+            "timeout", "timed out", "model not found", "unavailable",
+            "inference profile", "provisionedmodel",
+            "invalidrequest", "unsupported",
+        )
+        if any(m in err_text for m in transient_markers):
+            import logging as _log
+            _log.getLogger("agent_company.llm").warning(
+                "primary %s failed (%s) — falling back to %s",
+                resolved_model, err_text[:120], fallback_model,
+            )
+            fb_result = _call(fallback_model)
+            # Mark in the result so the UI can show "served by fallback"
+            fb_result.setdefault("fallback_used", True)
+            fb_result.setdefault("fallback_from", resolved_model)
+            fb_result.setdefault("fallback_to", fallback_model)
+            if not fb_result.get("error"):
+                return fb_result
+            # Both failed — surface the fallback's error (usually more
+            # informative than the original) but annotate.
+            fb_result["error"] = (
+                f"primary ({resolved_model}) error: {err_text[:200]} | "
+                f"fallback ({fallback_model}) error: "
+                f"{(fb_result.get('error') or '')[:200]}"
+            )
+            return fb_result
+
+    return result

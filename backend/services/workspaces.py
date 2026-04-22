@@ -129,10 +129,23 @@ def delete(workspace_id: int, user_id: int) -> bool:
             shutil.rmtree(wdir)
     except Exception:
         pass
-    db.execute(
-        "DELETE FROM workspaces WHERE id = %s AND user_id = %s",
-        (workspace_id, user_id),
-    )
+    # FK `agent_tasks.workspace_id ON DELETE SET NULL` can deadlock with
+    # concurrent task inserts. Retry a couple of times before giving up;
+    # each attempt is a fresh transaction.
+    import time as _time
+    last = None
+    for attempt in range(3):
+        try:
+            db.execute(
+                "DELETE FROM workspaces WHERE id = %s AND user_id = %s",
+                (workspace_id, user_id),
+            )
+            return True
+        except Exception as e:  # noqa: BLE001
+            last = e
+            _time.sleep(0.1 * (attempt + 1))
+    if last is not None:
+        raise last
     return True
 
 

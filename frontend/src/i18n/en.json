@@ -155,6 +155,9 @@
     "noModel": "(No models for this connection)",
     "unsavedConnection": "Unsaved connection changes",
     "saveConnection": "Save Connection",
+    "fallbackModel": "Fallback model (optional)",
+    "fallbackNone": "— None (error out instead) —",
+    "fallbackHint": "If the primary model returns a transient error (throttling, timeout, unavailable), the request is retried once on this model. Only models from the same client are listed.",
     "appearance": "Appearance (Avatar)",
     "unsavedAppearance": "Unsaved appearance changes",
     "saveAppearance": "Save Appearance"

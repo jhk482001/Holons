@@ -26,12 +26,16 @@ export function AgentOverviewEditor({
   const [systemPrompt, setSystemPrompt] = useState(agent.system_prompt || "");
   const [clientId, setClientId] = useState<number | null>(agent.model_client_id);
   const [modelId, setModelId] = useState<string>(agent.primary_model_id || "");
+  const [fallbackModelId, setFallbackModelId] = useState<string>(
+    (agent as any).fallback_model_id || "",
+  );
   const textDirty =
     description !== (agent.description || "") ||
     systemPrompt !== (agent.system_prompt || "");
   const clientDirty =
     clientId !== agent.model_client_id ||
-    modelId !== (agent.primary_model_id || "");
+    modelId !== (agent.primary_model_id || "") ||
+    fallbackModelId !== ((agent as any).fallback_model_id || "");
 
   const { data: clients = [] } = useQuery({
     queryKey: ["my-model-clients"],
@@ -45,6 +49,7 @@ export function AgentOverviewEditor({
       api.put(`/agents/${agent.id}`, {
         model_client_id: clientId,
         primary_model_id: modelId,
+        fallback_model_id: fallbackModelId || null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent", agent.id] });
@@ -186,6 +191,41 @@ export function AgentOverviewEditor({
               </option>
             ))}
           </select>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <label style={{
+            display: "block",
+            fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+            color: "var(--ink-3)", textTransform: "uppercase",
+            marginBottom: 4,
+          }}>
+            {t("overview.fallbackModel")}
+          </label>
+          <select
+            data-testid="agent-fallback-model-select"
+            value={fallbackModelId}
+            onChange={(e) => setFallbackModelId(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              fontSize: 12,
+              background: "var(--surface)",
+            }}
+          >
+            <option value="">{t("overview.fallbackNone")}</option>
+            {availableModels
+              .filter((m) => m.id !== modelId)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label || m.id}
+                </option>
+              ))}
+          </select>
+          <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 3, lineHeight: 1.5 }}>
+            {t("overview.fallbackHint")}
+          </div>
         </div>
         {clientDirty && (
           <div className="avatar-save-bar">

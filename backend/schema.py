@@ -663,6 +663,42 @@ DDL: list[str] = [
     # "used N× · last X ago" for self-learned skills too. Updated by the
     # engine whenever a skill is injected into an agent's system prompt.
     "ALTER TABLE agent_skills ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ",
+    # Workspaces: scratchpad filesystem where agents can create / read /
+    # edit files across turns. Storage is a directory on the backend
+    # host — personal mode puts it under ~/.agent_company/workspaces/,
+    # enterprise under /var/lib/holons/workspaces/. The storage_path
+    # column is the absolute path (kept in the DB so restart / reload
+    # can still find it).
+    """
+    CREATE TABLE IF NOT EXISTS workspaces (
+        id            BIGSERIAL PRIMARY KEY,
+        user_id       BIGINT NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
+        project_id    BIGINT REFERENCES projects(id) ON DELETE SET NULL,
+        name          VARCHAR(200) NOT NULL,
+        description   TEXT,
+        storage_path  TEXT NOT NULL,
+        size_bytes    BIGINT DEFAULT 0,
+        created_at    TIMESTAMPTZ DEFAULT NOW(),
+        updated_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_workspaces_user ON workspaces(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_workspaces_project ON workspaces(project_id) WHERE project_id IS NOT NULL",
+    # Named-handoff inputs for workflow nodes. See engine._render_prompt:
+    # each binding names an upstream value ("pm_spec" / "architect_doc"
+    # / "user_input") so a node can reference {{name}} in its prompt
+    # template instead of only {{input}} / {{prev_output}}.
+    "ALTER TABLE workflow_nodes ADD COLUMN IF NOT EXISTS input_bindings JSONB DEFAULT '[]'::jsonb",
+    # Tasks need to know which workspace they belong to — engine copies
+    # the binding from the workflow node's payload onto the queued task.
+    "ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS workspace_id BIGINT REFERENCES workspaces(id) ON DELETE SET NULL",
+    # Runs can bind to a workspace so every step dispatched from the run
+    # sees the same scratchpad without having to plumb it through each
+    # node individually.
+    "ALTER TABLE runs ADD COLUMN IF NOT EXISTS workspace_id BIGINT REFERENCES workspaces(id) ON DELETE SET NULL",
+    # Per-user opt-in for code execution. Off by default for security;
+    # the Settings UI prompts once with a warning before flipping.
+    "ALTER TABLE as_users ADD COLUMN IF NOT EXISTS enable_code_execution BOOLEAN DEFAULT FALSE",
     # Per-user knob — default ON. When off, extracted skills stay as
     # proposals (approved_by_user=FALSE) until the user clicks Approve.
     "ALTER TABLE as_users ADD COLUMN IF NOT EXISTS skills_auto_approve BOOLEAN DEFAULT TRUE",

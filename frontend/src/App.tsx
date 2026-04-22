@@ -15,6 +15,8 @@ import Runs from "./pages/Runs";
 import RunDetail from "./pages/RunDetail";
 import Schedules from "./pages/Schedules";
 import Library from "./pages/Library";
+import Workspaces from "./pages/Workspaces";
+import WorkspaceDetail from "./pages/WorkspaceDetail";
 import Settings from "./pages/Settings";
 import Search from "./pages/Search";
 import Escalations from "./pages/Escalations";
@@ -67,6 +69,8 @@ export default function App() {
         <Route path="/runs" element={<Runs />} />
         <Route path="/runs/:id" element={<RunDetail />} />
         <Route path="/schedules" element={<Schedules />} />
+        <Route path="/workspaces" element={<Workspaces />} />
+        <Route path="/workspaces/:id" element={<WorkspaceDetail />} />
         <Route path="/library" element={<Library />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/search" element={<Search />} />

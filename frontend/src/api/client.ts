@@ -1059,3 +1059,44 @@ export const ModelClientsAPI = {
   test: (id: number) =>
     api.post<ModelClientTestResult>(`/model_clients/${id}/test`),
 };
+
+// ==========================================================================
+// Workspaces — scratchpad filesystem agents use via the file_* tools.
+// ==========================================================================
+
+export interface Workspace {
+  id: number;
+  user_id: number;
+  project_id: number | null;
+  name: string;
+  description: string | null;
+  storage_path: string;
+  size_bytes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceFile {
+  path: string;
+  size: number;
+  mtime: number;
+  is_dir: boolean;
+}
+
+export const WorkspacesAPI = {
+  list: (project_id?: number) =>
+    api.get<Workspace[]>(project_id
+      ? `/workspaces?project_id=${project_id}`
+      : `/workspaces`),
+  get: (id: number) => api.get<Workspace>(`/workspaces/${id}`),
+  create: (data: { name: string; project_id?: number; description?: string }) =>
+    api.post<Workspace>(`/workspaces`, data),
+  remove: (id: number) => api.del<{ ok: true }>(`/workspaces/${id}`),
+  listFiles: (id: number) =>
+    api.get<{ files: WorkspaceFile[] }>(`/workspaces/${id}/files`),
+  readFile: (id: number, relpath: string) =>
+    api.get<{ path: string; content: string }>(`/workspaces/${id}/files/${relpath}`),
+  removeFile: (id: number, relpath: string) =>
+    api.del<{ ok: true; existed: boolean }>(`/workspaces/${id}/files/${relpath}`),
+  downloadZipUrl: (id: number) => `/api/workspaces/${id}/download.zip`,
+};

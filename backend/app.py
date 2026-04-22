@@ -26,6 +26,7 @@ from .services import (
     assets as assets_service, avatar, escalation, feature_flags, lead_agent,
     lead_proxy, notifications as notif_service, quotas, rag as rag_service,
     scheduler, sharing, skill_extractor, user_quotas,
+    workspaces as workspaces_service,
 )
 
 
@@ -928,7 +929,8 @@ def me():
         return jsonify({"authenticated": False})
     u = db.fetch_one(
         "SELECT id, username, display_name, default_lead_agent_id, role, language, "
-        "       lead_max_steps, lead_max_tokens, skills_auto_approve "
+        "       lead_max_steps, lead_max_tokens, skills_auto_approve, "
+        "       enable_code_execution "
         "FROM as_users WHERE id = %s",
         (uid,),
     )
@@ -969,6 +971,9 @@ def update_me():
     if "skills_auto_approve" in d:
         sets.append("skills_auto_approve = %s")
         params.append(bool(d["skills_auto_approve"]))
+    if "enable_code_execution" in d:
+        sets.append("enable_code_execution = %s")
+        params.append(bool(d["enable_code_execution"]))
     if not sets:
         return jsonify({"ok": True})
     params.append(current_user_id())
@@ -1541,12 +1546,14 @@ def create_workflow_node(wid: int):
         (wid,),
     )["p"]
     position = int(d.get("position", max_pos + 1))
+    import json as _json
     nid = db.execute_returning(
         """
         INSERT INTO workflow_nodes
             (workflow_id, position, node_type, agent_id, group_id,
-             label, prompt_template, system_prompt_override, pos_x, pos_y)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             label, prompt_template, system_prompt_override, pos_x, pos_y,
+             input_bindings)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
         RETURNING id
         """,
         (
@@ -1556,6 +1563,7 @@ def create_workflow_node(wid: int):
             d.get("system_prompt_override"),
             int(d.get("pos_x", 100 + position * 280)),
             int(d.get("pos_y", 200)),
+            _json.dumps(d.get("input_bindings") or []),
         ),
     )
     return jsonify({"id": nid})
@@ -1574,6 +1582,10 @@ def update_workflow_node(wid: int, nid: int):
         if k in d:
             fields.append(f"{k} = %s")
             params.append(d[k])
+    if "input_bindings" in d:
+        import json as _json
+        fields.append("input_bindings = %s::jsonb")
+        params.append(_json.dumps(d["input_bindings"] or []))
     if not fields:
         return jsonify({"ok": True})
     params.extend([nid, wid])
@@ -1774,6 +1786,7 @@ def run_workflow(wid: int):
             trigger_source=trigger_source,
             priority=priority,
             project_id=d.get("project_id"),
+            workspace_id=d.get("workspace_id"),
         )
     except user_quotas.QuotaExceeded as qe:
         return jsonify({
@@ -3312,6 +3325,115 @@ def create_agent_quota(aid):
 def delete_quota_route(qid):
     quotas.delete_quota(qid)
     return jsonify({"ok": True})
+
+
+# ============================================================================
+# Workspaces — scratchpad filesystems for the file_* tools.
+# ============================================================================
+
+@app.route("/api/workspaces", methods=["GET"])
+@login_required
+def list_workspaces_route():
+    project_id = request.args.get("project_id", type=int)
+    return jsonify(workspaces_service.list_for_user(current_user_id(), project_id))
+
+
+@app.route("/api/workspaces", methods=["POST"])
+@login_required
+def create_workspace_route():
+    d = request.get_json() or {}
+    name = (d.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name required"}), 400
+    ws = workspaces_service.create(
+        user_id=current_user_id(),
+        name=name,
+        project_id=d.get("project_id"),
+        description=d.get("description"),
+    )
+    return jsonify(ws)
+
+
+@app.route("/api/workspaces/<int:wid>", methods=["GET"])
+@login_required
+def get_workspace_route(wid):
+    ws = workspaces_service.get(wid, current_user_id())
+    if not ws:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(ws)
+
+
+@app.route("/api/workspaces/<int:wid>", methods=["DELETE"])
+@login_required
+def delete_workspace_route(wid):
+    ok = workspaces_service.delete(wid, current_user_id())
+    if not ok:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/workspaces/<int:wid>/files", methods=["GET"])
+@login_required
+def list_workspace_files_route(wid):
+    ws = workspaces_service.get(wid, current_user_id())
+    if not ws:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"files": workspaces_service.list_tree(ws)})
+
+
+@app.route("/api/workspaces/<int:wid>/files/<path:relpath>", methods=["GET"])
+@login_required
+def read_workspace_file_route(wid, relpath):
+    ws = workspaces_service.get(wid, current_user_id())
+    if not ws:
+        return jsonify({"error": "not found"}), 404
+    try:
+        # Decide text-vs-binary by file extension. Binary files are
+        # sent as octet-stream for download; text is wrapped in JSON
+        # so the UI can render it inline without a second request.
+        binary_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf",
+                       ".zip", ".tar", ".gz", ".mp4", ".mp3", ".bin"}
+        import os as _os
+        ext = _os.path.splitext(relpath)[1].lower()
+        if ext in binary_exts:
+            data = workspaces_service.read_file(ws, relpath, as_bytes=True)
+            from flask import Response
+            return Response(data, mimetype="application/octet-stream")
+        content = workspaces_service.read_file(ws, relpath)
+        return jsonify({"path": relpath, "content": content})
+    except workspaces_service.PathEscape as e:
+        return jsonify({"error": f"path rejected: {e}"}), 400
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+
+
+@app.route("/api/workspaces/<int:wid>/files/<path:relpath>", methods=["DELETE"])
+@login_required
+def delete_workspace_file_route(wid, relpath):
+    ws = workspaces_service.get(wid, current_user_id())
+    if not ws:
+        return jsonify({"error": "not found"}), 404
+    try:
+        existed = workspaces_service.delete_file(ws, relpath)
+        return jsonify({"ok": True, "existed": existed})
+    except workspaces_service.PathEscape as e:
+        return jsonify({"error": f"path rejected: {e}"}), 400
+
+
+@app.route("/api/workspaces/<int:wid>/download.zip", methods=["GET"])
+@login_required
+def download_workspace_zip_route(wid):
+    ws = workspaces_service.get(wid, current_user_id())
+    if not ws:
+        return jsonify({"error": "not found"}), 404
+    from flask import Response
+    data = workspaces_service.zip_bytes(ws)
+    filename = f"workspace-{wid}-{ws['name'].replace(' ', '_')}.zip"
+    return Response(
+        data,
+        mimetype="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ============================================================================

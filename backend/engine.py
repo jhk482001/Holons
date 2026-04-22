@@ -44,6 +44,7 @@ def dispatch_workflow(
     trigger_context: dict | None = None,
     priority: str = "normal",
     project_id: int | None = None,
+    workspace_id: int | None = None,
 ) -> int:
     """Kick off a workflow. Returns the new run_id immediately.
 
@@ -51,23 +52,24 @@ def dispatch_workflow(
     run row to see when it finishes.
 
     If `project_id` is given, the run and every step it spawns are
-    attributed to that project, and quota enforcement will check each
-    agent's project allocation at dispatch time before enqueueing.
+    attributed to that project. If `workspace_id` is given, every task
+    the engine enqueues inherits it so file_* / run_code tools can find
+    a workspace to write into.
     """
     from .services import user_quotas
     user_quotas.check_dispatch(user_id)
 
-    # Create the run record (with optional project attribution)
+    # Create the run record (with optional project + workspace binding)
     run_id = db.execute_returning(
         """
         INSERT INTO runs (workflow_id, user_id, initial_input, status,
                           trigger_source, trigger_context, iterations,
-                          project_id)
-        VALUES (%s, %s, %s, 'running', %s, %s::jsonb, 1, %s)
+                          project_id, workspace_id)
+        VALUES (%s, %s, %s, 'running', %s, %s::jsonb, 1, %s, %s)
         RETURNING id
         """,
         (workflow_id, user_id, initial_input, trigger_source,
-         json.dumps(trigger_context or {}), project_id),
+         json.dumps(trigger_context or {}), project_id, workspace_id),
     )
 
     # Load the workflow's nodes (top-level only: parent_group_id IS NULL)
@@ -150,20 +152,27 @@ def _enqueue_agent_node(
     iteration: int,
 ) -> int:
     """Enqueue a single agent task."""
+    named = _resolve_node_bindings(node, run_id, original_input, prev_output)
     payload = {
         "kind": "agent_node",
         "node_id": node["id"],
         "node_position": node["position"],
         "workflow_id": node["workflow_id"],
         "agent_id": node["agent_id"],
-        "prompt": _render_prompt(node.get("prompt_template"), original_input, prev_output),
+        "prompt": _render_prompt(node.get("prompt_template"), original_input, prev_output, named),
         "label": node.get("label"),
         "iteration": iteration,
         "original_input": original_input,
+        "named_inputs": named,
     }
     # Pass the system_prompt_override if the node has one
     if node.get("system_prompt_override"):
         payload["system_prompt_override"] = node["system_prompt_override"]
+    # Plumb the run-level workspace binding onto the task so file_* /
+    # run_code tools can find it via workspaces.resolve_for_task.
+    ws_id = _run_workspace_id(run_id)
+    if ws_id:
+        payload["workspace_id"] = ws_id
     return queue.enqueue_task(
         agent_id=node["agent_id"],
         payload=payload,
@@ -190,12 +199,15 @@ def _enqueue_group_node(
         (group["id"],),
     )
 
+    named = _resolve_node_bindings(node, run_id, original_input, prev_output)
+    ws_id = _run_workspace_id(run_id)
     task_ids = []
     for m in members:
         member_prompt = _render_prompt(
             m.get("custom_prompt") or node.get("prompt_template"),
             original_input,
             prev_output,
+            named,
         )
         payload = {
             "kind": "group_member",
@@ -209,9 +221,12 @@ def _enqueue_group_node(
             "label": node.get("label"),
             "iteration": iteration,
             "original_input": original_input,
+            "named_inputs": named,
         }
         if node.get("system_prompt_override"):
             payload["system_prompt_override"] = node["system_prompt_override"]
+        if ws_id:
+            payload["workspace_id"] = ws_id
         tid = queue.enqueue_task(
             agent_id=m["agent_id"],
             payload=payload,
@@ -223,17 +238,86 @@ def _enqueue_group_node(
     return task_ids
 
 
-def _render_prompt(template: str | None, original_input: str, prev_output: str) -> str:
-    """Render a node's prompt template. {{input}} → original run input;
-    {{prev_output}} → the immediately preceding node's output. If the
-    template is empty, default to passing the prev_output through."""
+def _run_workspace_id(run_id: int) -> int | None:
+    row = db.fetch_one(
+        "SELECT workspace_id FROM runs WHERE id = %s", (run_id,),
+    )
+    return (row or {}).get("workspace_id")
+
+
+def _render_prompt(template: str | None, original_input: str, prev_output: str,
+                    named: dict[str, str] | None = None) -> str:
+    """Render a node's prompt template.
+
+      * {{input}}       → original run input
+      * {{prev_output}} → previous node's output
+      * {{<name>}}      → named binding (from workflow_nodes.input_bindings)
+
+    If the template is empty, default to passing `prev_output` through
+    so legacy single-prompt workflows keep working.
+    """
     if not template:
         return prev_output
-    return (
+    out = (
         template
         .replace("{{input}}", original_input)
         .replace("{{prev_output}}", prev_output)
     )
+    if named:
+        for name, val in named.items():
+            out = out.replace("{{" + name + "}}", val or "")
+    return out
+
+
+def _resolve_node_bindings(node: dict, run_id: int,
+                            original_input: str, prev_output: str) -> dict[str, str]:
+    """Walk `node.input_bindings` and return a {name: text} dict the
+    prompt renderer can splice in. Each binding looks like:
+
+        {"source": "original_input" | "prev_output", "as": "brief"}
+        {"from_node_position": 3, "as": "architect_doc"}
+
+    `from_node_position` resolves to the LATEST run_step response at
+    that position within the current run (iteration agnostic — we grab
+    the highest id). Missing / invalid bindings resolve to empty string
+    so a typo doesn't crash the run."""
+    raw = node.get("input_bindings") or []
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = []
+    if not isinstance(raw, list) or not raw:
+        return {}
+    out: dict[str, str] = {}
+    for b in raw:
+        if not isinstance(b, dict):
+            continue
+        name = (b.get("as") or "").strip()
+        if not name:
+            continue
+        src = b.get("source")
+        if src == "original_input":
+            out[name] = original_input or ""
+            continue
+        if src == "prev_output":
+            out[name] = prev_output or ""
+            continue
+        from_pos = b.get("from_node_position")
+        if from_pos is not None:
+            row = db.fetch_one(
+                """
+                SELECT response FROM run_steps
+                WHERE run_id = %s AND node_position = %s AND error IS NULL
+                ORDER BY id DESC LIMIT 1
+                """,
+                (run_id, int(from_pos)),
+            )
+            out[name] = (row or {}).get("response") or ""
+            continue
+        # Unknown binding shape — leave empty.
+        out[name] = ""
+    return out
 
 
 # ============================================================================
@@ -604,6 +688,12 @@ def _execute_with_tools(task: dict, payload: dict, agent: dict,
         "agent_user_id": agent["user_id"],
         "run_id": task["run_id"],
         "task_id": task["id"],
+        # Used by the file_* and run_code tools to locate the workspace
+        # this task is bound to. `payload` carries workspace_id on each
+        # queued task; `run_id` lets workspaces.resolve_for_task fall
+        # back to the run-level binding if the task didn't set one.
+        "payload": payload,
+        "workspace_id": payload.get("workspace_id"),
     }
 
     messages: list[dict] = [

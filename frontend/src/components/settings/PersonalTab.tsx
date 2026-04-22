@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AuthAPI, api } from "../../api/client";
 import { useMe } from "../../auth";
+import Modal from "../Modal";
 
 export default function PersonalTab() {
   const { t, i18n } = useTranslation();
@@ -14,6 +15,8 @@ export default function PersonalTab() {
   const [maxSteps, setMaxSteps] = useState(10);
   const [maxTokens, setMaxTokens] = useState(50000);
   const [skillsAutoApprove, setSkillsAutoApprove] = useState(true);
+  const [enableCodeExec, setEnableCodeExec] = useState(false);
+  const [codeExecWarningOpen, setCodeExecWarningOpen] = useState(false);
   useEffect(() => {
     if (me?.display_name) setDisplayName(me.display_name);
     if ((me as any)?.language) setLanguage((me as any).language);
@@ -22,8 +25,12 @@ export default function PersonalTab() {
     if (typeof (me as any)?.skills_auto_approve === "boolean") {
       setSkillsAutoApprove((me as any).skills_auto_approve);
     }
+    if (typeof (me as any)?.enable_code_execution === "boolean") {
+      setEnableCodeExec((me as any).enable_code_execution);
+    }
   }, [me?.display_name, (me as any)?.language, (me as any)?.lead_max_steps,
-      (me as any)?.lead_max_tokens, (me as any)?.skills_auto_approve]);
+      (me as any)?.lead_max_tokens, (me as any)?.skills_auto_approve,
+      (me as any)?.enable_code_execution]);
 
   const [savedProfile, setSavedProfile] = useState(false);
   const saveProfile = useMutation({
@@ -34,6 +41,7 @@ export default function PersonalTab() {
         lead_max_steps: maxSteps,
         lead_max_tokens: maxTokens,
         skills_auto_approve: skillsAutoApprove,
+        enable_code_execution: enableCodeExec,
       });
     },
     onSuccess: () => {
@@ -81,7 +89,8 @@ export default function PersonalTab() {
     language !== ((me as any)?.language || "en") ||
     maxSteps !== ((me as any)?.lead_max_steps || 10) ||
     maxTokens !== ((me as any)?.lead_max_tokens || 50000) ||
-    skillsAutoApprove !== ((me as any)?.skills_auto_approve ?? true);
+    skillsAutoApprove !== ((me as any)?.skills_auto_approve ?? true) ||
+    enableCodeExec !== ((me as any)?.enable_code_execution ?? false);
 
   return (
     <div data-testid="settings-personal-tab">
@@ -356,6 +365,82 @@ export default function PersonalTab() {
           </div>
         </div>
       </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>{t("personal.codeExecTitle")}</h3>
+        <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 16, lineHeight: 1.6 }}>
+          {t("personal.codeExecDesc")}
+        </div>
+        <div style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          padding: 20,
+        }}>
+          <label style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            cursor: "pointer",
+            fontSize: 13,
+          }}>
+            <input
+              type="checkbox"
+              data-testid="code-exec-toggle"
+              checked={enableCodeExec}
+              onChange={(e) => {
+                if (e.target.checked && !enableCodeExec) {
+                  // Flipping ON → warn first.
+                  setCodeExecWarningOpen(true);
+                } else {
+                  setEnableCodeExec(false);
+                }
+              }}
+              style={{ width: 18, height: 18 }}
+            />
+            <span>
+              <div style={{ fontWeight: 700 }}>{t("personal.codeExecToggle")}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                {t("personal.codeExecToggleHint")}
+              </div>
+            </span>
+          </label>
+          <div style={{ marginTop: 14 }}>
+            <button
+              className="mbtn primary"
+              onClick={() => saveProfile.mutate()}
+              disabled={!profileDirty || saveProfile.isPending}
+            >
+              {saveProfile.isPending ? t("personal.saving") : t("personal.save")}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <Modal
+        open={codeExecWarningOpen}
+        onClose={() => setCodeExecWarningOpen(false)}
+        title={t("personal.codeExecWarnTitle")}
+        size="sm"
+        footer={
+          <>
+            <button className="mbtn" onClick={() => setCodeExecWarningOpen(false)}>
+              {t("btn.cancel")}
+            </button>
+            <button
+              className="mbtn primary"
+              data-testid="code-exec-warning-accept"
+              onClick={() => { setEnableCodeExec(true); setCodeExecWarningOpen(false); }}
+            >
+              {t("personal.codeExecWarnConfirm")}
+            </button>
+          </>
+        }
+      >
+        <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-2)", whiteSpace: "pre-line" }}>
+          {t("personal.codeExecWarnBody")}
+        </div>
+      </Modal>
 
       <AutoTopupSection />
       <BackupSection />

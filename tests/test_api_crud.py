@@ -37,9 +37,10 @@ def init_db():
 
 @pytest.fixture(autouse=True)
 def clean_state():
+    from tests.conftest import truncate_with_retry
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            truncate_with_retry(cur, """
                 TRUNCATE agent_tasks, run_steps, runs,
                          workflow_nodes, workflows,
                          group_members, groups_tbl,

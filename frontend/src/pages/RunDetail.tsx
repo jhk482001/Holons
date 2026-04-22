@@ -401,17 +401,187 @@ function ToolCallsList({ calls }: { calls: ToolCall[] }) {
   );
 }
 
+// Badge / summary shown in the collapsed row header. Changes shape per
+// tool so users can see at a glance "wrote app.py" / "pytest passed"
+// without expanding.
+function ToolCallHeadline({ call }: { call: ToolCall }) {
+  const inp = (call.input ?? {}) as Record<string, unknown>;
+  const out = (call.output ?? {}) as Record<string, unknown>;
+  const name = call.name || "";
+
+  if (name === "file_write" && typeof inp.path === "string") {
+    const size = typeof out.size === "number" ? ` (${out.size} B)` : "";
+    return <span style={{ color: "var(--ink-3)" }}>📄 <code>{inp.path}</code>{size}</span>;
+  }
+  if (name === "file_read" && typeof inp.path === "string") {
+    return <span style={{ color: "var(--ink-3)" }}>👁 <code>{inp.path}</code></span>;
+  }
+  if (name === "file_delete" && typeof inp.path === "string") {
+    return <span style={{ color: "var(--ink-3)" }}>🗑 <code>{inp.path}</code></span>;
+  }
+  if (name === "file_list") {
+    const n = Array.isArray(out.files) ? (out.files as unknown[]).length : "?";
+    return <span style={{ color: "var(--ink-3)" }}>📋 {n} files</span>;
+  }
+  if (name === "file_glob" && typeof inp.pattern === "string") {
+    const n = Array.isArray(out.paths) ? (out.paths as unknown[]).length : "?";
+    return <span style={{ color: "var(--ink-3)" }}>🔍 <code>{inp.pattern}</code> → {n} matches</span>;
+  }
+  if (name === "run_code") {
+    const lang = typeof inp.lang === "string" ? inp.lang : "?";
+    const exit = typeof out.exit_code === "number" ? out.exit_code : (out.ok === false ? "✗" : "?");
+    const d = typeof out.duration_ms === "number" ? ` · ${(out.duration_ms / 1000).toFixed(2)}s` : "";
+    return <span style={{ color: "var(--ink-3)" }}>▶ {lang} · exit {String(exit)}{d}</span>;
+  }
+  // Generic — show first non-trivial input key
+  const firstKey = Object.keys(inp)[0];
+  if (firstKey) {
+    const val = String((inp as Record<string, unknown>)[firstKey] ?? "");
+    const preview = val.length > 60 ? val.slice(0, 60) + "…" : val;
+    return <span style={{ color: "var(--ink-3)" }}>{firstKey}: <code>{preview}</code></span>;
+  }
+  return null;
+}
+
+
+function ToolCallBody({ call }: { call: ToolCall }) {
+  const { t } = useTranslation();
+  const name = call.name || "";
+  const inp = (call.input ?? {}) as Record<string, unknown>;
+  const out = (call.output ?? {}) as Record<string, unknown>;
+
+  // run_code → terminal-style stdout / stderr + exit code.
+  if (name === "run_code") {
+    const stdout = (out.stdout as string) || "";
+    const stderr = (out.stderr as string) || "";
+    const ok = out.ok !== false;
+    const code = typeof inp.code === "string" ? (inp.code as string) : "";
+    const lang = (inp.lang as string) || "bash";
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <TraceBlock label={`${lang} code`} mono body={code} tone="neutral" />
+        {stdout && <TraceBlock label="stdout" mono body={stdout} tone="neutral" />}
+        {stderr && <TraceBlock label="stderr" mono body={stderr} tone="danger" />}
+        {!stdout && !stderr && (
+          <div style={{ fontSize: 10, color: "var(--ink-4)", fontStyle: "italic" }}>
+            {ok ? "(no output)" : String(out.error || "execution failed")}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // file_write → show path + preview of content.
+  if (name === "file_write") {
+    const content = typeof inp.content === "string" ? (inp.content as string) : "";
+    const preview = content.length > 4000 ? content.slice(0, 4000) + "\n\n… (truncated)" : content;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontSize: 11, color: "var(--ink-3)" }}>
+          path: <code style={{ fontFamily: "var(--font-mono)" }}>{String(inp.path || "")}</code>
+        </div>
+        <TraceBlock label="content" mono body={preview} tone="neutral" />
+      </div>
+    );
+  }
+
+  // file_read → show the content that came back.
+  if (name === "file_read") {
+    const content = typeof out.content === "string" ? (out.content as string) : "";
+    const preview = content.length > 4000 ? content.slice(0, 4000) + "\n\n… (truncated)" : content;
+    if (!content && out.error) {
+      return <TraceBlock label="error" body={String(out.error)} tone="danger" />;
+    }
+    return <TraceBlock label={`${inp.path || ""} (${content.length} B)`} mono body={preview} tone="neutral" />;
+  }
+
+  // Generic — JSON dump of input + output.
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <TraceBlock
+        label="input"
+        mono
+        body={JSON.stringify(inp, null, 2)}
+        tone="neutral"
+      />
+      <TraceBlock
+        label={call.error ? "error" : "output"}
+        mono
+        body={call.error ? String(call.error) : JSON.stringify(out, null, 2)}
+        tone={call.error ? "danger" : "neutral"}
+      />
+    </div>
+  );
+}
+
+
+function TraceBlock({
+  label, body, mono, tone,
+}: {
+  label: string;
+  body: string;
+  mono?: boolean;
+  tone?: "neutral" | "danger";
+}) {
+  const bg = tone === "danger" ? "var(--danger-soft)" : "white";
+  const fg = tone === "danger" ? "var(--danger)" : "var(--ink-2)";
+  const border = tone === "danger" ? "rgba(232, 100, 80, 0.3)" : "var(--border)";
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+        <div style={{
+          fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+          color: "var(--ink-4)", textTransform: "uppercase",
+        }}>
+          {label}
+        </div>
+        {body && (
+          <button
+            onClick={() => navigator.clipboard?.writeText(body)}
+            title="Copy"
+            style={{
+              fontSize: 9, padding: "1px 6px",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 4, cursor: "pointer",
+              color: "var(--ink-4)",
+            }}
+          >copy</button>
+        )}
+      </div>
+      <pre style={{
+        fontFamily: mono ? "var(--font-mono)" : "inherit",
+        fontSize: mono ? 10 : 11,
+        color: fg,
+        background: bg,
+        border: `1px solid ${border}`,
+        borderRadius: 6,
+        padding: 8,
+        margin: 0,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        maxHeight: 280,
+        overflow: "auto",
+        lineHeight: 1.5,
+      }}>{body}</pre>
+    </div>
+  );
+}
+
+
 function ToolCallRow({ call }: { call: ToolCall }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const isError = !!call.error;
+  const isError = !!call.error || (call.output && typeof call.output === "object" && (call.output as Record<string, unknown>).ok === false);
   return (
-    <div style={{
-      background: isError ? "var(--danger-soft)" : "rgba(95, 181, 126, 0.06)",
-      border: `1px solid ${isError ? "rgba(232, 100, 80, 0.3)" : "rgba(95, 181, 126, 0.3)"}`,
-      borderRadius: 8,
-      overflow: "hidden",
-    }}>
+    <div
+      data-testid={`tool-call-${call.name}`}
+      style={{
+        background: isError ? "var(--danger-soft)" : "rgba(95, 181, 126, 0.06)",
+        border: `1px solid ${isError ? "rgba(232, 100, 80, 0.3)" : "rgba(95, 181, 126, 0.3)"}`,
+        borderRadius: 8,
+        overflow: "hidden",
+      }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -436,63 +606,17 @@ function ToolCallRow({ call }: { call: ToolCall }) {
         }}>
           {call.name}
         </span>
-        <span style={{ color: "var(--ink-4)" }}>
+        <ToolCallHeadline call={call} />
+        <span style={{ color: "var(--ink-4)", marginLeft: "auto" }}>
           {isError ? t("skills.failure") : t("skills.success")}
           {typeof call.duration_ms === "number" && ` · ${(call.duration_ms / 1000).toFixed(2)}s`}
-        </span>
-        <span style={{ marginLeft: "auto", color: "var(--ink-4)" }}>
-          {open ? t("skills.collapse") + " ▲" : t("skills.expand") + " ▼"}
+          {"  "}
+          {open ? "▲" : "▼"}
         </span>
       </button>
       {open && (
-        <div style={{
-          padding: "4px 12px 12px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: "var(--ink-4)", textTransform: "uppercase", marginBottom: 3 }}>
-              Input
-            </div>
-            <pre style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "var(--ink-2)",
-              background: "white",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: 8,
-              margin: 0,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              maxHeight: 180,
-              overflow: "auto",
-            }}>{JSON.stringify(call.input ?? {}, null, 2)}</pre>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: "var(--ink-4)", textTransform: "uppercase", marginBottom: 3 }}>
-              {isError ? "Error" : "Output"}
-            </div>
-            <pre style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "var(--ink-2)",
-              background: "white",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: 8,
-              margin: 0,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              maxHeight: 240,
-              overflow: "auto",
-            }}>
-              {isError
-                ? call.error
-                : JSON.stringify(call.output ?? null, null, 2)}
-            </pre>
-          </div>
+        <div style={{ padding: "4px 12px 12px" }}>
+          <ToolCallBody call={call} />
         </div>
       )}
     </div>

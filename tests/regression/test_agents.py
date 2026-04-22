@@ -45,3 +45,26 @@ def test_agent_crud_cycle(test_user, holons_url):
     r = s.get(f"{holons_url}/api/agents")
     assert r.status_code == 200
     assert all(a["id"] != aid for a in r.json())
+
+
+def test_agent_create_persists_tool_config(test_user, holons_url):
+    """POST /api/agents must persist tool_config — pre-tier1 the POST
+    endpoint quietly dropped it, so brand-new agents always had an
+    empty tool set and the LLM couldn't call file_write / run_code."""
+    s = test_user["session"]
+    r = s.post(f"{holons_url}/api/agents", json={
+        "name": "ToolBot",
+        "role_title": "Probe",
+        "system_prompt": "p",
+        "avatar_config": {"body": "Shirt", "face": "Calm", "hair": "Short"},
+        "primary_model_id": "jp.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "tool_config": ["file_write", "run_code"],
+    })
+    assert r.status_code in (200, 201), r.text
+    aid = r.json()["id"]
+
+    r = s.get(f"{holons_url}/api/agents/{aid}")
+    assert r.status_code == 200
+    tc = r.json().get("tool_config") or []
+    assert "file_write" in tc
+    assert "run_code" in tc

@@ -1099,8 +1099,8 @@ def create_agent():
         """
         INSERT INTO agents (user_id, owner_user_id, name, role_title, description,
                            system_prompt, few_shot, primary_model_id, avatar_config,
-                           model_client_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+                           model_client_id, tool_config)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb)
         RETURNING id
         """,
         (
@@ -1110,6 +1110,7 @@ def create_agent():
             primary_model_id,
             json.dumps(d.get("avatar_config") or {}),
             client_id,
+            json.dumps(d.get("tool_config") or []),
         ),
     )
     # Start a worker for this new agent

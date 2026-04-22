@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { AgentsAPI, LeadAPI, Agent } from "@shared/api/client";
 import { absoluteUrl } from "./api-adapter";
 import Avatar from "@shared/components/Avatar";
@@ -25,6 +26,9 @@ interface CastLayout {
   desktop_positions?: Record<string, { xPct: number; yPct: number }>;
   facing?: Record<string, "left" | "right">;
   hidden_agents?: number[];
+  // When true, the cast shows only the Lead bust. Flipped by the tray
+  // "Show Lead only" menu item.
+  show_lead_only?: boolean;
 }
 
 export default function DesktopDialog({
@@ -93,7 +97,15 @@ export default function DesktopDialog({
       // Clear saved positions → regenerate defaults on next render
       saveLayout({ ...layout, desktop_positions: undefined, agent_order: undefined });
     });
-    return () => { u1.then((fn) => fn()); u2.then((fn) => fn()); };
+    const u3 = listen("toggle-show-lead-only", () => {
+      // Flip the lead-only filter on/off each time the tray item fires.
+      saveLayout({ ...layout, show_lead_only: !layout.show_lead_only });
+    });
+    return () => {
+      u1.then((fn) => fn());
+      u2.then((fn) => fn());
+      u3.then((fn) => fn());
+    };
   }, [layout, saveLayout]);
 
   const bustSize: BustSize = layout.bust_size || "medium";
@@ -220,6 +232,9 @@ function CastBar({
 
   const facing = layout.facing || {};
   const hiddenAgents = new Set(layout.hidden_agents || []);
+  // Show-lead-only mode (tray toggle): collapse the cast to just the
+  // Lead agent. Non-lead agents get hidden from the bust row.
+  const showLeadOnly = !!layout.show_lead_only;
 
   function setFacing(agentId: number, dir: "left" | "right") {
     const next = { ...facing, [agentId]: dir };
@@ -244,7 +259,12 @@ function CastBar({
     return () => window.removeEventListener("click", close);
   }, [ctxMenu]);
 
-  const orderedAgents = buildOrderedAgents(agents, layout.agent_order);
+  const orderedAgentsRaw = buildOrderedAgents(agents, layout.agent_order);
+  // Filter to Lead only when the tray toggle is on. Keeps context menu,
+  // drag, facing etc. working against the smaller set.
+  const orderedAgents = showLeadOnly
+    ? orderedAgentsRaw.filter((a) => a.is_lead)
+    : orderedAgentsRaw;
   const savedPos = layout.desktop_positions || {};
   const defaults = generateDefaultPositions(orderedAgents, bustHeight);
   // Merge: use saved if exists, otherwise default
@@ -430,6 +450,25 @@ function ChatPanel({ agent, me, onClose }: { agent: Agent; me: MeInfo; onClose: 
   });
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+
+  // Dock bounce when an agent replies while the window isn't focused.
+  // We watch for the message count to grow — if the tail message is
+  // from the assistant (role !== "user") and document.hasFocus() is
+  // false, fire `request_attention` to nudge the OS dock/taskbar.
+  const lastMsgCountRef = useRef<number>(messages.length);
+  useEffect(() => {
+    const prev = lastMsgCountRef.current;
+    lastMsgCountRef.current = messages.length;
+    if (messages.length <= prev) return;
+    const tail = messages[messages.length - 1];
+    const tailRole = tail && (tail.role as string | undefined);
+    const fromAgent = tailRole && tailRole !== "user";
+    if (fromAgent && typeof document !== "undefined" && !document.hasFocus()) {
+      invoke("request_attention").catch(() => {
+        // Plugin might not be available in dev (web-vite). Silently drop.
+      });
+    }
+  }, [messages.length]);
 
   return (
     <div className="chat-panel chat-panel-centered" data-interactive style={{ pointerEvents: "auto" }} onClick={(e) => e.stopPropagation()}>

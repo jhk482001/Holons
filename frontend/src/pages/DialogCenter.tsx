@@ -231,6 +231,62 @@ export default function DialogCenter() {
         abortRef.current = null;
       }
     },
+    // Optimistic update — drop the user's message into the cache right
+    // away + add a "thinking" assistant placeholder so the chat feels
+    // responsive. The mutation still roundtrips to the server; onSuccess
+    // collapses the cache + invalidates so the real rows overwrite
+    // these placeholders. onError rolls back.
+    onMutate: async (text: string) => {
+      const threadId = currentThreadId;
+      if (!threadId) return { rollback: false };
+      await qc.cancelQueries({ queryKey: ["messages", threadId] });
+      const previous = qc.getQueryData<{
+        pages: { messages: LeadMessage[]; has_more: boolean }[];
+        pageParams: (number | undefined)[];
+      }>(["messages", threadId]);
+      const now = new Date().toISOString();
+      const optimisticUser: LeadMessage = {
+        id: -Date.now(),                      // negative id flags it as optimistic
+        role: "user",
+        content: text,
+        proposed_workflow_id: null,
+        cancelled: false,
+        created_at: now,
+        metadata: { optimistic: true } as any,
+      };
+      const optimisticThinking: LeadMessage = {
+        id: -(Date.now() + 1),
+        role: "lead",
+        content: "…",
+        proposed_workflow_id: null,
+        cancelled: false,
+        created_at: now,
+        metadata: { optimistic: true, thinking: true } as any,
+      };
+      qc.setQueryData(["messages", threadId], (old: any) => {
+        if (!old) {
+          return {
+            pages: [{ messages: [optimisticUser, optimisticThinking], has_more: false }],
+            pageParams: [undefined],
+          };
+        }
+        const lastPage = old.pages[old.pages.length - 1] ?? { messages: [], has_more: false };
+        const newLast = {
+          ...lastPage,
+          messages: [...lastPage.messages, optimisticUser, optimisticThinking],
+        };
+        return {
+          ...old,
+          pages: [...old.pages.slice(0, -1), newLast],
+        };
+      });
+      return { previous, threadId, rollback: true };
+    },
+    onError: (_err, _text, ctx: any) => {
+      if (ctx?.rollback && ctx?.threadId && ctx.previous !== undefined) {
+        qc.setQueryData(["messages", ctx.threadId], ctx.previous);
+      }
+    },
     onSuccess: (data) => {
       // Persist the returned thread_id for the current cast member
       if (activeId) {
@@ -507,7 +563,14 @@ export default function DialogCenter() {
         }}
       >
         {hasActive && (
-        <div className="focus-lane">
+        <div
+          className="focus-lane"
+          // Stop clicks inside the chat panel from bubbling to the cast
+          // row / stage whose onClick handlers treat "click outside agent"
+          // as dismiss. Without this, clicking the textarea closed the
+          // chat.
+          onClick={(e) => e.stopPropagation()}
+        >
           {activeTab === "chat" && (
             <>
               <div

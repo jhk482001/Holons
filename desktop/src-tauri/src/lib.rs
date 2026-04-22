@@ -130,6 +130,15 @@ fn open_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("open failed: {}", e))
 }
 
+// ---------- dock attention (bounce on macOS, flash taskbar on Windows) -----
+// Fired from the frontend whenever a new Lead / agent message arrives while
+// the window is not in focus, so the user notices even if the webview has
+// been backgrounded and its JS timers have been throttled by Chromium.
+#[tauri::command]
+fn request_attention(window: tauri::WebviewWindow) {
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+}
+
 fn show_and_focus(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -153,6 +162,7 @@ pub fn run() {
             set_click_through,
             focus_window,
             open_url,
+            request_attention,
         ])
         .setup(|app| {
             let show_i = MenuItem::with_id(app, "show", "Show Holons", true, None::<&str>)?;
@@ -193,6 +203,16 @@ pub fn run() {
                 tauri::menu::Submenu::with_items(app, "Language", true, &[&lang_en, &lang_zh])?;
 
             let sep = PredefinedMenuItem::separator(app)?;
+            // Show-lead-only: compact overlay that hides the full cast
+            // and only keeps the Lead bust + its chat. Toggleable from
+            // the tray. The frontend listens for "toggle-show-lead-only".
+            let lead_only_i = MenuItem::with_id(
+                app,
+                "toggle_show_lead_only",
+                "Show Lead only",
+                true,
+                None::<&str>,
+            )?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
             let menu = Menu::with_items(
@@ -202,6 +222,7 @@ pub fn run() {
                     &size_menu,
                     &reset_pos_i,
                     &lang_menu,
+                    &lead_only_i,
                     &connection_i,
                     &open_web_i,
                     &sep,
@@ -258,6 +279,11 @@ pub fn run() {
                     "open_web" => {
                         if let Some(port) = SIDECAR_PORT.lock().ok().and_then(|g| *g) {
                             let _ = open::that(format!("http://localhost:{}/settings", port));
+                        }
+                    }
+                    "toggle_show_lead_only" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.emit("toggle-show-lead-only", ());
                         }
                     }
                     "quit" => {

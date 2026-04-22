@@ -71,6 +71,30 @@ export default function NotificationBell() {
     refetchInterval: 15_000,
   });
 
+  // Dock bounce when unread count ticks up while the window isn't
+  // focused. Runs only inside the Tauri desktop (web-only users don't
+  // have a dock to bounce). Catches all the "run complete", "skill
+  // suggested", "escalation" etc. notifications in one place instead
+  // of touching every emit site. We avoid importing @tauri-apps/api
+  // here (the web frontend doesn't depend on it) — instead we call
+  // Tauri via its injected IPC global when present.
+  const lastUnreadRef = useRef<number>(0);
+  useEffect(() => {
+    const count = unread?.count ?? 0;
+    const prev = lastUnreadRef.current;
+    lastUnreadRef.current = count;
+    if (count <= prev) return;
+    if (typeof document !== "undefined" && document.hasFocus()) return;
+    const tauri = (window as any).__TAURI_INTERNALS__;
+    if (tauri && typeof tauri.invoke === "function") {
+      try {
+        tauri.invoke("request_attention");
+      } catch {
+        // Silently drop — bouncing the dock is best-effort.
+      }
+    }
+  }, [unread?.count]);
+
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => NotificationsAPI.list(),
@@ -116,9 +140,9 @@ export default function NotificationBell() {
   const visible = notifications.slice(0, MAX_VISIBLE);
   const count = unread?.count ?? 0;
 
-  function gotoNotification(n: Notification) {
+  function gotoNotification(n: Notification, override?: string) {
     setOpen(false);
-    navigate(notifTarget(n));
+    navigate(override || notifTarget(n));
   }
 
   return (
@@ -165,7 +189,7 @@ export default function NotificationBell() {
                 <NotifRow
                   key={n.id}
                   n={n}
-                  onGo={() => gotoNotification(n)}
+                  onGo={(url) => gotoNotification(n, url)}
                 />
               ))
             )}
@@ -177,15 +201,29 @@ export default function NotificationBell() {
   );
 }
 
+interface NotifActionButton {
+  label: string;
+  url: string;
+  variant?: "primary" | "default";
+}
+
 function NotifRow({
   n,
   onGo,
 }: {
   n: Notification;
-  onGo: () => void;
+  onGo: (url?: string) => void;
 }) {
   const { t } = useTranslation();
   const color = SEVERITY_COLOR[n.severity] || "var(--ink-3)";
+  // action_buttons live inside action_payload.buttons (backend stash so
+  // we don't need a schema migration). Fall back to a single derived
+  // button for older notifications.
+  const payload = (n.action_payload || {}) as Record<string, unknown>;
+  const rawButtons = Array.isArray(payload.buttons) ? (payload.buttons as any[]) : [];
+  const buttons: NotifActionButton[] = rawButtons
+    .filter((b) => b && typeof b.label === "string" && typeof b.url === "string")
+    .map((b) => ({ label: b.label, url: b.url, variant: b.variant }));
   return (
     <div
       className={`notif-row notif-${n.status}`}
@@ -195,19 +233,45 @@ function NotifRow({
       <div className="notif-main">
         <div className="notif-title">{n.title}</div>
         {n.body && <div className="notif-body">{n.body}</div>}
+        {buttons.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+            {buttons.map((b, i) => (
+              <button
+                key={i}
+                type="button"
+                data-testid={`notif-action-${n.id}-${i}`}
+                onClick={() => onGo(b.url)}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "4px 9px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  background: b.variant === "primary" ? "var(--accent)" : "var(--surface)",
+                  color: b.variant === "primary" ? "white" : "var(--ink-2)",
+                  cursor: "pointer",
+                }}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <button
-        type="button"
-        className="notif-go"
-        data-testid={`notif-go-${n.id}`}
-        title={t("library.detail")}
-        onClick={onGo}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12h14" />
-          <path d="M13 6l6 6-6 6" />
-        </svg>
-      </button>
+      {buttons.length === 0 && (
+        <button
+          type="button"
+          className="notif-go"
+          data-testid={`notif-go-${n.id}`}
+          title={t("library.detail")}
+          onClick={() => onGo()}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14" />
+            <path d="M13 6l6 6-6 6" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

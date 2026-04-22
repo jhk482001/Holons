@@ -1401,14 +1401,29 @@ def _notify_run_complete(run_id: int, final_output: str, *, failed: bool = False
         (thread_id,),
     )
 
-    # --- 2. Emit a bell notification
+    # --- 2. Emit a bell notification with actionable chips. Users want
+    # one click to the run trace, the workspace (if any), and the Lead
+    # thread — not "tap the tiny arrow then navigate".
+    buttons = [{"label": "View trace", "url": f"/runs/{run_id}"}]
+    workspace_id = run.get("workspace_id")
+    if workspace_id:
+        buttons.append({
+            "label": "View workspace",
+            "url": f"/workspaces/{workspace_id}",
+        })
+    if thread_id:
+        buttons.append({
+            "label": "Open in Lead",
+            "url": f"/dialog?thread_id={thread_id}",
+        })
     notif_service.emit(
         user_id,
         "workflow_failed" if failed else "lead_proposal",
         title=f"{'Run failed' if failed else 'Run complete'}: {workflow_name}",
-        body=f"Run #{run_id} {'hit an error' if failed else 'finished'} — tap to view Lead's message.",
+        body=f"Run #{run_id} {'hit an error' if failed else 'finished'}.",
         severity="error" if failed else "info",
         related_run_id=run_id,
         related_workflow_id=run["workflow_id"],
         action_payload={"thread_id": thread_id},
+        action_buttons=buttons,
     )

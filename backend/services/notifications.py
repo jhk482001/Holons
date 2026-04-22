@@ -22,13 +22,39 @@ def emit(
     body: str = "",
     severity: str = "info",
     action_payload: dict | None = None,
+    action_buttons: list[dict] | None = None,
     related_run_id: int | None = None,
     related_agent_id: int | None = None,
     related_workflow_id: int | None = None,
     related_escalation_id: int | None = None,
 ) -> int:
+    """Emit a notification.
+
+    `action_buttons` is a list of `{label, url, variant?}` dicts. The
+    bell renders each as a clickable chip inside the notification card
+    so the user can jump straight to the relevant page (run trace,
+    workspace, artifact, Lead thread) instead of hunting for an
+    implicit arrow. If omitted we auto-derive one button from
+    `related_run_id` / `related_workflow_id` / `related_escalation_id`
+    so legacy callers keep working.
+    """
     if type not in VALID_TYPES:
         raise ValueError(f"invalid notification type: {type}")
+    buttons = list(action_buttons or [])
+    if not buttons:
+        # Back-compat: synthesise a "View" button from whichever relation
+        # the caller filled in, so existing notifications still get the
+        # new clickable chip without every call site changing.
+        if related_run_id:
+            buttons.append({"label": "View run", "url": f"/runs/{related_run_id}"})
+        elif related_workflow_id:
+            buttons.append({"label": "View workflow", "url": f"/automation/{related_workflow_id}"})
+        elif related_escalation_id:
+            buttons.append({"label": "View escalation", "url": "/escalations"})
+    payload = dict(action_payload or {})
+    if buttons:
+        # Stash in action_payload so we don't need a schema migration.
+        payload["buttons"] = buttons
     return db.execute_returning(
         """
         INSERT INTO notifications
@@ -39,7 +65,7 @@ def emit(
         """,
         (
             user_id, type, severity, title, body,
-            json.dumps(action_payload or {}),
+            json.dumps(payload),
             related_run_id, related_agent_id, related_workflow_id, related_escalation_id,
         ),
     )

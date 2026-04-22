@@ -1043,12 +1043,42 @@ DDL: list[str] = [
 
 
 def create_all() -> None:
-    """Run every DDL statement. Safe to call on every startup."""
-    from .db import get_conn
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            for stmt in DDL:
-                cur.execute(stmt)
+    """Run every DDL statement. Safe to call on every startup.
+
+    The DDL list was accumulated commit-by-commit and its ordering
+    reflects migration history, not topological dependency order —
+    e.g. ALTER TABLE model_clients appears before CREATE TABLE
+    model_clients because the CREATE landed later. That's fine on a
+    long-lived DB (the CREATE already ran in a prior release) but
+    fails on fresh-schema CI with `UndefinedTable`.
+
+    Two-pass strategy: first pass runs everything and collects
+    statements that error with UndefinedTable into a retry queue; the
+    second pass re-runs them now that the CREATE TABLE statements
+    have all fired. After two passes any remaining error is a real
+    bug and re-raises.
+    """
+    from . import db as _db
+    import logging as _logging
+    log = _logging.getLogger("agent_company.schema")
+
+    retry: list[str] = []
+    for stmt in DDL:
+        try:
+            _db.execute(stmt)
+        except Exception as e:  # noqa: BLE001
+            if type(e).__name__ == "UndefinedTable":
+                # Defer — the target CREATE TABLE is later in the list.
+                retry.append(stmt)
+            else:
+                raise
+    for stmt in retry:
+        try:
+            _db.execute(stmt)
+        except Exception as e:  # noqa: BLE001
+            log.error("schema: statement failed on retry: %s — %s",
+                      stmt[:120].replace("\n", " "), e)
+            raise
     # Seed data-level defaults (feature flags canonical set). Lazy-imported
     # here so this module has no circular dependency with services/.
     from .services import feature_flags, asset_seeds, model_clients

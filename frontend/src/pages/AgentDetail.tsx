@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AgentsAPI, Agent } from "../api/client";
+import { AgentsAPI, Agent, api } from "../api/client";
 import Avatar from "../components/Avatar";
 import QuotaEditor from "../components/QuotaEditor";
 import WorkingHoursEditor from "../components/WorkingHoursEditor";
@@ -54,9 +54,9 @@ export default function AgentDetail() {
       <div className="agent-head">
         <Avatar cfg={agent.avatar_config} size={88} title={agent.name} className="avatar-large" />
         <div>
-          <h1>{agent.name}</h1>
+          <EditableHeader agent={agent} />
           <div className="subtitle">
-            {agent.role_title}
+            <EditableRoleTitle agent={agent} />
             {agent.is_lead && <span className="lead-badge">{t("common.lead")}</span>}
           </div>
           <div className="meta-row">
@@ -214,6 +214,131 @@ function DialogVisibilityToggle({ agentId }: { agentId: number }) {
       />
       {t("agentDetail.dialogVisible")}
     </label>
+  );
+}
+
+
+// Inline-editable <h1> for the agent's name. Click to edit, Enter or
+// blur to save, Escape to cancel. The backend `update_agent` endpoint
+// accepts `name` and also propagates the rename into the user's Lead
+// system_prompt if the Lead mentions the old name.
+function EditableHeader({ agent }: { agent: Agent }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(agent.name);
+  useEffect(() => { setDraft(agent.name); }, [agent.name]);
+
+  const save = useMutation({
+    mutationFn: (next: string) => api.put(`/agents/${agent.id}`, { name: next }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      setEditing(false);
+    },
+    onError: () => { setDraft(agent.name); setEditing(false); },
+  });
+
+  function commit() {
+    const next = draft.trim();
+    if (!next || next === agent.name) {
+      setDraft(agent.name);
+      setEditing(false);
+      return;
+    }
+    save.mutate(next);
+  }
+
+  if (editing) {
+    return (
+      <input
+        data-testid="agent-name-edit"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Escape") { setDraft(agent.name); setEditing(false); }
+        }}
+        disabled={save.isPending}
+        style={{
+          fontSize: "1.8rem", fontWeight: 800, lineHeight: 1.1,
+          border: "1px solid var(--accent)", borderRadius: 8,
+          padding: "2px 8px", background: "var(--surface)",
+          font: "inherit", outline: "none", minWidth: 160,
+        }}
+      />
+    );
+  }
+  return (
+    <h1
+      data-testid="agent-name-display"
+      onClick={() => setEditing(true)}
+      title="Click to rename"
+      style={{ cursor: "text" }}
+    >
+      {agent.name}
+    </h1>
+  );
+}
+
+
+function EditableRoleTitle({ agent }: { agent: Agent }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(agent.role_title || "");
+  useEffect(() => { setDraft(agent.role_title || ""); }, [agent.role_title]);
+
+  const save = useMutation({
+    mutationFn: (next: string) => api.put(`/agents/${agent.id}`, { role_title: next }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      setEditing(false);
+    },
+    onError: () => { setDraft(agent.role_title || ""); setEditing(false); },
+  });
+
+  function commit() {
+    const next = draft.trim();
+    if (next === (agent.role_title || "")) {
+      setEditing(false);
+      return;
+    }
+    save.mutate(next);
+  }
+
+  if (editing) {
+    return (
+      <input
+        data-testid="agent-role-edit"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Escape") { setDraft(agent.role_title || ""); setEditing(false); }
+        }}
+        disabled={save.isPending}
+        style={{
+          fontSize: "inherit", fontWeight: "inherit",
+          border: "1px solid var(--border)", borderRadius: 6,
+          padding: "1px 6px", background: "var(--surface)",
+          font: "inherit", outline: "none", minWidth: 140,
+        }}
+      />
+    );
+  }
+  return (
+    <span
+      data-testid="agent-role-display"
+      onClick={() => setEditing(true)}
+      title="Click to edit"
+      style={{ cursor: "text" }}
+    >
+      {agent.role_title || "—"}
+    </span>
   );
 }
 

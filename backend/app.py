@@ -438,13 +438,20 @@ def register():
 
 
 # ---- Login throttle: per-IP brute-force protection ----
+# Disabled via HOLONS_LOGIN_THROTTLE=0 for dev / single-user personal mode
+# where the throttle locks out legit typos. Default stays ON for enterprise
+# deployments exposed to the public internet.
 _login_failures: dict[str, list[float]] = {}  # ip → list of failure timestamps
 _LOGIN_WINDOW = 300  # 5 minutes
 _LOGIN_MAX_FAILURES = 5
 _LOGIN_LOCKOUT = 60  # seconds
+_LOGIN_THROTTLE_ENABLED = (os.environ.get("HOLONS_LOGIN_THROTTLE", "1") != "0")
+
 
 def _check_login_throttle() -> str | None:
     """Returns error message if the IP is locked out, else None."""
+    if not _LOGIN_THROTTLE_ENABLED:
+        return None
     ip = request.remote_addr or "unknown"
     import time as _t
     now = _t.time()
@@ -459,6 +466,8 @@ def _check_login_throttle() -> str | None:
     return None
 
 def _record_login_failure():
+    if not _LOGIN_THROTTLE_ENABLED:
+        return
     ip = request.remote_addr or "unknown"
     import time as _t
     _login_failures.setdefault(ip, []).append(_t.time())
@@ -1153,6 +1162,16 @@ def update_agent(aid: int):
         ):
             return jsonify({"error": "you don't have permission to use that model client"}), 403
 
+    # Capture the old name BEFORE the UPDATE so we can find-replace any
+    # hand-authored references in the user's Lead system_prompt.
+    old_name: str | None = None
+    if "name" in d:
+        prev = db.fetch_one(
+            "SELECT name FROM agents WHERE id = %s AND user_id = %s",
+            (aid, current_user_id()),
+        )
+        old_name = (prev or {}).get("name")
+
     fields, params = [], []
     for key in ("name", "role_title", "description", "system_prompt",
                 "few_shot", "primary_model_id", "fallback_model_id",
@@ -1175,6 +1194,27 @@ def update_agent(aid: int):
         f"UPDATE agents SET {', '.join(fields)}, updated_at = NOW() WHERE id = %s AND user_id = %s",
         tuple(params),
     )
+
+    # Propagate rename into the user's Lead agent's system_prompt. The
+    # dynamic team_roster (built at each Lead chat call) picks up the
+    # new name automatically, but hand-authored Lead prompts that
+    # hardcode an agent's name (e.g. "Ethan handles Sales") need this
+    # replace to stay in sync. We only touch is_lead=TRUE rows for this
+    # user; other agents' prompts are left alone so the user stays in
+    # control of their own copy.
+    new_name = d.get("name")
+    if old_name and new_name and old_name != new_name:
+        lead = db.fetch_one(
+            "SELECT id, system_prompt FROM agents "
+            "WHERE user_id = %s AND is_lead = TRUE LIMIT 1",
+            (current_user_id(),),
+        )
+        if lead and lead.get("system_prompt") and old_name in lead["system_prompt"]:
+            updated = lead["system_prompt"].replace(old_name, new_name)
+            db.execute(
+                "UPDATE agents SET system_prompt = %s, updated_at = NOW() WHERE id = %s",
+                (updated, lead["id"]),
+            )
     return jsonify({"ok": True})
 
 

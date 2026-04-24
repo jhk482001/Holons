@@ -21,8 +21,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import random
+import re
 import socket
+import sqlite3
+import sys
 import uuid
 
 
@@ -62,6 +66,131 @@ def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+# ============================================================================
+# Preflight schema check
+# ----------------------------------------------------------------------------
+# Called by the Tauri sidecar launcher before the real boot. Compares the
+# tables in ~/.agent_company/data.db to the tables declared in
+# backend/schema_sqlite.py and reports any missing ones so the desktop UI
+# can offer an upgrade + backup prompt.
+# ============================================================================
+
+_DEFAULT_SQLITE_PATH = str(pathlib.Path.home() / ".agent_company" / "data.db")
+
+_CREATE_TABLE_RE = re.compile(
+    r"CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(\w+)\s*\((.*)\)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_ALTER_ADD_COL_RE = re.compile(
+    r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN(?:\s+IF\s+NOT\s+EXISTS)?\s+(\w+)",
+    re.IGNORECASE,
+)
+
+
+def _expected_schema() -> dict[str, set[str]]:
+    """Return {table_name: {col1, col2, ...}} parsed from SQLITE_DDL.
+
+    Picks up columns from both CREATE TABLE bodies and ALTER TABLE ADD
+    COLUMN statements. The preflight uses this to flag any drift between
+    the bundled schema and the user's existing DB file.
+    """
+    try:
+        from .schema_sqlite import SQLITE_DDL
+    except ImportError:
+        from backend.schema_sqlite import SQLITE_DDL
+    out: dict[str, set[str]] = {}
+    for stmt in SQLITE_DDL:
+        m = _CREATE_TABLE_RE.search(stmt.strip())
+        if m:
+            name = m.group(1)
+            body = m.group(2)
+            cols: set[str] = set()
+            for raw in body.split("\n"):
+                line = raw.strip().rstrip(",")
+                if not line:
+                    continue
+                if line.startswith(("--", "UNIQUE", "PRIMARY KEY", "FOREIGN KEY", "CHECK")):
+                    continue
+                tok = line.split()[0]
+                if tok.isidentifier():
+                    cols.add(tok)
+            out[name] = cols
+            continue
+        m2 = _ALTER_ADD_COL_RE.search(stmt)
+        if m2:
+            t, c = m2.group(1), m2.group(2)
+            out.setdefault(t, set()).add(c)
+    return out
+
+
+def _expected_tables() -> set[str]:
+    return set(_expected_schema().keys())
+
+
+def _db_path() -> str:
+    # SQLITE_PATH takes precedence; then --db arg; else default.
+    return os.environ.get("SQLITE_PATH") or _DEFAULT_SQLITE_PATH
+
+
+def _run_preflight() -> int:
+    """Report DB schema status as a JSON line on stdout, exit 0.
+
+    The desktop launcher (Rust) spawns the sidecar with HOLONS_PREFLIGHT=1,
+    parses this line, and decides whether to proceed directly, or to show
+    an upgrade/backup dialog to the user before re-spawning in normal mode.
+    """
+    db_path = _db_path()
+    result: dict = {
+        "status": "ok",
+        "mode": "personal",
+        "db_path": db_path,
+        "db_size_bytes": 0,
+        "exists": False,
+        "missing_tables": [],
+    }
+    try:
+        p = pathlib.Path(db_path)
+        if not p.exists():
+            # Fresh install — no upgrade needed; first boot will create the DB.
+            result["status"] = "ok"
+            print("PREFLIGHT=" + json.dumps(result), flush=True)
+            return 0
+        result["exists"] = True
+        result["db_size_bytes"] = p.stat().st_size
+        expected = _expected_schema()
+        missing_tables: list[str] = []
+        missing_columns: list[str] = []
+        with sqlite3.connect(db_path) as conn:
+            existing_tables = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            for t, cols in expected.items():
+                if t not in existing_tables:
+                    missing_tables.append(t)
+                    continue
+                actual_cols = {
+                    r[1]
+                    for r in conn.execute(f"PRAGMA table_info({t})").fetchall()
+                }
+                for c in sorted(cols - actual_cols):
+                    missing_columns.append(f"{t}.{c}")
+        missing_tables.sort()
+        if missing_tables or missing_columns:
+            result["status"] = "upgrade_needed"
+            result["missing_tables"] = missing_tables
+            result["missing_columns"] = missing_columns
+        print("PREFLIGHT=" + json.dumps(result), flush=True)
+        return 0
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = f"{type(e).__name__}: {e}"
+        print("PREFLIGHT=" + json.dumps(result), flush=True)
+        return 0  # still exit 0 — launcher parses status from JSON
 
 
 def _first_run_setup():
@@ -177,7 +306,19 @@ def main():
     parser = argparse.ArgumentParser(description="Agent Company standalone server")
     parser.add_argument("--port", type=int, default=0, help="Port (0 = auto)")
     parser.add_argument("--db", type=str, default=None, help="SQLite DB path")
+    parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Emit schema status JSON on stdout and exit without starting Flask.",
+    )
     args = parser.parse_args()
+
+    # Preflight path (also triggered via HOLONS_PREFLIGHT=1 env var so the
+    # Rust launcher can opt in without rewriting arg plumbing).
+    if args.preflight or os.environ.get("HOLONS_PREFLIGHT") == "1":
+        if args.db:
+            os.environ["SQLITE_PATH"] = args.db
+        sys.exit(_run_preflight())
 
     # Force SQLite backend
     os.environ["DB_BACKEND"] = "sqlite"

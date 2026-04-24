@@ -114,6 +114,82 @@ fn dirs_home() -> std::path::PathBuf {
     std::env::temp_dir()
 }
 
+fn sidecar_bin(app_handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    let resource_dir = app_handle.path().resource_dir().ok()?;
+    let bundled = resource_dir.join("agent-company-backend");
+    if bundled.exists() { Some(bundled) } else { None }
+}
+
+// ---------- DB preflight check --------------------------------------------
+// Run the sidecar in --preflight mode so it can report whether the user's
+// ~/.agent_company/data.db has a schema older than the one this .app
+// expects. The desktop UI shows an upgrade + backup prompt when needed.
+
+#[tauri::command]
+fn check_db_upgrade(app_handle: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let output = if let Some(bin) = sidecar_bin(&app_handle) {
+        std::process::Command::new(&bin)
+            .args(["--preflight"])
+            .env("DB_BACKEND", "sqlite")
+            .env("HOLONS_PREFLIGHT", "1")
+            .output()
+            .map_err(|e| format!("preflight spawn failed: {}", e))?
+    } else {
+        // Dev mode: python3 -m backend.standalone --preflight
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let project_root = cwd
+            .parent()
+            .and_then(|p| p.parent())
+            .unwrap_or(&cwd)
+            .to_path_buf();
+        std::process::Command::new("python3")
+            .args(["-m", "backend.standalone", "--preflight"])
+            .current_dir(&project_root)
+            .env("DB_BACKEND", "sqlite")
+            .env("HOLONS_PREFLIGHT", "1")
+            .output()
+            .map_err(|e| format!("preflight python spawn failed: {}", e))?
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if let Some(rest) = line.strip_prefix("PREFLIGHT=") {
+            return serde_json::from_str::<serde_json::Value>(rest)
+                .map_err(|e| format!("preflight json parse failed: {}", e));
+        }
+    }
+    // No PREFLIGHT line — treat as ok (fresh sidecar binary that doesn't
+    // yet support preflight; fall back to old behavior).
+    Ok(serde_json::json!({
+        "status": "ok",
+        "mode": "personal",
+        "missing_tables": [],
+        "note": "preflight unsupported by bundled sidecar",
+    }))
+}
+
+#[tauri::command]
+fn backup_personal_db() -> Result<serde_json::Value, String> {
+    let db = dirs_home().join(".agent_company").join("data.db");
+    if !db.exists() {
+        return Err(format!("db not found at {}", db.display()));
+    }
+    // Timestamp: YYYYMMDD-HHMMSS using chrono-less formatting to avoid
+    // adding a new dep.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("time error: {}", e))?
+        .as_secs();
+    // crude local format (UTC is fine — this is just a filename tag).
+    let dest = db.with_file_name(format!("data.db.backup-{}.db", now));
+    std::fs::copy(&db, &dest).map_err(|e| format!("copy failed: {}", e))?;
+    let size = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
+    Ok(serde_json::json!({
+        "path": dest.display().to_string(),
+        "size_bytes": size,
+    }))
+}
+
 #[tauri::command]
 fn set_click_through(window: tauri::WebviewWindow, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
@@ -159,6 +235,8 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
+            check_db_upgrade,
+            backup_personal_db,
             set_click_through,
             focus_window,
             open_url,

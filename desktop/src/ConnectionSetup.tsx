@@ -3,7 +3,17 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { setConnectionConfig, AppMode } from "./api-adapter";
 import LangSwitcher from "./LangSwitcher";
+import holonsLogo from "./assets/holons-logo.png";
 import "./desktop.css";
+
+function BrandHeader() {
+  return (
+    <div className="setup-brand">
+      <img src={holonsLogo} alt="Holons" className="setup-brand-logo" draggable={false} />
+      <div className="setup-brand-name">Holons</div>
+    </div>
+  );
+}
 
 export default function ConnectionSetup({
   onComplete,
@@ -18,7 +28,7 @@ export default function ConnectionSetup({
       {step === "choose" && (
         <div className="setup-card">
           <LangSwitcher />
-          <div className="setup-title">{t("setup.title")}</div>
+          <BrandHeader />
           <div className="setup-sub">{t("setup.subtitle")}</div>
 
           <button
@@ -100,6 +110,7 @@ function EnterpriseSetup({
   return (
     <div className="setup-card">
       <LangSwitcher />
+      <BrandHeader />
       <div className="setup-title">{t("setup.enterpriseTitle")}</div>
       <div className="setup-sub">{t("setup.enterpriseHint")}</div>
 
@@ -139,6 +150,24 @@ function EnterpriseSetup({
 }
 
 
+interface PreflightResult {
+  status: "ok" | "upgrade_needed" | "error";
+  mode?: string;
+  db_path?: string;
+  db_size_bytes?: number;
+  exists?: boolean;
+  missing_tables?: string[];
+  missing_columns?: string[];
+  error?: string;
+  note?: string;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function PersonalSetup({
   onBack,
   onComplete,
@@ -147,36 +176,68 @@ function PersonalSetup({
   onComplete: () => void;
 }) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState<"idle" | "starting" | "ready" | "error">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "checking" | "upgrade_prompt" | "backing_up" | "starting" | "ready" | "error"
+  >("idle");
   const [error, setError] = useState("");
+  const [preflight, setPreflight] = useState<PreflightResult | null>(null);
+  const [backupPath, setBackupPath] = useState<string | null>(null);
+
+  async function waitForHealth(localUrl: string): Promise<boolean> {
+    for (let i = 0; i < 30; i++) {
+      try {
+        const r = await fetch(`${localUrl}/api/health`, {
+          signal: AbortSignal.timeout(2_000),
+        });
+        if (r.ok) return true;
+      } catch {
+        // Not ready yet
+      }
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+    return false;
+  }
+
+  async function bootSidecar() {
+    setStatus("starting");
+    const port = await invoke<number>("start_sidecar");
+    const localUrl = `http://localhost:${port}`;
+    const ok = await waitForHealth(localUrl);
+    if (!ok) throw new Error(t("setup.errStartTimeout"));
+    await setConnectionConfig("personal", localUrl);
+    setStatus("ready");
+    setTimeout(onComplete, 500);
+  }
 
   async function startLocal() {
-    setStatus("starting");
+    setStatus("checking");
     setError("");
     try {
-      // Ask Tauri to start the sidecar backend
-      const port = await invoke<number>("start_sidecar");
-      const localUrl = `http://localhost:${port}`;
-
-      // Wait for health check
-      for (let i = 0; i < 30; i++) {
-        try {
-          const r = await fetch(`${localUrl}/api/health`, {
-            signal: AbortSignal.timeout(2_000),
-          });
-          if (r.ok) {
-            await setConnectionConfig("personal", localUrl);
-            setStatus("ready");
-            // Small delay so user sees "Ready"
-            setTimeout(onComplete, 500);
-            return;
-          }
-        } catch {
-          // Not ready yet
-        }
-        await new Promise((r) => setTimeout(r, 1_000));
+      const pf = await invoke<PreflightResult>("check_db_upgrade");
+      setPreflight(pf);
+      if (pf.status === "upgrade_needed") {
+        setStatus("upgrade_prompt");
+        return;
       }
-      throw new Error(t("setup.errStartTimeout"));
+      // ok / error / unknown — proceed and let sidecar report back.
+      await bootSidecar();
+    } catch (e: any) {
+      setStatus("error");
+      setError(e.message || t("setup.errStartFailed"));
+    }
+  }
+
+  async function upgradeWithBackup(doBackup: boolean) {
+    setStatus(doBackup ? "backing_up" : "starting");
+    setError("");
+    try {
+      if (doBackup) {
+        const res = await invoke<{ path: string; size_bytes: number }>(
+          "backup_personal_db",
+        );
+        setBackupPath(res.path);
+      }
+      await bootSidecar();
     } catch (e: any) {
       setStatus("error");
       setError(e.message || t("setup.errStartFailed"));
@@ -186,6 +247,7 @@ function PersonalSetup({
   return (
     <div className="setup-card">
       <LangSwitcher />
+      <BrandHeader />
       <div className="setup-title">{t("setup.personalTitle")}</div>
       <div className="setup-sub">{t("setup.personalHint")}</div>
 
@@ -205,12 +267,85 @@ function PersonalSetup({
         </>
       )}
 
+      {status === "checking" && (
+        <div style={{ textAlign: "center", padding: 20 }}>
+          <div className="setup-spinner" />
+          <div style={{ fontSize: 13, color: "var(--desktop-text)", marginTop: 12 }}>
+            {t("setup.checking")}
+          </div>
+        </div>
+      )}
+
+      {status === "upgrade_prompt" && preflight && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--desktop-text)" }}>
+            {t("setup.upgradeNeededTitle")}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--desktop-text-dim)", lineHeight: 1.5 }}>
+            {t("setup.upgradeNeededDesc", {
+              n: (preflight.missing_tables || []).length,
+              m: (preflight.missing_columns || []).length,
+              size: formatBytes(preflight.db_size_bytes || 0),
+            })}
+          </div>
+          {((preflight.missing_tables && preflight.missing_tables.length > 0) ||
+            (preflight.missing_columns && preflight.missing_columns.length > 0)) && (
+            <div
+              style={{
+                fontSize: 11,
+                fontFamily: "monospace",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid var(--desktop-border)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                maxHeight: 120,
+                overflow: "auto",
+                color: "var(--desktop-text-dim)",
+                lineHeight: 1.4,
+              }}
+            >
+              {(preflight.missing_tables || []).map((t) => (
+                <div key={`t-${t}`}>+ table {t}</div>
+              ))}
+              {(preflight.missing_columns || []).map((c) => (
+                <div key={`c-${c}`}>+ column {c}</div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+            <button className="setup-btn primary" onClick={() => upgradeWithBackup(true)}>
+              {t("setup.upgradeWithBackup")}
+            </button>
+            <button className="setup-btn secondary" onClick={() => upgradeWithBackup(false)}>
+              {t("setup.upgradeWithoutBackup")}
+            </button>
+            <button className="setup-btn secondary" onClick={() => { setStatus("idle"); setPreflight(null); }}>
+              {t("setup.back")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === "backing_up" && (
+        <div style={{ textAlign: "center", padding: 20 }}>
+          <div className="setup-spinner" />
+          <div style={{ fontSize: 13, color: "var(--desktop-text)", marginTop: 12 }}>
+            {t("setup.backingUp")}
+          </div>
+        </div>
+      )}
+
       {status === "starting" && (
         <div style={{ textAlign: "center", padding: 20 }}>
           <div className="setup-spinner" />
           <div style={{ fontSize: 13, color: "var(--desktop-text)", marginTop: 12 }}>
             {t("setup.starting")}
           </div>
+          {backupPath && (
+            <div style={{ fontSize: 10, color: "var(--desktop-text-dim)", marginTop: 6, fontFamily: "monospace" }}>
+              {t("setup.backupSavedAt")}: {backupPath}
+            </div>
+          )}
         </div>
       )}
 

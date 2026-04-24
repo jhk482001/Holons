@@ -142,11 +142,21 @@ def start_all() -> int:
     `transport='polling'` binding. Webhook bindings don't need a thread
     — they receive updates at the /api/im/webhook/<platform>/<secret>
     endpoint instead."""
-    rows = db.fetch_all(
-        "SELECT id, user_id, platform, external_id, secret_encrypted, "
-        "       metadata, transport "
-        "FROM im_bindings WHERE enabled = TRUE AND transport = 'polling'",
-    )
+    try:
+        rows = db.fetch_all(
+            "SELECT id, user_id, platform, external_id, secret_encrypted, "
+            "       metadata, transport "
+            "FROM im_bindings WHERE enabled = TRUE AND transport = 'polling'",
+        )
+    except Exception as e:
+        # Defensive: if the schema didn't apply (out-of-date SQLite DB,
+        # permission issue, etc.) we'd rather skip IM pollers than crash
+        # the whole backend. The rest of the app still works.
+        msg = str(e).lower()
+        if "no such table" in msg or "does not exist" in msg or "undefinedtable" in msg:
+            log.warning("im_bindings table missing — skipping IM manager startup")
+            return 0
+        raise
     n = 0
     with _lock:
         for r in rows:

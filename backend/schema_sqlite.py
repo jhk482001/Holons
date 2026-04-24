@@ -217,6 +217,31 @@ SQLITE_DDL = [
     "ALTER TABLE as_users ADD COLUMN auto_topup_per_topup_cost REAL DEFAULT 1.0",
     "ALTER TABLE as_users ADD COLUMN auto_topup_max_per_day INTEGER DEFAULT 3",
     "ALTER TABLE as_users ADD COLUMN report_webhook_url TEXT",
+    # --- Schema drift backfill (2026-04-24) --------------------------------
+    # These columns were added to the Postgres schema in backend/schema.py
+    # but the SQLite mirror below this line was never updated. Each ALTER
+    # is idempotent via create_all_sqlite's try/except. Re-ordering matters
+    # only when FK references another column added in the same pass — none
+    # of these do.
+    "ALTER TABLE as_users ADD COLUMN enable_code_execution INTEGER DEFAULT 0",
+    "ALTER TABLE as_users ADD COLUMN skills_auto_approve INTEGER DEFAULT 1",
+    "ALTER TABLE lead_conversations ADD COLUMN source_platform TEXT",
+    "ALTER TABLE lead_conversations ADD COLUMN source_external_id TEXT",
+    "ALTER TABLE model_clients ADD COLUMN last_test_at TEXT",
+    "ALTER TABLE model_clients ADD COLUMN last_test_status TEXT",
+    "ALTER TABLE model_clients ADD COLUMN last_test_message TEXT",
+    "ALTER TABLE schedules ADD COLUMN project_id INTEGER",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_model_id TEXT",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_input_tokens INTEGER",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_output_tokens INTEGER",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_cost_usd REAL",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_prompt_preview TEXT",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_response_preview TEXT",
+    "ALTER TABLE agent_skills ADD COLUMN extraction_at TEXT",
+    "ALTER TABLE agent_skills ADD COLUMN last_used_at TEXT",
+    "ALTER TABLE workflow_nodes ADD COLUMN input_bindings TEXT DEFAULT '[]'",
+    "ALTER TABLE agent_tasks ADD COLUMN workspace_id INTEGER",
+    "ALTER TABLE runs ADD COLUMN workspace_id INTEGER",
     """
     CREATE TABLE IF NOT EXISTS api_tokens (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -600,6 +625,26 @@ SQLITE_DDL = [
         created_at  TEXT DEFAULT (datetime('now'))
     )
     """,
+    # IM (Telegram / Slack / LINE) bindings — personal mode supports these
+    # even though most users never wire them up. Without this table the
+    # sidecar crashes at startup in im_channels.start_all().
+    """
+    CREATE TABLE IF NOT EXISTS im_bindings (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id            INTEGER NOT NULL,
+        platform           TEXT NOT NULL,
+        external_id        TEXT,
+        display_name       TEXT,
+        enabled            INTEGER DEFAULT 1,
+        secret_encrypted   TEXT,
+        metadata           TEXT DEFAULT '{}',
+        transport          TEXT DEFAULT 'polling',
+        created_at         TEXT DEFAULT (datetime('now')),
+        updated_at         TEXT DEFAULT (datetime('now')),
+        UNIQUE(user_id, platform)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_im_bindings_platform_ext ON im_bindings(platform, external_id)",
     # Indexes (subset — SQLite doesn't need as many)
     "CREATE INDEX IF NOT EXISTS idx_agents_user ON agents(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_queue ON agent_tasks(agent_id, status, priority_num DESC, created_at)",

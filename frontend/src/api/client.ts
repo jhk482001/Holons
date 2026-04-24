@@ -721,6 +721,8 @@ export interface UserQuotaRow {
   daily_cost_limit_usd: number | null;
   monthly_token_limit: number | null;
   monthly_cost_limit_usd: number | null;
+  daily_warn_pct?: number | null;
+  monthly_warn_pct?: number | null;
 }
 
 export interface UserQuotaSummary {

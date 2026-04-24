@@ -560,6 +560,9 @@ def _execute_single_turn(task: dict, payload: dict, agent: dict,
         model_key=model_id,
         system_prompt=system_prompt,
         user_text=prompt,
+        user_id=agent.get("user_id"),
+        run_id=task.get("run_id"),
+        kind="agent",
     )
     duration_ms = int((time.time() - t0) * 1000)
 
@@ -714,6 +717,9 @@ def _execute_with_tools(task: dict, payload: dict, agent: dict,
             system_prompt=system_prompt,
             messages=messages,
             tool_config=available_specs,
+            user_id=agent.get("user_id"),
+            run_id=task.get("run_id"),
+            kind="agent",
         )
         turn_duration = int((time.time() - t0) * 1000)
 

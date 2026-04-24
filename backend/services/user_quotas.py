@@ -42,6 +42,8 @@ def get_quota(user_id: int) -> dict:
                daily_cost_limit_usd::float AS daily_cost_limit_usd,
                monthly_token_limit,
                monthly_cost_limit_usd::float AS monthly_cost_limit_usd,
+               daily_warn_pct,
+               monthly_warn_pct,
                updated_at
         FROM user_quotas WHERE user_id = %s
         """,
@@ -55,25 +57,32 @@ def get_quota(user_id: int) -> dict:
         "daily_cost_limit_usd": None,
         "monthly_token_limit": None,
         "monthly_cost_limit_usd": None,
+        "daily_warn_pct": 80,
+        "monthly_warn_pct": 80,
     }
 
 
 def set_quota(user_id: int, data: dict) -> dict:
     """Upsert the user's quota row. Any field missing from `data` is
-    preserved (not cleared) — pass an explicit None to clear a limit."""
+    preserved (not cleared) — pass an explicit None to clear a limit.
+    `daily_warn_pct` / `monthly_warn_pct` are integers 0-99 controlling
+    the soft-warning threshold shown on the dashboard."""
     cur = get_quota(user_id)
     merged = {**cur, **{k: data[k] for k in data if k != "user_id"}}
     db.execute(
         """
         INSERT INTO user_quotas
           (user_id, daily_token_limit, daily_cost_limit_usd,
-           monthly_token_limit, monthly_cost_limit_usd, updated_at)
-        VALUES (%s, %s, %s, %s, %s, NOW())
+           monthly_token_limit, monthly_cost_limit_usd,
+           daily_warn_pct, monthly_warn_pct, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
         ON CONFLICT (user_id) DO UPDATE SET
           daily_token_limit      = EXCLUDED.daily_token_limit,
           daily_cost_limit_usd   = EXCLUDED.daily_cost_limit_usd,
           monthly_token_limit    = EXCLUDED.monthly_token_limit,
           monthly_cost_limit_usd = EXCLUDED.monthly_cost_limit_usd,
+          daily_warn_pct         = EXCLUDED.daily_warn_pct,
+          monthly_warn_pct       = EXCLUDED.monthly_warn_pct,
           updated_at             = NOW()
         """,
         (
@@ -82,23 +91,27 @@ def set_quota(user_id: int, data: dict) -> dict:
             merged.get("daily_cost_limit_usd"),
             merged.get("monthly_token_limit"),
             merged.get("monthly_cost_limit_usd"),
+            merged.get("daily_warn_pct") or 80,
+            merged.get("monthly_warn_pct") or 80,
         ),
     )
     return get_quota(user_id)
 
 
 def spend_today(user_id: int) -> dict:
-    """Sum of tokens + cost for this user across all runs in the last
-    24 hours."""
+    """Sum of tokens + cost for this user across EVERY LLM call kind
+    (except `client_test`) in the last 24 hours. Source was swapped from
+    run_steps to llm_calls in Phase 6 so Lead chat / skill extraction /
+    project reports / proxy calls finally count toward quota too."""
     row = db.fetch_one(
         """
         SELECT
             COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens,
             COALESCE(SUM(cost_usd)::float, 0.0) AS cost_usd
-        FROM run_steps s
-        JOIN runs r ON r.id = s.run_id
-        WHERE r.user_id = %s
-          AND s.started_at >= NOW() - INTERVAL '1 day'
+        FROM llm_calls
+        WHERE user_id = %s
+          AND kind <> 'client_test'
+          AND created_at >= NOW() - INTERVAL '1 day'
         """,
         (user_id,),
     ) or {}
@@ -114,10 +127,10 @@ def spend_this_month(user_id: int) -> dict:
         SELECT
             COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens,
             COALESCE(SUM(cost_usd)::float, 0.0) AS cost_usd
-        FROM run_steps s
-        JOIN runs r ON r.id = s.run_id
-        WHERE r.user_id = %s
-          AND s.started_at >= date_trunc('month', NOW())
+        FROM llm_calls
+        WHERE user_id = %s
+          AND kind <> 'client_test'
+          AND created_at >= date_trunc('month', NOW())
         """,
         (user_id,),
     ) or {}

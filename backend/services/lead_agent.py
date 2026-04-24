@@ -627,6 +627,8 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         system_prompt=system_prompt,
         user_text=prompt,
         max_tokens=32_000,
+        user_id=user_id,
+        kind="lead",
     )
     response_text = result.get("text", "")
 
@@ -1155,6 +1157,9 @@ def chat_with_agent(
         model_key=model,
         system_prompt=system_prompt,
         user_text=prompt,
+        user_id=user_id,
+        thread_id=thread_id,
+        kind="lead",
     )
     response_text = result.get("text", "")
 

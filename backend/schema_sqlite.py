@@ -645,6 +645,39 @@ SQLITE_DDL = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_im_bindings_platform_ext ON im_bindings(platform, external_id)",
+
+    # Phase 6 — unified LLM call ledger (mirror of Postgres llm_calls).
+    # See backend/schema.py for the authoritative comment on `kind`.
+    """
+    CREATE TABLE IF NOT EXISTS llm_calls (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER NOT NULL,
+        agent_id        INTEGER,
+        run_id          INTEGER,
+        thread_id       TEXT,
+        model_client_id INTEGER,
+        model_id        TEXT,
+        provider        TEXT,
+        kind            TEXT NOT NULL,
+        input_tokens    INTEGER DEFAULT 0,
+        output_tokens   INTEGER DEFAULT 0,
+        cost_usd        REAL DEFAULT 0,
+        duration_ms    INTEGER,
+        error           TEXT,
+        created_at      TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_user_created ON llm_calls(user_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_kind_created ON llm_calls(kind, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_agent_created ON llm_calls(agent_id, created_at DESC)",
+
+    # Per-user default model client for non-agent LLM paths.
+    "ALTER TABLE as_users ADD COLUMN default_model_client_id INTEGER",
+
+    # Soft-warning thresholds on user_quotas (80% default).
+    "ALTER TABLE user_quotas ADD COLUMN daily_warn_pct INTEGER DEFAULT 80",
+    "ALTER TABLE user_quotas ADD COLUMN monthly_warn_pct INTEGER DEFAULT 80",
+
     # Indexes (subset — SQLite doesn't need as many)
     "CREATE INDEX IF NOT EXISTS idx_agents_user ON agents(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_queue ON agent_tasks(agent_id, status, priority_num DESC, created_at)",

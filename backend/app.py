@@ -939,7 +939,7 @@ def me():
     u = db.fetch_one(
         "SELECT id, username, display_name, default_lead_agent_id, role, language, "
         "       lead_max_steps, lead_max_tokens, skills_auto_approve, "
-        "       enable_code_execution "
+        "       enable_code_execution, default_model_client_id "
         "FROM as_users WHERE id = %s",
         (uid,),
     )
@@ -983,6 +983,22 @@ def update_me():
     if "enable_code_execution" in d:
         sets.append("enable_code_execution = %s")
         params.append(bool(d["enable_code_execution"]))
+    if "default_model_client_id" in d:
+        # null clears the preference (fall back to agent's own or global
+        # default). Validate the id is one this user is entitled to use.
+        v = d["default_model_client_id"]
+        if v is None or v == "":
+            sets.append("default_model_client_id = NULL")
+        else:
+            from .services import model_clients as mc
+            uid = current_user_id()
+            urow = db.fetch_one("SELECT role FROM as_users WHERE id = %s", (uid,))
+            is_admin = bool(urow and urow.get("role") == "admin")
+            cid = int(v)
+            if not mc.user_can_use(cid, uid, is_admin=is_admin):
+                return jsonify({"error": "not permitted to use this model client"}), 403
+            sets.append("default_model_client_id = %s")
+            params.append(cid)
     if not sets:
         return jsonify({"ok": True})
     params.append(current_user_id())
@@ -3613,6 +3629,167 @@ def list_users_route():
 # Admin — user management (Phase 1.2)
 # ============================================================================
 
+# ============================================================================
+# Admin: cross-user LLM usage report (Phase 6)
+# ============================================================================
+# Read-only aggregation over llm_calls. Returns three payloads in one
+# call so the admin Usage tab can render widgets, charts, and a records
+# table from a single fetch:
+#
+#   summary  — totals + top-N by user/model/kind for the window
+#   series   — day-bucketed stacked rows (for the chart)
+#   records  — latest N calls matching the filter (for the records pane)
+#
+# Query params: from_days (default 14), user_id, kind, model, limit.
+
+@app.route("/api/admin/usage")
+@admin_required
+def admin_usage():
+    from datetime import datetime, timedelta, timezone
+    days = max(1, min(90, int(request.args.get("from_days", 14))))
+    limit = max(1, min(500, int(request.args.get("limit", 100))))
+    filter_user = request.args.get("user_id")
+    filter_kind = (request.args.get("kind") or "").strip()
+    filter_model = (request.args.get("model") or "").strip()
+
+    since = datetime.now(tz=timezone.utc) - timedelta(days=days)
+    # All predicates qualified with `l.` so they're unambiguous when the
+    # query joins as_users (which also has a created_at column).
+    where = ["l.created_at >= %s"]
+    params: list = [since]
+    if filter_user:
+        where.append("l.user_id = %s")
+        params.append(int(filter_user))
+    if filter_kind:
+        where.append("l.kind = %s")
+        params.append(filter_kind)
+    if filter_model:
+        where.append("l.model_id = %s")
+        params.append(filter_model)
+    where_sql = " AND ".join(where)
+
+    def _q(sql, extra=()):
+        return db.fetch_all(sql, tuple(list(params) + list(extra)))
+
+    # --- summary: totals + top N by dimension ---
+    tot = db.fetch_one(
+        f"""
+        SELECT COUNT(*) AS calls,
+               COALESCE(SUM(l.input_tokens), 0) AS in_tok,
+               COALESCE(SUM(l.output_tokens), 0) AS out_tok,
+               COALESCE(SUM(l.cost_usd), 0) AS cost_usd,
+               COUNT(*) FILTER (WHERE l.error IS NOT NULL) AS errors
+        FROM llm_calls l
+        WHERE {where_sql}
+        """,
+        tuple(params),
+    ) or {}
+
+    top_users = _q(
+        f"""
+        SELECT l.user_id,
+               u.username, u.display_name,
+               COUNT(*) AS calls,
+               COALESCE(SUM(l.cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(l.input_tokens + l.output_tokens), 0) AS tokens
+        FROM llm_calls l
+        LEFT JOIN as_users u ON u.id = l.user_id
+        WHERE {where_sql}
+        GROUP BY l.user_id, u.username, u.display_name
+        ORDER BY cost_usd DESC
+        LIMIT 10
+        """,
+    )
+    top_models = _q(
+        f"""
+        SELECT l.model_id, l.provider,
+               COUNT(*) AS calls,
+               COALESCE(SUM(l.cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(l.input_tokens + l.output_tokens), 0) AS tokens
+        FROM llm_calls l
+        WHERE {where_sql} AND l.model_id IS NOT NULL
+        GROUP BY l.model_id, l.provider
+        ORDER BY cost_usd DESC
+        LIMIT 10
+        """,
+    )
+    kind_breakdown = _q(
+        f"""
+        SELECT l.kind,
+               COUNT(*) AS calls,
+               COALESCE(SUM(l.cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(l.input_tokens + l.output_tokens), 0) AS tokens
+        FROM llm_calls l
+        WHERE {where_sql}
+        GROUP BY l.kind
+        ORDER BY cost_usd DESC
+        """,
+    )
+
+    # --- series: day bucket × user (for stacked chart) ---
+    series = _q(
+        f"""
+        SELECT DATE(l.created_at AT TIME ZONE 'UTC') AS day,
+               l.user_id,
+               u.username,
+               COALESCE(SUM(l.cost_usd), 0) AS cost_usd,
+               COALESCE(SUM(l.input_tokens + l.output_tokens), 0) AS tokens,
+               COUNT(*) AS calls
+        FROM llm_calls l
+        LEFT JOIN as_users u ON u.id = l.user_id
+        WHERE {where_sql}
+        GROUP BY day, l.user_id, u.username
+        ORDER BY day
+        """,
+    )
+
+    # --- records: most recent calls (paginated, lightweight preview) ---
+    records = _q(
+        f"""
+        SELECT l.id, l.user_id, u.username, u.display_name,
+               l.agent_id, a.name AS agent_name,
+               l.run_id, l.thread_id,
+               l.model_client_id, mc.name AS model_client_name,
+               l.model_id, l.provider, l.kind,
+               l.input_tokens, l.output_tokens, l.cost_usd,
+               l.duration_ms, l.error, l.created_at
+        FROM llm_calls l
+        LEFT JOIN as_users u ON u.id = l.user_id
+        LEFT JOIN agents a ON a.id = l.agent_id
+        LEFT JOIN model_clients mc ON mc.id = l.model_client_id
+        WHERE {where_sql}
+        ORDER BY l.id DESC
+        LIMIT %s
+        """,
+        (limit,),
+    )
+
+    def _coerce(rows):
+        # Decimal → float for JSON serialisation (same pattern used in
+        # other admin endpoints below).
+        out = []
+        for r in rows:
+            d = dict(r)
+            if "cost_usd" in d and d["cost_usd"] is not None:
+                d["cost_usd"] = float(d["cost_usd"])
+            if "day" in d and d["day"] is not None:
+                d["day"] = str(d["day"])
+            if "created_at" in d and d["created_at"] is not None:
+                d["created_at"] = d["created_at"].isoformat() if hasattr(d["created_at"], "isoformat") else d["created_at"]
+            out.append(d)
+        return out
+
+    return jsonify({
+        "window_days": days,
+        "summary": _coerce([tot])[0],
+        "top_users": _coerce(top_users),
+        "top_models": _coerce(top_models),
+        "kind_breakdown": _coerce(kind_breakdown),
+        "series": _coerce(series),
+        "records": _coerce(records),
+    })
+
+
 @app.route("/api/admin/users")
 @admin_required
 def admin_list_users():
@@ -3784,8 +3961,14 @@ def admin_set_user_quota_route(uid: int):
     allowed = {
         "daily_token_limit", "daily_cost_limit_usd",
         "monthly_token_limit", "monthly_cost_limit_usd",
+        "daily_warn_pct", "monthly_warn_pct",
     }
     payload = {k: v for k, v in d.items() if k in allowed}
+    # Clamp warn_pct to a sane range so we can't be handed 9999 and
+    # never trigger a warning, or 0 which would trigger immediately.
+    for k in ("daily_warn_pct", "monthly_warn_pct"):
+        if k in payload and payload[k] is not None:
+            payload[k] = max(10, min(95, int(payload[k])))
     return jsonify(user_quotas.set_quota(uid, payload))
 
 
@@ -4499,7 +4682,7 @@ def model_clients_test(cid: int):
     from .services import model_clients as mc
     if not mc.get(cid):
         return jsonify({"error": "not found"}), 404
-    return jsonify(mc.run_test(cid))
+    return jsonify(mc.run_test(cid, actor_user_id=session.get("user_id")))
 
 
 @app.route("/api/model_clients")

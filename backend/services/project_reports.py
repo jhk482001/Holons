@@ -147,12 +147,20 @@ def generate(project_id: int, *, force: bool = False) -> dict:
         (coord_id,),
     ) or {}
 
+    # Project's owning user — needed so llm_calls rows land with the
+    # right user_id. projects table already has user_id.
+    _proj_user_row = db.fetch_one(
+        "SELECT user_id FROM projects WHERE id = %s", (project_id,),
+    ) or {}
     result = llm_invoke(
         agent_id=coord_id,
         model_key=coord.get("primary_model_id"),
         system_prompt=(coord.get("system_prompt") or "") +
                       "\n\nYou write concise, honest daily project reports.",
         user_text=prompt,
+        user_id=_proj_user_row.get("user_id"),
+        kind="project_report",
+        prefer_user_default=True,
     )
     summary = (result.get("text") or "").strip() or "(no report generated)"
 

@@ -198,6 +198,8 @@ def _proxy_answer(row: dict, reason: str) -> None:
                 model_key=None,
                 system_prompt=PROXY_SYSTEM_PROMPT,
                 user_text=f"Lead just asked me:\n\n{question}\n\nReply briefly on my behalf.",
+                user_id=row["owner_user_id"],
+                kind="lead_proxy",
             )
             answer_text = (result.get("text") or "").strip()
             if not answer_text:

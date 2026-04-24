@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { DashboardAPI, api } from "../api/client";
+import { DashboardAPI, UserQuotasAPI, api } from "../api/client";
 import Avatar from "../components/Avatar";
 import Gantt from "../components/Gantt";
 import UsageStackChart from "../components/UsageStackChart";
@@ -29,6 +29,14 @@ export default function Dashboard() {
   for (const row of heatmap?.agents || []) heatmapByAgent.set(row.id, row.values);
   const heatmapMax = Math.max(1, ...(heatmap?.agents || []).flatMap((a) => a.values));
 
+  // User-level quota summary — reads from llm_calls (Phase 6), so now
+  // picks up Lead chat / skill extraction / project reports too.
+  const { data: myQuota } = useQuery({
+    queryKey: ["my-user-quota"],
+    queryFn: UserQuotasAPI.mine,
+    refetchInterval: 30_000,
+  });
+
   const { data: nearQuota = [] } = useQuery({
     queryKey: ["dashboard-near-quota"],
     queryFn: () => api.get<Array<{
@@ -52,6 +60,10 @@ export default function Dashboard() {
         <SumCard label={t("dashboard.todayCost")} value={`$${(summary?.today_cost_usd ?? 0).toFixed(2)}`} sub={t("dashboard.todayCostSub")} />
         <SumCard label={t("dashboard.todayRuns")} value={`${summary?.today_runs ?? 0}`} sub={t("dashboard.todayRunsSub")} />
       </div>
+
+      {myQuota && (
+        <UserQuotaBar summary={myQuota} />
+      )}
 
       {nearQuota.length > 0 && (
         <section style={{ marginTop: 20 }}>
@@ -166,6 +178,93 @@ function SumCard({ label, value, sub }: { label: string; value: string; sub?: st
       <div className="value">{value}</div>
       {sub && <div className="delta">{sub}</div>}
     </div>
+  );
+}
+
+
+// Per-user quota bar — shows today's + this month's spend against the
+// user's hard cap, switching from green → orange at `warn_pct` → red at
+// 100%. Cost bar is shown when a cost limit is configured; otherwise we
+// fall through to the token bar; otherwise the whole section is hidden.
+function UserQuotaBar({ summary }: { summary: import("../api/client").UserQuotaSummary }) {
+  const { t } = useTranslation();
+  const q = summary.quota || {};
+  const hasDailyCost = q.daily_cost_limit_usd != null;
+  const hasMonthlyCost = q.monthly_cost_limit_usd != null;
+  const hasDailyTok = q.daily_token_limit != null;
+  const hasMonthlyTok = q.monthly_token_limit != null;
+  if (!hasDailyCost && !hasMonthlyCost && !hasDailyTok && !hasMonthlyTok) {
+    return null;
+  }
+  const dailyWarnPct = (q.daily_warn_pct ?? 80);
+  const monthlyWarnPct = (q.monthly_warn_pct ?? 80);
+
+  function Row({ label, spent, limit, warn }: {
+    label: string; spent: number; limit: number; warn: number;
+  }) {
+    const pct = limit > 0 ? Math.min(999, (spent / limit) * 100) : 0;
+    const color = pct >= 100 ? "#e05555" : (pct >= warn ? "#e2a838" : "#4caf50");
+    const barPct = Math.min(100, pct);
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10,
+        padding: "6px 10px", fontSize: 12 }}>
+        <div style={{ minWidth: 120, color: "var(--ink-3)", fontWeight: 700 }}>
+          {label}
+        </div>
+        <div style={{ flex: 1, background: "var(--surface-2)", borderRadius: 6, overflow: "hidden", height: 10 }}>
+          <div style={{ width: `${barPct}%`, height: "100%", background: color }} />
+        </div>
+        <div style={{ minWidth: 140, textAlign: "right", color: "var(--ink-2)" }}>
+          {spent.toFixed(2)} / {limit.toFixed(2)}
+          <span style={{ marginLeft: 6, color, fontWeight: 700 }}>
+            {Math.round(pct)}%
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <section style={{ marginTop: 20 }}>
+      <h2 className="section-title">{t("dashboard.userQuota")}</h2>
+      <div style={{
+        background: "var(--surface)", border: "1px solid var(--border)",
+        borderRadius: 12, padding: 8,
+      }}>
+        {hasDailyCost && (
+          <Row
+            label={t("dashboard.quotaDailyCost")}
+            spent={summary.daily.cost_usd}
+            limit={q.daily_cost_limit_usd!}
+            warn={dailyWarnPct}
+          />
+        )}
+        {hasMonthlyCost && (
+          <Row
+            label={t("dashboard.quotaMonthlyCost")}
+            spent={summary.monthly.cost_usd}
+            limit={q.monthly_cost_limit_usd!}
+            warn={monthlyWarnPct}
+          />
+        )}
+        {!hasDailyCost && hasDailyTok && (
+          <Row
+            label={t("dashboard.quotaDailyTokens")}
+            spent={summary.daily.tokens}
+            limit={q.daily_token_limit!}
+            warn={dailyWarnPct}
+          />
+        )}
+        {!hasMonthlyCost && hasMonthlyTok && (
+          <Row
+            label={t("dashboard.quotaMonthlyTokens")}
+            spent={summary.monthly.tokens}
+            limit={q.monthly_token_limit!}
+            warn={monthlyWarnPct}
+          />
+        )}
+      </div>
+    </section>
   );
 }
 

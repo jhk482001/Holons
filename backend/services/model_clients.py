@@ -322,13 +322,17 @@ def remove(client_id: int) -> None:
 # Test — minimal round-trip to verify credentials + connectivity work.
 # ============================================================================
 
-def run_test(client_id: int) -> dict:
+def run_test(client_id: int, actor_user_id: int | None = None) -> dict:
     """Fire a tiny "say OK" prompt through the client's LLM. Updates
     last_test_at / last_test_status / last_test_message on the row
     and returns the same status dict.
 
     Intentionally minimal: 1-2 input tokens, max_tokens=5 → roughly
     1/1000 of a cent per test on most providers. Safe to spam.
+
+    `actor_user_id` is the admin who pressed Test — used to record the
+    call in llm_calls (kind='client_test') so usage report shows it.
+    Client_test rows are EXCLUDED from quota enforcement.
     """
     import time as _time
     row = get_raw(client_id)
@@ -337,6 +341,8 @@ def run_test(client_id: int) -> dict:
     result = {"ok": False, "message": "", "latency_ms": 0,
               "input_tokens": 0, "output_tokens": 0, "model": None}
     start = _time.time()
+    resp: dict = {}
+    model_id: str | None = None
     try:
         from ..llm_clients import invoke_via_client
         models = (row.get("config") or {}).get("models") or []
@@ -373,6 +379,20 @@ def run_test(client_id: int) -> dict:
         result["ok"] = False
         result["message"] = str(e)[:500] or type(e).__name__
     result["latency_ms"] = int((_time.time() - start) * 1000)
+
+    # Record in llm_calls (kind=client_test). Skipped by quota enforcement
+    # so admins can smoke-test without accidentally capping themselves.
+    try:
+        from ..llm_clients import _record_llm_call
+        _record_llm_call(
+            user_id=actor_user_id, agent_id=None, run_id=None,
+            thread_id=None, model_client_id=client_id,
+            model_id=model_id, provider=row.get("kind"),
+            kind="client_test", result=resp if resp else {"error": result["message"]},
+            duration_ms=result["latency_ms"],
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
     db.execute(
         "UPDATE model_clients SET last_test_at = NOW(), "

@@ -6,9 +6,10 @@ import UserManagementTab from "../components/settings/UserManagementTab";
 import SystemSettingsTab from "../components/settings/SystemSettingsTab";
 import ModelClientsTab from "../components/settings/ModelClientsTab";
 import ChannelsTab from "../components/settings/ChannelsTab";
+import UsageTab from "../components/settings/UsageTab";
 import "./Records.css"; // reuse .page-tabs + suppression rules
 
-type TabKey = "personal" | "channels" | "users" | "system" | "models";
+type TabKey = "personal" | "channels" | "users" | "system" | "models" | "usage";
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -24,6 +25,7 @@ export default function Settings() {
       ? ([
           { key: "users" as TabKey, label: t("settings.tab.users") },
           { key: "models" as TabKey, label: t("settings.tab.models") },
+          { key: "usage" as TabKey, label: t("settings.tab.usage") },
           { key: "system" as TabKey, label: t("settings.tab.system") },
         ])
       : []),
@@ -63,6 +65,7 @@ export default function Settings() {
         {tab === "channels" && <ChannelsTab />}
         {tab === "users" && isAdmin && <UserManagementTab />}
         {tab === "models" && isAdmin && <ModelClientsTab />}
+        {tab === "usage" && isAdmin && <UsageTab />}
         {tab === "system" && isAdmin && <SystemSettingsTab />}
       </div>
     </div>

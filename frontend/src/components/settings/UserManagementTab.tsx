@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AdminUsersAPI, AdminUserRow, UserRole } from "../../api/client";
+import { AdminUsersAPI, AdminUserRow, UserRole, UserQuotasAPI, UserQuotaRow } from "../../api/client";
 import Modal from "../Modal";
 
 export default function UserManagementTab() {
@@ -16,6 +16,7 @@ export default function UserManagementTab() {
   const [editing, setEditing] = useState<AdminUserRow | null>(null);
   const [pwTarget, setPwTarget] = useState<AdminUserRow | null>(null);
   const [toDelete, setToDelete] = useState<AdminUserRow | null>(null);
+  const [quotaTarget, setQuotaTarget] = useState<AdminUserRow | null>(null);
   const [err, setErr] = useState("");
 
   const deleteUser = useMutation({
@@ -145,6 +146,14 @@ export default function UserManagementTab() {
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <button
                       className="mbtn"
+                      data-testid={`quota-${u.id}`}
+                      onClick={() => setQuotaTarget(u)}
+                      style={{ marginRight: 6, fontSize: 11 }}
+                    >
+                      {t("users.quota")}
+                    </button>
+                    <button
+                      className="mbtn"
                       data-testid={`reset-pw-${u.id}`}
                       onClick={() => setPwTarget(u)}
                       style={{ marginRight: 6, fontSize: 11 }}
@@ -180,6 +189,13 @@ export default function UserManagementTab() {
         <ResetPasswordModal
           user={pwTarget}
           onClose={() => setPwTarget(null)}
+          onError={setErr}
+        />
+      )}
+      {quotaTarget && (
+        <UserQuotaModal
+          user={quotaTarget}
+          onClose={() => setQuotaTarget(null)}
           onError={setErr}
         />
       )}
@@ -333,6 +349,153 @@ function ResetPasswordModal({
           disabled={pw.length < 6 || reset.isPending}
         >
           {reset.isPending ? t("users.resetting") : t("users.reset")}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+
+// Admin quota editor — raw limits plus the soft-warning thresholds. Null
+// means "no limit on this axis". Warn pct is clamped to 10–95 server-side.
+function UserQuotaModal({
+  user,
+  onClose,
+  onError,
+}: {
+  user: AdminUserRow;
+  onClose: () => void;
+  onError: (msg: string) => void;
+}) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: summary } = useQuery({
+    queryKey: ["admin-user-quota", user.id],
+    queryFn: () => UserQuotasAPI.getFor(user.id),
+  });
+
+  const [form, setForm] = useState<UserQuotaRow>({
+    daily_token_limit: null,
+    daily_cost_limit_usd: null,
+    monthly_token_limit: null,
+    monthly_cost_limit_usd: null,
+    daily_warn_pct: 80,
+    monthly_warn_pct: 80,
+  });
+  useEffect(() => {
+    if (summary?.quota) {
+      setForm({
+        daily_token_limit: summary.quota.daily_token_limit ?? null,
+        daily_cost_limit_usd: summary.quota.daily_cost_limit_usd ?? null,
+        monthly_token_limit: summary.quota.monthly_token_limit ?? null,
+        monthly_cost_limit_usd: summary.quota.monthly_cost_limit_usd ?? null,
+        daily_warn_pct: summary.quota.daily_warn_pct ?? 80,
+        monthly_warn_pct: summary.quota.monthly_warn_pct ?? 80,
+      });
+    }
+  }, [summary?.quota]);
+
+  const save = useMutation({
+    mutationFn: () => UserQuotasAPI.setFor(user.id, form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-user-quota", user.id] });
+      qc.invalidateQueries({ queryKey: ["my-user-quota"] });
+      onClose();
+    },
+    onError: (e: Error) => onError(e.message),
+  });
+
+  function num(v: string): number | null {
+    const s = v.trim();
+    if (!s) return null;
+    const n = Number(s);
+    return isNaN(n) ? null : n;
+  }
+
+  return (
+    <Modal open={true} title={t("users.quotaTitle", { name: user.username })} onClose={onClose} size="md">
+      {summary && (
+        <div style={{
+          fontSize: 12, color: "var(--ink-3)",
+          marginBottom: 14, padding: 10,
+          background: "var(--surface-2)", borderRadius: 8,
+        }}>
+          <div>{t("users.quotaToday")}: ${summary.daily.cost_usd.toFixed(2)} · {summary.daily.tokens.toLocaleString()} tok</div>
+          <div>{t("users.quotaMonth")}: ${summary.monthly.cost_usd.toFixed(2)} · {summary.monthly.tokens.toLocaleString()} tok</div>
+        </div>
+      )}
+
+      <div className="modal-field">
+        <label>{t("users.dailyCostLimit")}</label>
+        <input
+          type="number" step="0.01" min="0"
+          value={form.daily_cost_limit_usd ?? ""}
+          onChange={(e) => setForm({ ...form, daily_cost_limit_usd: num(e.target.value) })}
+          placeholder={t("users.noLimit")}
+          data-testid="quota-daily-cost"
+        />
+      </div>
+      <div className="modal-field">
+        <label>{t("users.monthlyCostLimit")}</label>
+        <input
+          type="number" step="0.01" min="0"
+          value={form.monthly_cost_limit_usd ?? ""}
+          onChange={(e) => setForm({ ...form, monthly_cost_limit_usd: num(e.target.value) })}
+          placeholder={t("users.noLimit")}
+          data-testid="quota-monthly-cost"
+        />
+      </div>
+      <div className="modal-field">
+        <label>{t("users.dailyTokenLimit")}</label>
+        <input
+          type="number" step="1000" min="0"
+          value={form.daily_token_limit ?? ""}
+          onChange={(e) => setForm({ ...form, daily_token_limit: num(e.target.value) })}
+          placeholder={t("users.noLimit")}
+          data-testid="quota-daily-tokens"
+        />
+      </div>
+      <div className="modal-field">
+        <label>{t("users.monthlyTokenLimit")}</label>
+        <input
+          type="number" step="1000" min="0"
+          value={form.monthly_token_limit ?? ""}
+          onChange={(e) => setForm({ ...form, monthly_token_limit: num(e.target.value) })}
+          placeholder={t("users.noLimit")}
+          data-testid="quota-monthly-tokens"
+        />
+      </div>
+      <div className="modal-field">
+        <label>{t("users.warnPct")}</label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="number" min="10" max="95"
+            value={form.daily_warn_pct ?? 80}
+            onChange={(e) => setForm({ ...form, daily_warn_pct: Number(e.target.value) })}
+            style={{ width: 80 }}
+            data-testid="quota-daily-warn"
+          />
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>% {t("users.warnDaily")}</span>
+          <input
+            type="number" min="10" max="95"
+            value={form.monthly_warn_pct ?? 80}
+            onChange={(e) => setForm({ ...form, monthly_warn_pct: Number(e.target.value) })}
+            style={{ width: 80, marginLeft: 10 }}
+            data-testid="quota-monthly-warn"
+          />
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>% {t("users.warnMonthly")}</span>
+        </div>
+        <div className="hint">{t("users.warnHint")}</div>
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button className="mbtn" onClick={onClose}>{t("btn.cancel")}</button>
+        <button
+          className="mbtn primary"
+          data-testid="quota-save"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
+          {save.isPending ? t("btn.saving") : t("btn.save")}
         </button>
       </div>
     </Modal>

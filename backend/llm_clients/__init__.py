@@ -126,6 +126,71 @@ def invoke_via_client(
     return last_result
 
 
+def _record_llm_call(
+    *,
+    user_id: int | None,
+    agent_id: int | None,
+    run_id: int | None,
+    thread_id: str | None,
+    model_client_id: int | None,
+    model_id: str | None,
+    provider: str | None,
+    kind: str,
+    result: dict,
+    duration_ms: int,
+) -> None:
+    """Persist one row to llm_calls. MUST swallow every exception — a
+    tracking failure can never be allowed to break the caller's flow.
+    If user_id is unknown and agent_id is present, resolve it lazily."""
+    import logging as _log
+    try:
+        from .. import db as _db
+        uid = user_id
+        if uid is None and agent_id is not None:
+            row = _db.fetch_one("SELECT user_id FROM agents WHERE id = %s", (agent_id,))
+            if row:
+                uid = row["user_id"]
+        if uid is None:
+            # No user context at all — drop rather than writing a row with
+            # NULL user_id (schema requires NOT NULL).
+            _log.getLogger("agent_company.llm").debug(
+                "llm_call tracking skipped: no user_id (kind=%s, agent_id=%s)",
+                kind, agent_id,
+            )
+            return
+        usage = result.get("usage") or {}
+        in_tok = int(
+            usage.get("inputTokens")
+            or usage.get("input_tokens")
+            or result.get("input_tokens")
+            or 0
+        )
+        out_tok = int(
+            usage.get("outputTokens")
+            or usage.get("output_tokens")
+            or result.get("output_tokens")
+            or 0
+        )
+        cost = float(result.get("cost_usd") or 0.0)
+        err = result.get("error")
+        _db.execute(
+            """
+            INSERT INTO llm_calls
+              (user_id, agent_id, run_id, thread_id, model_client_id,
+               model_id, provider, kind, input_tokens, output_tokens,
+               cost_usd, duration_ms, error)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (uid, agent_id, run_id, thread_id, model_client_id,
+             model_id, provider, kind, in_tok, out_tok, cost,
+             duration_ms, err),
+        )
+    except Exception as e:  # noqa: BLE001
+        _log.getLogger("agent_company.llm").warning(
+            "llm_call tracking failed (non-fatal): %s", e,
+        )
+
+
 def invoke_for_agent(
     *,
     agent_id: int | None,
@@ -137,6 +202,18 @@ def invoke_for_agent(
     tool_config: list[dict] | None = None,
     max_tokens: int = 4096,
     temperature: float = 0.7,
+    # Tracking hints — supplied by callers so llm_calls gets a correct
+    # user_id / kind / run / thread without heroic inference here.
+    user_id: int | None = None,
+    run_id: int | None = None,
+    thread_id: str | None = None,
+    kind: str = "system",
+    # When True, resolve the model client from the *owning user's*
+    # `as_users.default_model_client_id` before falling back to the
+    # agent's own model_client_id. Used for non-dialog paths like skill
+    # extraction and project reports, where the user may prefer a
+    # cheaper / faster "background" provider over the agent's primary.
+    prefer_user_default: bool = False,
 ) -> dict:
     """Legacy-compatible entry point for the engine and services.
 
@@ -152,15 +229,36 @@ def invoke_for_agent(
       messages internally.
     - `messages` — tool-loop path, passed through as-is.
     """
+    import time as _time
     from ..services import model_clients
 
-    client_row = model_clients.resolve_for_agent(agent_id)
+    _start = _time.monotonic()
+    client_row = None
+    if prefer_user_default:
+        # Resolve the owning user first, then look up their
+        # default_model_client_id. If set + allowed + enabled, use it;
+        # otherwise drop through to the per-agent resolution below.
+        from .. import db as _db
+        uid = user_id
+        if uid is None and agent_id is not None:
+            row = _db.fetch_one("SELECT user_id FROM agents WHERE id = %s", (agent_id,))
+            if row:
+                uid = row["user_id"]
+        if uid is not None:
+            urow = _db.fetch_one(
+                "SELECT default_model_client_id FROM as_users WHERE id = %s",
+                (uid,),
+            )
+            if urow and urow.get("default_model_client_id"):
+                client_row = model_clients.get_raw(urow["default_model_client_id"])
+    if not client_row:
+        client_row = model_clients.resolve_for_agent(agent_id)
     if not client_row:
         # Fallback: no client configured at all (should only happen in
         # tests that skip schema.create_all). Delegate to the legacy
         # bedrock_client path so existing tests keep passing.
         from ..bedrock_client import invoke as legacy_invoke
-        return legacy_invoke(
+        result = legacy_invoke(
             model_key=model_key or "claude-sonnet-4.6",
             system_prompt=system_prompt,
             user_text=user_text,
@@ -170,6 +268,14 @@ def invoke_for_agent(
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        _record_llm_call(
+            user_id=user_id, agent_id=agent_id, run_id=run_id,
+            thread_id=thread_id, model_client_id=None,
+            model_id=model_key or "claude-sonnet-4.6",
+            provider="legacy-bedrock", kind=kind, result=result,
+            duration_ms=int((_time.monotonic() - _start) * 1000),
+        )
+        return result
 
     # Resolve primary + fallback model ids. Caller-supplied model_key
     # wins for primary; if not supplied, we read both columns off the
@@ -196,10 +302,18 @@ def invoke_for_agent(
         if cfg_models:
             resolved_model = cfg_models[0].get("id") or ""
     if not resolved_model:
-        return LLMClient._empty_result(  # type: ignore[attr-defined]
+        result = LLMClient._empty_result(  # type: ignore[attr-defined]
             "", client_row.get("kind") or "unknown",
             "no model_id resolved for agent",
         )
+        _record_llm_call(
+            user_id=user_id, agent_id=agent_id, run_id=run_id,
+            thread_id=thread_id,
+            model_client_id=client_row.get("id"), model_id=None,
+            provider=client_row.get("kind"), kind=kind, result=result,
+            duration_ms=int((_time.monotonic() - _start) * 1000),
+        )
+        return result
 
     # Build Bedrock-shape messages if the caller used the legacy path
     msgs = messages
@@ -251,15 +365,31 @@ def invoke_for_agent(
             fb_result.setdefault("fallback_used", True)
             fb_result.setdefault("fallback_from", resolved_model)
             fb_result.setdefault("fallback_to", fallback_model)
-            if not fb_result.get("error"):
-                return fb_result
-            # Both failed — surface the fallback's error (usually more
-            # informative than the original) but annotate.
-            fb_result["error"] = (
-                f"primary ({resolved_model}) error: {err_text[:200]} | "
-                f"fallback ({fallback_model}) error: "
-                f"{(fb_result.get('error') or '')[:200]}"
+            # Only the successful call's cost is real — record the one
+            # the caller actually got billed for.
+            final = fb_result if not fb_result.get("error") else fb_result
+            if fb_result.get("error"):
+                fb_result["error"] = (
+                    f"primary ({resolved_model}) error: {err_text[:200]} | "
+                    f"fallback ({fallback_model}) error: "
+                    f"{(fb_result.get('error') or '')[:200]}"
+                )
+            _record_llm_call(
+                user_id=user_id, agent_id=agent_id, run_id=run_id,
+                thread_id=thread_id,
+                model_client_id=client_row.get("id"),
+                model_id=fallback_model,
+                provider=client_row.get("kind"), kind=kind, result=final,
+                duration_ms=int((_time.monotonic() - _start) * 1000),
             )
-            return fb_result
+            return final
 
+    _record_llm_call(
+        user_id=user_id, agent_id=agent_id, run_id=run_id,
+        thread_id=thread_id,
+        model_client_id=client_row.get("id"),
+        model_id=resolved_model,
+        provider=client_row.get("kind"), kind=kind, result=result,
+        duration_ms=int((_time.monotonic() - _start) * 1000),
+    )
     return result

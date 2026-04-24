@@ -1039,6 +1039,59 @@ DDL: list[str] = [
         END IF;
     END $$
     """,
+
+    # ================================================================
+    # Phase 6 — unified LLM call ledger
+    # ================================================================
+    # Single canonical log for every LLM invocation regardless of who
+    # triggered it (agent workflow, Lead chat, skill extraction, project
+    # report, Lead proxy, or a model-client smoke test). Replaces the
+    # fragmented tracking that previously relied on run_steps + JSONB
+    # metadata on lead_messages. Admin usage reports query this table.
+    #
+    # kind vocabulary:
+    #   agent           — run_steps-adjacent calls from engine.py
+    #   lead            — Lead proposal + chat replies
+    #   lead_proxy      — Lead-deputised agent dispatches
+    #   skill_extract   — background skill auto-extraction
+    #   project_report  — daily project summary generation
+    #   client_test     — manual "Test" button in Model Clients UI
+    #                     (recorded for transparency, EXCLUDED from quota)
+    #   system          — catch-all for anything not yet categorised
+    """
+    CREATE TABLE IF NOT EXISTS llm_calls (
+        id              BIGSERIAL PRIMARY KEY,
+        user_id         BIGINT NOT NULL REFERENCES as_users(id) ON DELETE CASCADE,
+        agent_id        BIGINT REFERENCES agents(id) ON DELETE SET NULL,
+        run_id          BIGINT REFERENCES runs(id) ON DELETE SET NULL,
+        thread_id       VARCHAR(32),
+        model_client_id BIGINT REFERENCES model_clients(id) ON DELETE SET NULL,
+        model_id        VARCHAR(100),
+        provider        VARCHAR(30),
+        kind            VARCHAR(20) NOT NULL,
+        input_tokens    INT DEFAULT 0,
+        output_tokens   INT DEFAULT 0,
+        cost_usd        NUMERIC(12, 6) DEFAULT 0,
+        duration_ms     INT,
+        error           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_user_created ON llm_calls(user_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_kind_created ON llm_calls(kind, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_agent_created ON llm_calls(agent_id, created_at DESC)",
+
+    # Per-user default model client for non-agent LLM paths (skill
+    # extraction, Lead proposal, project reports). Falls through to
+    # model_clients.default_for_new_users when NULL.
+    "ALTER TABLE as_users ADD COLUMN IF NOT EXISTS default_model_client_id BIGINT REFERENCES model_clients(id) ON DELETE SET NULL",
+
+    # Soft-warning thresholds on user_quotas (80% default). Quota UI
+    # flashes an orange bar once daily/monthly spend crosses warn_pct
+    # of the corresponding limit — distinct from the hard refusal that
+    # fires at 100%.
+    "ALTER TABLE user_quotas ADD COLUMN IF NOT EXISTS daily_warn_pct INT DEFAULT 80",
+    "ALTER TABLE user_quotas ADD COLUMN IF NOT EXISTS monthly_warn_pct INT DEFAULT 80",
 ]
 
 

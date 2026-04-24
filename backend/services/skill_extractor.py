@@ -102,6 +102,9 @@ def extract_for_agent(agent_id: int, *, max_records: int = 30) -> list[dict]:
         system_prompt="You are an analyst skilled at mining recurring, re-usable skill patterns from work records.",
         user_text=prompt,
         max_tokens=16384,
+        user_id=agent.get("user_id"),
+        kind="skill_extract",
+        prefer_user_default=True,
     )
 
     text = result.get("text", "")

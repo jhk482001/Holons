@@ -17,6 +17,9 @@ export default function PersonalTab() {
   const [skillsAutoApprove, setSkillsAutoApprove] = useState(true);
   const [enableCodeExec, setEnableCodeExec] = useState(false);
   const [codeExecWarningOpen, setCodeExecWarningOpen] = useState(false);
+  // Default model client for non-dialog LLM paths (skill extraction,
+  // project reports, etc). null = let the agent's own primary decide.
+  const [defaultClientId, setDefaultClientId] = useState<number | null>(null);
   useEffect(() => {
     if (me?.display_name) setDisplayName(me.display_name);
     if ((me as any)?.language) setLanguage((me as any).language);
@@ -28,9 +31,19 @@ export default function PersonalTab() {
     if (typeof (me as any)?.enable_code_execution === "boolean") {
       setEnableCodeExec((me as any).enable_code_execution);
     }
+    const d = (me as any)?.default_model_client_id;
+    setDefaultClientId(d == null ? null : Number(d));
   }, [me?.display_name, (me as any)?.language, (me as any)?.lead_max_steps,
       (me as any)?.lead_max_tokens, (me as any)?.skills_auto_approve,
-      (me as any)?.enable_code_execution]);
+      (me as any)?.enable_code_execution,
+      (me as any)?.default_model_client_id]);
+
+  // Fetch the usable clients so the dropdown can render them.
+  const { data: clientsData } = useQuery<{ id: number; name: string; kind: string }[]>({
+    queryKey: ["model-clients-usable"],
+    queryFn: () => api.get("/model_clients"),
+  });
+  const clients = clientsData || [];
 
   const [savedProfile, setSavedProfile] = useState(false);
   const saveProfile = useMutation({
@@ -42,6 +55,7 @@ export default function PersonalTab() {
         lead_max_tokens: maxTokens,
         skills_auto_approve: skillsAutoApprove,
         enable_code_execution: enableCodeExec,
+        default_model_client_id: defaultClientId,
       });
     },
     onSuccess: () => {
@@ -90,7 +104,10 @@ export default function PersonalTab() {
     maxSteps !== ((me as any)?.lead_max_steps || 10) ||
     maxTokens !== ((me as any)?.lead_max_tokens || 50000) ||
     skillsAutoApprove !== ((me as any)?.skills_auto_approve ?? true) ||
-    enableCodeExec !== ((me as any)?.enable_code_execution ?? false);
+    enableCodeExec !== ((me as any)?.enable_code_execution ?? false) ||
+    defaultClientId !== (((me as any)?.default_model_client_id ?? null) == null
+        ? null
+        : Number((me as any).default_model_client_id));
 
   return (
     <div data-testid="settings-personal-tab">
@@ -355,6 +372,60 @@ export default function PersonalTab() {
             </span>
           </label>
           <div style={{ marginTop: 14 }}>
+            <button
+              className="mbtn primary"
+              onClick={() => saveProfile.mutate()}
+              disabled={!profileDirty || saveProfile.isPending}
+            >
+              {saveProfile.isPending ? t("personal.saving") : t("personal.save")}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
+          {t("personal.defaultClientTitle")}
+        </h3>
+        <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 16, lineHeight: 1.6 }}>
+          {t("personal.defaultClientDesc")}
+        </div>
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 16,
+            padding: 20,
+          }}
+        >
+          <div className="modal-field">
+            <label>{t("personal.defaultClientLabel")}</label>
+            <select
+              data-testid="default-client-select"
+              value={defaultClientId ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDefaultClientId(v === "" ? null : Number(v));
+              }}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                fontSize: 13,
+                background: "var(--surface)",
+                minWidth: 280,
+              }}
+            >
+              <option value="">{t("personal.defaultClientUseAgent")}</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.kind ? ` · ${c.kind}` : ""}
+                </option>
+              ))}
+            </select>
+            <div className="hint">{t("personal.defaultClientHint")}</div>
+          </div>
+          <div style={{ marginTop: 8 }}>
             <button
               className="mbtn primary"
               onClick={() => saveProfile.mutate()}

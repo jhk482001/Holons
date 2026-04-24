@@ -525,18 +525,16 @@ def _load_thread_history(thread_id: str, max_messages: int = 20) -> list[dict]:
 # Main chat entry point
 # ============================================================================
 
-def chat(user_id: int, user_message: str, thread_id: str | None = None,
-         project_id: int | None = None) -> dict:
-    """Send a message to the Lead agent. Returns:
-        {
-          "thread_id": str,
-          "response": str,
-          "proposed_workflow": dict | None,
-        }
+def _prepare_lead_call(
+    user_id: int, user_message: str,
+    thread_id: str | None, project_id: int | None,
+) -> dict:
+    """Shared prep path for batch chat() and streaming chat_streaming().
 
-    If `project_id` is given, Lead is told about the project goal + which
-    agents are members + each member's remaining daily allocation, so it
-    keeps proposed workflows within the project's cap.
+    Inserts the user message, builds the system prompt + conversation
+    prompt, and resolves the acting agent (coordinator in a project,
+    Lead otherwise). Returns every field the LLM call + post-processing
+    needs in one bundle so the two entry points stay in sync.
     """
     thread_id = _get_or_create_thread(user_id, thread_id)
 
@@ -617,22 +615,27 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
     lead_agent_id = (acting_agent or {}).get("id")
     model = (acting_agent or {}).get("primary_model_id") or None
 
-    # Invoke LLM via the agent's assigned model client. We lift max_tokens
-    # well above the 4K default because Lead increasingly outputs long
-    # artifacts inline (HTML prototypes, slide decks) — a 4K cap truncates
-    # those mid-fence and the parser then finds no artifacts.
-    result = llm_invoke(
-        agent_id=lead_agent_id,
-        model_key=model,
-        system_prompt=system_prompt,
-        user_text=prompt,
-        max_tokens=32_000,
-        user_id=user_id,
-        kind="lead",
-    )
-    response_text = result.get("text", "")
+    return {
+        "thread_id": thread_id,
+        "lead_agent_id": lead_agent_id,
+        "model": model,
+        "system_prompt": system_prompt,
+        "prompt": prompt,
+    }
 
-    # Parse workflow proposal from response (if any)
+
+def _finalise_lead_message(
+    user_id: int, project_id: int | None,
+    thread_id: str, response_text: str, result: dict,
+) -> dict:
+    """Shared post-processing for batch and streaming Lead replies.
+
+    Parses workflow / hire / project / artifact proposals out of the
+    response text, persists a draft workflow if one was proposed, inserts
+    the lead's message row with metadata, fires project_artifact rows
+    for in-project chats, and returns the structured dict both entry
+    points ship back to the caller.
+    """
     proposed = _extract_workflow_proposal(response_text)
     proposed_hire = _extract_hire_proposal(response_text)
     proposed_project = _extract_project_proposal(response_text)
@@ -704,9 +707,96 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
         "proposed_project": proposed_project,
         "proposed_project_message_id": int(message_id) if proposed_project else None,
         "artifacts": artifacts,
+        "message_id": int(message_id),
         "cost_usd": float(result.get("cost_usd", 0)),
         "tokens": result.get("input_tokens", 0) + result.get("output_tokens", 0),
     }
+
+
+def chat(user_id: int, user_message: str, thread_id: str | None = None,
+         project_id: int | None = None) -> dict:
+    """Send a message to the Lead agent (batch path).
+
+    If `project_id` is given, Lead is told about the project goal + which
+    agents are members + each member's remaining daily allocation, so it
+    keeps proposed workflows within the project's cap.
+    """
+    prep = _prepare_lead_call(user_id, user_message, thread_id, project_id)
+
+    # Invoke LLM via the agent's assigned model client. We lift max_tokens
+    # well above the 4K default because Lead increasingly outputs long
+    # artifacts inline (HTML prototypes, slide decks) — a 4K cap truncates
+    # those mid-fence and the parser then finds no artifacts.
+    result = llm_invoke(
+        agent_id=prep["lead_agent_id"],
+        model_key=prep["model"],
+        system_prompt=prep["system_prompt"],
+        user_text=prep["prompt"],
+        max_tokens=32_000,
+        user_id=user_id,
+        kind="lead",
+    )
+    response_text = result.get("text", "")
+    return _finalise_lead_message(
+        user_id, project_id, prep["thread_id"], response_text, result,
+    )
+
+
+def chat_streaming(user_id: int, user_message: str,
+                    thread_id: str | None = None,
+                    project_id: int | None = None):
+    """Streaming variant of chat(). Yields event tuples:
+
+      ("thread", thread_id)       — emitted first so the frontend can
+                                    bind its UI to the thread before
+                                    any text arrives (important when
+                                    this call CREATED the thread).
+      ("chunk", str)              — incremental text chunk
+      ("complete", dict)          — final structured payload (same shape
+                                    as chat()'s return value); emitted
+                                    AFTER all persistence has been done.
+      ("error", str)              — emitted instead of "complete" if the
+                                    stream failed catastrophically.
+
+    Callers should consume every event from the generator to completion;
+    the persistence side-effects happen in the complete handler so
+    bailing early without draining leaves the thread mutated but the
+    final message row never written.
+    """
+    prep = _prepare_lead_call(user_id, user_message, thread_id, project_id)
+    yield ("thread", prep["thread_id"])
+
+    from ..llm_clients import invoke_streaming_for_agent
+    full_text_parts: list[str] = []
+    final_result: dict | None = None
+    try:
+        for kind_tag, payload in invoke_streaming_for_agent(
+            agent_id=prep["lead_agent_id"],
+            model_key=prep["model"],
+            system_prompt=prep["system_prompt"],
+            user_text=prep["prompt"],
+            max_tokens=32_000,
+            user_id=user_id,
+            kind="lead",
+        ):
+            if kind_tag == "chunk":
+                full_text_parts.append(payload)
+                yield ("chunk", payload)
+            elif kind_tag == "complete":
+                final_result = payload
+    except Exception as e:  # noqa: BLE001
+        yield ("error", str(e))
+        return
+
+    if final_result is None:
+        yield ("error", "stream ended without a complete event")
+        return
+
+    response_text = final_result.get("text") or "".join(full_text_parts)
+    structured = _finalise_lead_message(
+        user_id, project_id, prep["thread_id"], response_text, final_result,
+    )
+    yield ("complete", structured)
 
 
 # ============================================================================

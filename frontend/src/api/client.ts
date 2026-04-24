@@ -486,6 +486,12 @@ export type LeadChatResponse = {
   tokens: number;
 };
 
+export type LeadStreamHandlers = {
+  onThread?: (thread_id: string) => void;
+  onChunk?: (text: string) => void;
+  onError?: (msg: string) => void;
+};
+
 export const LeadAPI = {
   chat: (message: string, thread_id?: string) =>
     api.post<LeadChatResponse>("/lead/chat", { message, thread_id }),
@@ -505,6 +511,70 @@ export const LeadAPI = {
       throw new ApiError(res.status, `${res.status} ${res.statusText}`);
     }
     return (await res.json()) as LeadChatResponse;
+  },
+  // Streaming variant — yields text chunks to `handlers.onChunk` as they
+  // arrive, then resolves with the same full LeadChatResponse the batch
+  // endpoint returns. Under the hood this is an SSE stream parsed
+  // manually (EventSource can't POST).
+  chatStreaming: async (
+    message: string,
+    thread_id: string | undefined,
+    handlers: LeadStreamHandlers = {},
+    signal?: AbortSignal,
+    project_id?: number,
+  ): Promise<LeadChatResponse> => {
+    const res = await fetch(`/api/lead/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ message, thread_id, project_id }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let finalResult: LeadChatResponse | null = null;
+
+    // Split on blank-line boundaries. Each event looks like:
+    //   event: chunk\n
+    //   data: {"text": "..."}\n
+    //   \n
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // Drain any completed events in the buffer.
+      while (true) {
+        const sep = buf.indexOf("\n\n");
+        if (sep < 0) break;
+        const raw = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        let ev = "";
+        let data = "";
+        for (const line of raw.split("\n")) {
+          if (line.startsWith("event: ")) ev = line.slice(7).trim();
+          else if (line.startsWith("data: ")) data += line.slice(6);
+        }
+        if (!ev) continue;
+        let parsed: any = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch { parsed = null; }
+        if (ev === "thread" && parsed?.thread_id) {
+          handlers.onThread?.(parsed.thread_id);
+        } else if (ev === "chunk" && typeof parsed?.text === "string") {
+          handlers.onChunk?.(parsed.text);
+        } else if (ev === "complete" && parsed) {
+          finalResult = parsed as LeadChatResponse;
+        } else if (ev === "error" && parsed?.error) {
+          handlers.onError?.(parsed.error);
+          throw new ApiError(500, parsed.error);
+        }
+      }
+    }
+    if (!finalResult) throw new ApiError(500, "stream ended without complete event");
+    return finalResult;
   },
   threads: () => api.get<LeadThread[]>("/lead/threads"),
   messages: (thread_id: string, opts?: { before_id?: number; limit?: number }) => {

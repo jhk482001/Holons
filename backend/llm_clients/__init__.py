@@ -393,3 +393,156 @@ def invoke_for_agent(
         duration_ms=int((_time.monotonic() - _start) * 1000),
     )
     return result
+
+
+def invoke_streaming_for_agent(
+    *,
+    agent_id: int | None,
+    model_key: str | None = None,
+    system_prompt: str = "",
+    user_text: str = "",
+    history: list[dict] | None = None,
+    messages: list[dict] | None = None,
+    tool_config: list[dict] | None = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.7,
+    user_id: int | None = None,
+    run_id: int | None = None,
+    thread_id: str | None = None,
+    kind: str = "system",
+    prefer_user_default: bool = False,
+):
+    """Streaming counterpart to invoke_for_agent.
+
+    Yields tuples:
+      ("chunk", str)              — incremental text delta from the provider
+      ("complete", dict)          — final Bedrock-shape result dict (same
+                                    shape as invoke_for_agent's return)
+
+    The final complete-event's dict is ALSO written to llm_calls here,
+    so callers get tracking for free — same as the batch path. No
+    intermediate chunks are persisted.
+    """
+    import time as _time
+    from ..services import model_clients
+
+    _start = _time.monotonic()
+    client_row = None
+    if prefer_user_default:
+        from .. import db as _db
+        uid = user_id
+        if uid is None and agent_id is not None:
+            row = _db.fetch_one("SELECT user_id FROM agents WHERE id = %s", (agent_id,))
+            if row:
+                uid = row["user_id"]
+        if uid is not None:
+            urow = _db.fetch_one(
+                "SELECT default_model_client_id FROM as_users WHERE id = %s",
+                (uid,),
+            )
+            if urow and urow.get("default_model_client_id"):
+                client_row = model_clients.get_raw(urow["default_model_client_id"])
+    if not client_row:
+        client_row = model_clients.resolve_for_agent(agent_id)
+    if not client_row:
+        # Degrade to the batch legacy path — no streaming available.
+        from ..bedrock_client import invoke as legacy_invoke
+        result = legacy_invoke(
+            model_key=model_key or "claude-sonnet-4.6",
+            system_prompt=system_prompt,
+            user_text=user_text,
+            history=history,
+            messages=messages,
+            tool_config=tool_config,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        text = result.get("text") or ""
+        if text:
+            yield ("chunk", text)
+        _record_llm_call(
+            user_id=user_id, agent_id=agent_id, run_id=run_id,
+            thread_id=thread_id, model_client_id=None,
+            model_id=model_key or "claude-sonnet-4.6",
+            provider="legacy-bedrock", kind=kind, result=result,
+            duration_ms=int((_time.monotonic() - _start) * 1000),
+        )
+        yield ("complete", result)
+        return
+
+    # Resolve primary model id (fallback routing is batch-only for now —
+    # streaming fallback on transient errors is a separate complexity)
+    resolved_model = model_key
+    if not resolved_model:
+        from .. import db as _db
+        agent_row = _db.fetch_one(
+            "SELECT primary_model_id FROM agents WHERE id = %s", (agent_id,),
+        ) or {}
+        resolved_model = agent_row.get("primary_model_id") or ""
+    if not resolved_model:
+        cfg_models = (client_row.get("config") or {}).get("models") or []
+        if cfg_models:
+            resolved_model = cfg_models[0].get("id") or ""
+    if not resolved_model:
+        result = LLMClient._empty_result(  # type: ignore[attr-defined]
+            "", client_row.get("kind") or "unknown",
+            "no model_id resolved for agent",
+        )
+        yield ("chunk", result["text"])
+        _record_llm_call(
+            user_id=user_id, agent_id=agent_id, run_id=run_id,
+            thread_id=thread_id,
+            model_client_id=client_row.get("id"), model_id=None,
+            provider=client_row.get("kind"), kind=kind, result=result,
+            duration_ms=int((_time.monotonic() - _start) * 1000),
+        )
+        yield ("complete", result)
+        return
+
+    # Build Bedrock-shape messages if the caller used legacy (user_text) path
+    msgs = messages
+    if msgs is None:
+        msgs = []
+        if history:
+            for h in history:
+                role = h.get("role", "user")
+                if role not in ("user", "assistant"):
+                    continue
+                msgs.append({"role": role, "content": [{"text": h.get("content", "")}]})
+        if user_text:
+            msgs.append({"role": "user", "content": [{"text": user_text}]})
+
+    llm = build(client_row)
+    final_result: dict | None = None
+    try:
+        for kind_tag, payload in llm.stream(
+            model_id=resolved_model,
+            system_prompt=system_prompt,
+            messages=msgs,
+            tool_config=tool_config,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        ):
+            if kind_tag == "chunk":
+                yield ("chunk", payload)
+            elif kind_tag == "complete":
+                final_result = payload
+    except Exception as e:  # noqa: BLE001
+        # Never let a stream crash the caller — emit an error chunk + synth
+        # result so the UI can show something and tracking still records.
+        err_msg = str(e)
+        yield ("chunk", f"[ERROR streaming: {err_msg}]")
+        final_result = LLMClient._empty_result(  # type: ignore[attr-defined]
+            resolved_model, client_row.get("kind") or "unknown", err_msg,
+        )
+
+    assert final_result is not None, "stream() must yield a complete event"
+    _record_llm_call(
+        user_id=user_id, agent_id=agent_id, run_id=run_id,
+        thread_id=thread_id,
+        model_client_id=client_row.get("id"),
+        model_id=resolved_model,
+        provider=client_row.get("kind"), kind=kind, result=final_result,
+        duration_ms=int((_time.monotonic() - _start) * 1000),
+    )
+    yield ("complete", final_result)

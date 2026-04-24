@@ -14,7 +14,7 @@ import time
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file, send_from_directory, session
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory, session, stream_with_context
 from flask_cors import CORS
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -3147,6 +3147,59 @@ def lead_chat():
         project_id=d.get("project_id"),
     )
     return jsonify(result)
+
+
+@app.route("/api/lead/chat/stream", methods=["POST"])
+@login_required
+def lead_chat_stream():
+    """Server-Sent Events variant of /api/lead/chat.
+
+    The same workflow / hire / project / artifact extraction + draft
+    persistence runs at stream close, so clients see a final
+    `event: complete` frame carrying exactly the shape the batch
+    endpoint returns. Designed as a superset of the batch path, not a
+    replacement — the batch endpoint stays available for CLI / SDK /
+    CI callers that don't want SSE framing.
+    """
+    import json as _json
+    from .services.sanitize import clean_text
+    d = request.get_json() or {}
+    message = clean_text(d.get("message", ""), max_len=10_000)
+    thread_id = d.get("thread_id")
+    project_id = d.get("project_id")
+    if not message:
+        return jsonify({"error": "message required"}), 400
+    if not _chat_rate_ok(current_user_id(), "lead"):
+        return jsonify({"error": "too many messages — slow down for a minute"}), 429
+
+    uid = current_user_id()
+
+    def _sse(event: str, data) -> str:
+        return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+    def _gen():
+        try:
+            for kind_tag, payload in lead_agent.chat_streaming(
+                uid, message,
+                thread_id=thread_id,
+                project_id=project_id,
+            ):
+                if kind_tag == "thread":
+                    yield _sse("thread", {"thread_id": payload})
+                elif kind_tag == "chunk":
+                    yield _sse("chunk", {"text": payload})
+                elif kind_tag == "complete":
+                    yield _sse("complete", payload)
+                elif kind_tag == "error":
+                    yield _sse("error", {"error": payload})
+        except Exception as e:  # noqa: BLE001
+            yield _sse("error", {"error": f"stream aborted: {e}"})
+
+    resp = Response(stream_with_context(_gen()), mimetype="text/event-stream")
+    # Prevent any reverse-proxy buffering that would defeat streaming.
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
 
 
 @app.route("/api/lead/threads")

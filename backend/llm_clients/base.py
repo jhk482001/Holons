@@ -72,6 +72,39 @@ class LLMClient(ABC):
     ) -> dict:
         """Call the underlying provider and return a Bedrock-shaped result."""
 
+    # Optional streaming path — providers that can stream override this.
+    # The default implementation is a degradation: call invoke() to get
+    # the full result, yield the entire text as one chunk, then yield
+    # the full result dict. That lets the call-site (invoke_streaming_for_agent)
+    # treat streaming as a strict superset of batch without having to
+    # special-case providers that lack native streaming support.
+    #
+    # Yields tuples of the form:
+    #   ("chunk", str)              — incremental text delta
+    #   ("complete", dict)          — final result dict (same shape as invoke())
+    def stream(
+        self,
+        *,
+        model_id: str,
+        system_prompt: str,
+        messages: list[dict],
+        tool_config: Optional[list[dict]] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ):
+        result = self.invoke(
+            model_id=model_id,
+            system_prompt=system_prompt,
+            messages=messages,
+            tool_config=tool_config,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        text = result.get("text") or ""
+        if text:
+            yield ("chunk", text)
+        yield ("complete", result)
+
     # ------------------------------------------------------------------
     # Convenience helpers shared by non-Bedrock providers
     # ------------------------------------------------------------------

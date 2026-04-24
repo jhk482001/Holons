@@ -140,6 +140,17 @@
 }
 .bubble.bot { align-self: flex-start; border-top-left-radius: 8px; }
 .bubble.wide { max-width: 640px; }
+.bubble.streaming { max-width: 640px; }
+.streaming-cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  animation: stream-blink 1s steps(2, start) infinite;
+  font-weight: 400;
+}
+@keyframes stream-blink {
+  to { visibility: hidden; }
+}
 .bubble.bot::before {
   content: "";
   position: absolute; left: 24px; bottom: -12px;

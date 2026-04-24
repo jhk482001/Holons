@@ -216,6 +216,11 @@ export default function DialogCenter() {
 
   const [input, setInput] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  // Live stream buffer — filled chunk-by-chunk while a Lead streaming
+  // request is in flight, cleared when the final result has landed in
+  // the cache. Rendered as a bubble below the committed messages so the
+  // user sees text arrive token-by-token.
+  const [streamingText, setStreamingText] = useState("");
 
   const sendMutation = useMutation({
     mutationFn: async (text: string) => {
@@ -223,7 +228,25 @@ export default function DialogCenter() {
       abortRef.current = ctrl;
       try {
         if (isLeadActive) {
-          return await LeadAPI.chatWithSignal(text, currentThreadId, ctrl.signal);
+          // Streaming path — accumulate chunks into `streamingText` so
+          // the user sees text arrive token-by-token. The final
+          // structured result (with proposed_workflow / hire / project
+          // / artifacts) comes back at stream close and flows into
+          // onSuccess where the cache gets its real row written.
+          setStreamingText("");
+          let buf = "";
+          return await LeadAPI.chatStreaming(
+            text,
+            currentThreadId,
+            {
+              onChunk: (delta) => {
+                buf += delta;
+                setStreamingText(buf);
+              },
+              onError: (msg) => { console.warn("[lead-stream]", msg); },
+            },
+            ctrl.signal,
+          );
         }
         if (!activeAgent) throw new Error("no active agent");
         return await AgentsAPI.chatWithSignal(activeAgent.id, text, currentThreadId, ctrl.signal);
@@ -283,11 +306,17 @@ export default function DialogCenter() {
       return { previous, threadId, rollback: true };
     },
     onError: (_err, _text, ctx: any) => {
+      // Clear the live stream buffer so we don't leave a half-written
+      // bubble behind when the connection drops or the user hits stop.
+      setStreamingText("");
       if (ctx?.rollback && ctx?.threadId && ctx.previous !== undefined) {
         qc.setQueryData(["messages", ctx.threadId], ctx.previous);
       }
     },
     onSuccess: (data) => {
+      // Streaming complete → drop the live buffer; the real row lands
+      // via the messages invalidation below.
+      setStreamingText("");
       // Persist the returned thread_id for the current cast member
       if (activeId) {
         setThreadByActive((prev) => ({ ...prev, [activeId]: data.thread_id }));
@@ -599,9 +628,18 @@ export default function DialogCenter() {
                   <MessageBubble key={m.id} msg={m} threadId={currentThreadId} />
                 ))}
                 {sendMutation.isPending && (
-                  <div className="bubble bot loading" data-testid="lead-thinking">
-                    {t("dialog.thinking", { name: isLeadActive ? "Lead" : activeAgent?.name || "agent" })}
-                  </div>
+                  streamingText ? (
+                    <div className="bubble bot streaming" data-testid="lead-streaming">
+                      <div className="content markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                      </div>
+                      <span className="streaming-cursor" aria-hidden="true">▍</span>
+                    </div>
+                  ) : (
+                    <div className="bubble bot loading" data-testid="lead-thinking">
+                      {t("dialog.thinking", { name: isLeadActive ? "Lead" : activeAgent?.name || "agent" })}
+                    </div>
+                  )
                 )}
                 <div ref={messagesEndRef} />
               </div>

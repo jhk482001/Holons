@@ -144,3 +144,122 @@ class BedrockLLMClient(LLMClient):
             "provider": self.provider,
             "error": err,
         }
+
+    # ------------------------------------------------------------------
+    # Streaming path — wraps Bedrock's ConverseStream API. Yields text
+    # deltas as they arrive, then a final "complete" dict identical in
+    # shape to invoke()'s return so callers can swap implementations.
+    # ------------------------------------------------------------------
+    def stream(
+        self,
+        *,
+        model_id: str,
+        system_prompt: str,
+        messages: list[dict],
+        tool_config: Optional[list[dict]] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ):
+        model_id = self._resolve_model_id(model_id)
+        rt = self._get_runtime()
+
+        kwargs = {
+            "modelId": model_id,
+            "messages": messages,
+            "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperature},
+        }
+        if system_prompt:
+            kwargs["system"] = [{"text": system_prompt}]
+        if tool_config:
+            kwargs["toolConfig"] = {
+                "tools": [{"toolSpec": spec} for spec in tool_config],
+            }
+
+        t0 = time.time()
+        err = None
+        text_parts: list[str] = []
+        tool_uses: list[dict] = []
+        tool_state: dict = {}  # toolUseId → partial input json chunks
+        stop_reason = "end_turn"
+        in_tok = out_tok = 0
+        try:
+            resp = rt.converse_stream(**kwargs)
+            for ev in resp.get("stream") or []:
+                # Text deltas come in "contentBlockDelta" with "text" key;
+                # tool-use JSON comes with "toolUse" key. We fold tool-use
+                # chunks into tool_state rather than streaming them to the
+                # UI (partial JSON is useless to the user).
+                if "contentBlockDelta" in ev:
+                    delta = ev["contentBlockDelta"].get("delta", {})
+                    if "text" in delta:
+                        chunk = delta["text"]
+                        text_parts.append(chunk)
+                        yield ("chunk", chunk)
+                    elif "toolUse" in delta:
+                        idx = ev["contentBlockDelta"].get("contentBlockIndex", 0)
+                        tool_state.setdefault(idx, {"input_json": ""})
+                        tool_state[idx]["input_json"] += delta["toolUse"].get("input", "")
+                elif "contentBlockStart" in ev:
+                    start = ev["contentBlockStart"].get("start", {})
+                    if "toolUse" in start:
+                        idx = ev["contentBlockStart"].get("contentBlockIndex", 0)
+                        tu = start["toolUse"]
+                        tool_state[idx] = {
+                            "toolUseId": tu.get("toolUseId"),
+                            "name": tu.get("name"),
+                            "input_json": "",
+                        }
+                elif "messageStop" in ev:
+                    stop_reason = ev["messageStop"].get("stopReason", "end_turn")
+                elif "metadata" in ev:
+                    usage = ev["metadata"].get("usage", {})
+                    in_tok = usage.get("inputTokens", 0) or 0
+                    out_tok = usage.get("outputTokens", 0) or 0
+        except Exception as e:  # noqa: BLE001
+            err = str(e)
+            text_parts.append(f"[ERROR streaming {model_id}: {err}]")
+            yield ("chunk", f"[ERROR streaming {model_id}: {err}]")
+            stop_reason = "error"
+
+        # Finalise tool_uses: parse any accumulated JSON.
+        import json as _json
+        for slot in tool_state.values():
+            if slot.get("toolUseId"):
+                try:
+                    parsed = _json.loads(slot.get("input_json") or "{}")
+                except Exception:
+                    parsed = {"_raw": slot.get("input_json", "")}
+                tool_uses.append({
+                    "toolUseId": slot["toolUseId"],
+                    "name": slot.get("name"),
+                    "input": parsed,
+                })
+
+        text = "".join(text_parts)
+        duration_ms = int((time.time() - t0) * 1000)
+        price_in, price_out = self._pricing_for(model_id)
+        cost = (in_tok / 1000.0) * price_in + (out_tok / 1000.0) * price_out
+
+        # Rebuild assistant_message blocks so the engine's tool-loop can
+        # consume it exactly like the batch path. Text blocks first, then
+        # any tool_use blocks — matches Bedrock Converse output order.
+        blocks: list[dict] = []
+        if text:
+            blocks.append({"text": text})
+        for tu in tool_uses:
+            blocks.append({"toolUse": tu})
+        assistant_message = {"role": "assistant", "content": blocks}
+
+        yield ("complete", {
+            "text": text,
+            "tool_uses": tool_uses,
+            "stop_reason": stop_reason,
+            "assistant_message": assistant_message,
+            "input_tokens": in_tok,
+            "output_tokens": out_tok,
+            "cost_usd": round(cost, 6),
+            "duration_ms": duration_ms,
+            "model_id": model_id,
+            "provider": self.provider,
+            "error": err,
+        })

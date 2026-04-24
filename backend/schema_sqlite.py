@@ -646,6 +646,113 @@ SQLITE_DDL = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_im_bindings_platform_ext ON im_bindings(platform, external_id)",
 
+    # --- 2026-04-24 schema parity sweep: tables that existed in Postgres
+    #     but had no SQLite mirror. `rag_documents` is DELIBERATELY omitted
+    #     because it depends on pgvector; personal mode cannot host RAG
+    #     vector search without a non-trivial extension.
+    """
+    CREATE TABLE IF NOT EXISTS ratings (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL,
+        step_id     INTEGER,
+        rating      INTEGER,
+        suggestion  TEXT,
+        created_at  TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS uploads (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL,
+        filename   TEXT,
+        url        TEXT,
+        mime       TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS external_agent_links (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        local_user_id    INTEGER NOT NULL,
+        remote_endpoint  TEXT,
+        remote_agent_id  TEXT,
+        api_key          TEXT,
+        cached_profile   TEXT,
+        last_synced_at   TEXT,
+        enabled          INTEGER DEFAULT 1,
+        created_at       TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS skill_guardrails (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope        TEXT,
+        user_id      INTEGER,
+        rule_type    TEXT,
+        rule_value   TEXT,
+        description  TEXT,
+        enabled      INTEGER DEFAULT 1,
+        created_at   TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS workspaces (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id       INTEGER NOT NULL,
+        project_id    INTEGER,
+        name          TEXT NOT NULL,
+        description   TEXT,
+        storage_path  TEXT NOT NULL,
+        size_bytes    INTEGER DEFAULT 0,
+        created_at    TEXT DEFAULT (datetime('now')),
+        updated_at    TEXT DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS agent_mcp_servers (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id     INTEGER NOT NULL,
+        name         TEXT NOT NULL,
+        url          TEXT NOT NULL,
+        auth_header  TEXT,
+        enabled      INTEGER DEFAULT 1,
+        created_at   TEXT DEFAULT (datetime('now')),
+        updated_at   TEXT DEFAULT (datetime('now'))
+    )
+    """,
+
+    # --- 2026-04-24 parity sweep: columns present in Postgres schema but
+    #     missing from SQLite. Every ALTER is idempotent via the try/except
+    #     wrapping in create_all_sqlite — safe to re-run.
+    "ALTER TABLE agent_escalations ADD COLUMN consulted_agent_id INTEGER",
+    "ALTER TABLE agent_escalations ADD COLUMN context TEXT",
+    "ALTER TABLE agent_escalations ADD COLUMN raising_agent_id INTEGER",
+    "ALTER TABLE agent_escalations ADD COLUMN route TEXT",
+    "ALTER TABLE agent_escalations ADD COLUMN task_owner_id INTEGER",
+    "ALTER TABLE agent_escalations ADD COLUMN uncertainty REAL",
+    "ALTER TABLE agent_skills ADD COLUMN updated_at TEXT",
+    "ALTER TABLE asset_usage_log ADD COLUMN turn INTEGER",
+    "ALTER TABLE audit_log ADD COLUMN metadata TEXT",
+    "ALTER TABLE audit_log ADD COLUMN resource_type TEXT",
+    "ALTER TABLE chats ADD COLUMN cost_usd REAL",
+    "ALTER TABLE chats ADD COLUMN duration_ms INTEGER",
+    "ALTER TABLE chats ADD COLUMN image_url TEXT",
+    "ALTER TABLE chats ADD COLUMN input_tokens INTEGER",
+    "ALTER TABLE chats ADD COLUMN model_id TEXT",
+    "ALTER TABLE chats ADD COLUMN output_tokens INTEGER",
+    "ALTER TABLE lead_messages ADD COLUMN tool_calls TEXT DEFAULT '[]'",
+    "ALTER TABLE notifications ADD COLUMN action_payload TEXT",
+    "ALTER TABLE notifications ADD COLUMN related_agent_id INTEGER",
+    "ALTER TABLE notifications ADD COLUMN related_escalation_id INTEGER",
+    "ALTER TABLE notifications ADD COLUMN related_run_id INTEGER",
+    "ALTER TABLE notifications ADD COLUMN related_workflow_id INTEGER",
+    "ALTER TABLE notifications ADD COLUMN resolution TEXT",
+    "ALTER TABLE notifications ADD COLUMN resolved_at TEXT",
+    "ALTER TABLE notifications ADD COLUMN type TEXT",
+    "ALTER TABLE run_steps ADD COLUMN parent_step_id INTEGER",
+    "ALTER TABLE schedules ADD COLUMN max_queue_depth INTEGER",
+    "ALTER TABLE schedules ADD COLUMN priority INTEGER",
+
     # Phase 6 — unified LLM call ledger (mirror of Postgres llm_calls).
     # See backend/schema.py for the authoritative comment on `kind`.
     """
@@ -689,16 +796,34 @@ SQLITE_DDL = [
 
 
 def create_all_sqlite(conn) -> None:
-    """Execute all SQLite DDL statements."""
+    """Execute all SQLite DDL statements.
+
+    Two-pass strategy mirrors `backend.schema.create_all()` on Postgres:
+    during the first pass any ALTER TABLE that targets a table defined
+    later in the DDL list raises `no such table`; we bucket those for
+    a second pass after every CREATE has run. After the second pass any
+    remaining "no such table" is a real bug (typo, stale column).
+    """
+    import logging
+    log = logging.getLogger("agent_company.schema_sqlite")
+    retry: list[str] = []
     for stmt in SQLITE_DDL:
         try:
             conn.execute(stmt)
-        except Exception as e:
-            # Skip errors on "already exists" etc.
-            import logging
-            logging.getLogger("agent_company.schema_sqlite").debug(
-                "SQLite DDL skip: %s (%s)", str(e)[:80], stmt[:60]
-            )
+        except Exception as e:  # noqa: BLE001
+            msg = str(e).lower()
+            # "no such table" → defer to second pass after CREATEs run.
+            # "duplicate column" → ALTER already applied, fine to skip.
+            # Any other error → log and continue (old behaviour).
+            if "no such table" in msg:
+                retry.append(stmt)
+            else:
+                log.debug("SQLite DDL skip: %s (%s)", str(e)[:80], stmt[:60])
+    for stmt in retry:
+        try:
+            conn.execute(stmt)
+        except Exception as e:  # noqa: BLE001
+            log.debug("SQLite DDL retry skip: %s (%s)", str(e)[:80], stmt[:60])
     conn.commit()
     # Seed feature flags
     from .services import feature_flags

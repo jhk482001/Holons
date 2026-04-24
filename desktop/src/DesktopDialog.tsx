@@ -136,6 +136,9 @@ export default function DesktopDialog({
 
   return (
     <div className="desktop-root" style={{ pointerEvents: "none" }}>
+      <div className="desktop-version-badge" aria-label="build version">
+        {__BUILD_VERSION__}
+      </div>
       {activeAgent && panelMode === "chat" && (
         <ChatPanel
           agent={activeAgent}

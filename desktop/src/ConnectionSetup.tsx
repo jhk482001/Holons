@@ -11,6 +11,9 @@ function BrandHeader() {
     <div className="setup-brand">
       <img src={holonsLogo} alt="Holons" className="setup-brand-logo" draggable={false} />
       <div className="setup-brand-name">Holons</div>
+      <div className="setup-brand-version" aria-label="build version">
+        {__BUILD_VERSION__}
+      </div>
     </div>
   );
 }

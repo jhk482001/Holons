@@ -243,6 +243,12 @@ pub fn run() {
             request_attention,
         ])
         .setup(|app| {
+            // Build-version display in the tray menu — disabled so it's
+            // non-interactive but visible. Lets the user verify which
+            // .app they're actually running without opening the UI.
+            let version_label = format!("Version: {}", env!("HOLONS_BUILD_VERSION"));
+            let version_i = MenuItem::with_id(app, "version", &version_label, false, None::<&str>)?;
+
             let show_i = MenuItem::with_id(app, "show", "Show Holons", true, None::<&str>)?;
 
             // Bust size submenu
@@ -281,6 +287,7 @@ pub fn run() {
                 tauri::menu::Submenu::with_items(app, "Language", true, &[&lang_en, &lang_zh])?;
 
             let sep = PredefinedMenuItem::separator(app)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
             // Show-lead-only: compact overlay that hides the full cast
             // and only keeps the Lead bust + its chat. Toggleable from
             // the tray. The frontend listens for "toggle-show-lead-only".
@@ -296,6 +303,8 @@ pub fn run() {
             let menu = Menu::with_items(
                 app,
                 &[
+                    &version_i,
+                    &sep,
                     &show_i,
                     &size_menu,
                     &reset_pos_i,
@@ -303,7 +312,7 @@ pub fn run() {
                     &lead_only_i,
                     &connection_i,
                     &open_web_i,
-                    &sep,
+                    &sep2,
                     &quit_i,
                 ],
             )?;

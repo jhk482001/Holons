@@ -4,6 +4,63 @@ All notable changes to Holons are documented here. The format roughly
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 versions use [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Unified LLM call ledger (`llm_calls`)** — every model invocation
+  (agent run, Lead chat, Lead proxy, skill extraction, project report,
+  model-client test) writes one normalised row with user / agent /
+  run / model / cost / tokens / duration / error. Closes the
+  long-standing gap where only `run_steps` had reliable cost data.
+- **Admin → Usage tab** — cross-user report with 6 headline widgets,
+  stacked-by-user daily cost chart, top users / top models lists,
+  kind breakdown, and a filterable records pane. 30 s auto-refresh.
+- **Per-user default model client** — new
+  `as_users.default_model_client_id` routes background LLM paths
+  (skill extraction, project reports) through a chosen client before
+  falling back to the agent's primary. PersonalTab gains the dropdown.
+- **Soft-warning quota thresholds** — `user_quotas.daily_warn_pct` +
+  `monthly_warn_pct` (default 80, clamped 10–95). Dashboard shows a
+  new user-quota bar that flips orange at `warn_pct`, red at 100%.
+- **Admin quota editor** — per-user limits + warn_pct editable from
+  User Management tab.
+- **Group chat aggregator** — sequential groups now honour
+  `aggregator_agent_id`: members reply in order, then the aggregator
+  synthesises into a single recommendation with a role-hint prompt.
+- **Build-version badge** — `1.0.0+YYYYMMDD-HHMM.<sha>[-dirty]` baked
+  into every desktop build; shown in the Setup/Login brand header,
+  the overlay top-right pill, and the tray menu (disabled row).
+- **Preflight schema upgrade flow** — new personal-mode sidecars
+  detect missing tables / columns in an existing
+  `~/.agent_company/data.db` and offer "Back up and upgrade" /
+  "Upgrade without backup" / "Cancel" before booting Flask.
+- **Bust color selection** — per-agent in the desktop cast bar
+  (default / black / Holons orange) via right-click menu.
+- **Chat panel anchoring** — desktop chat panel positions itself next
+  to the selected bust according to facing direction, clamped to
+  viewport margins; collapses to compact mode for empty threads.
+
+### Fixed
+
+- `group_chat.py::_generate_reply` now tags calls with `kind='group'`
+  and populates `user_id` so Admin Usage attributes team rooms
+  correctly (previously logged as generic `system`).
+- `/api/backup/info` no longer returns 403 to non-admin callers;
+  responds with `{exportable: false, reason: "admin only"}` so
+  PersonalTab's BackupSection renders the disabled state cleanly.
+- SQLite schema mirror parity sweep: 6 missing tables + 28 missing
+  columns backfilled; `create_all_sqlite` gains a two-pass retry so
+  ALTERs that target later-defined CREATEs succeed on fresh installs.
+- `im_channels.manager.start_all` skips gracefully when the
+  `im_bindings` table is missing instead of crashing the backend.
+
+### Repo
+
+- `mcp_test/` and `rag_test/` moved to `.gitignore` — throwaway
+  servers for local prototyping, not product surface.
+
+
 ## [0.5.0] — 2026-04-22
 
 ### Added

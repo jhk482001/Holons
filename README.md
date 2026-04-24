@@ -213,18 +213,22 @@ deep-dive doc, or both.
 | Missing a specialty → Lead drafts one. | Multi-phase work → a project, auto. | 1–10 autonomous rounds. |
 | 💬 **Group chat rooms** | 🔁 **Parallel / sequential groups** | 🔄 **Review-loop workflows** |
 | Observable deliberation. | Fan-out, round-robin, aggregator. | N iterations, REVISE / APPROVE verdicts. |
-| 🗂️ **Projects + quotas** | 📈 **Daily coordinator report** | 💰 **Budget & auto-topup** |
-| Goals, members, resource %. | Status / highlights / next-up. | Rate-limited, warn at 80%. |
+| 🗂️ **Projects + quotas** | 📈 **Daily coordinator report** | 💰 **Per-user quota + warn_pct** |
+| Goals, members, resource %. | Status / highlights / next-up. | Hard caps + soft warning bar at 80%. |
 | 📊 **Dashboard & cost** | 🕐 **Schedules (cron)** | 🔎 **Full-text search** |
 | Gantt, stacked spend, idle/busy. | Trigger workflows on a timer. | Across threads, runs, reports. |
 | 📔 **Skills library** | 🔧 **Tools (HTTP, time, …)** | 🧠 **RAG knowledge bases** |
 | Reusable prompt snippets. | Built-ins + bring-your-own. | pgvector backend; per-agent grants. |
-| 🔑 **MCP servers** | 🛂 **Feature flags + admin** | 📨 **Notifications + webhooks** |
-| Custom + shared connections. | Who can create/share/use what. | In-app bell + Slack/HTTP fanout. |
-| 🪟 **Desktop cast-bar overlay** | 🔌 **API tokens (`hlns_…`)** | 📤 **Export / import** |
-| Transparent, click-through. | Long-lived, scoped, rotate-able. | Agents, workflows as JSON. |
-| 🌐 **Pluggable LLMs** | 💾 **Swappable backends** | 🌍 **i18n (en / zh-TW)** |
-| Bedrock / Anthropic / OpenAI / Gemini / MiniMax. | SQLite (personal) or Postgres + pgvector. | Per-user locale. |
+| 🔑 **MCP servers** | 🛂 **Feature flags + admin** | 📨 **Notifications + IM channels** |
+| Custom + shared connections. | Who can create/share/use what. | In-app bell + Telegram / Slack / LINE. |
+| 🪟 **Desktop cast-bar overlay** | 🔌 **API tokens (`hlns_…`)** | 🏷️ **Build-version badge** |
+| Transparent Tauri app, tray menu. | Long-lived, scoped, rotate-able. | Visible in tray + header — verify updates at a glance. |
+| 💸 **Unified LLM call ledger** | 📈 **Admin Usage report** | 🧰 **Per-user default client** |
+| Every call (agent / Lead / skill / report / proxy / test) in one table. | Cross-user cost / tokens / calls chart, filters, records. | Route background tasks (skill extract, reports) through a chosen client. |
+| 🛡️ **Preflight upgrade flow** | 🌐 **Pluggable LLMs** | 💾 **Swappable backends** |
+| New installs detect schema drift + offer backup before migrating. | Bedrock / Anthropic / OpenAI / Azure / Gemini / MiniMax / local. | SQLite (personal) or Postgres + pgvector. |
+| 🌍 **i18n (en / zh-TW)** | &nbsp; | &nbsp; |
+| Per-user locale. | &nbsp; | &nbsp; |
 
 → Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Projects deep-dive: **[docs/PROJECTS.md](docs/PROJECTS.md)** · Development: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**
 

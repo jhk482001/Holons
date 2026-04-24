@@ -10,6 +10,13 @@ env.config
 !*.example
 
 # ============================================================================
+# Throwaway servers we run locally when prototyping MCP / RAG plumbing —
+# not part of the shipped product and not worth managing in the repo.
+# ============================================================================
+mcp_test/
+rag_test/
+
+# ============================================================================
 # Python
 # ============================================================================
 __pycache__/

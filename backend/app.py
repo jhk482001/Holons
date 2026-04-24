@@ -868,8 +868,18 @@ def _current_db_info() -> dict:
 
 
 @app.route("/api/backup/info")
-@admin_required
+@login_required
 def backup_info():
+    # Regular users see a "backup not available to you" response instead
+    # of a 403 — lets PersonalTab render the section in its "disabled"
+    # state without polluting the console with an error for every user
+    # who opens settings.
+    if current_user_role() != "admin":
+        return jsonify({
+            "backend": "n/a",
+            "exportable": False,
+            "reason": "admin only",
+        })
     return jsonify(_current_db_info())
 
 

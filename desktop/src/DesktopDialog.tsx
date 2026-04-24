@@ -18,6 +18,7 @@ interface MeInfo {
 
 type PanelMode = "chat" | "settings" | "log" | null;
 type BustSize = "small" | "medium" | "large";
+type BustColor = "default" | "black" | "orange";
 const BUST_HEIGHTS: Record<BustSize, number> = { small: 120, medium: 180, large: 260 };
 
 interface CastLayout {
@@ -26,6 +27,7 @@ interface CastLayout {
   desktop_positions?: Record<string, { xPct: number; yPct: number }>;
   facing?: Record<string, "left" | "right">;
   hidden_agents?: number[];
+  colors?: Record<string, BustColor>;
   // When true, the cast shows only the Lead bust. Flipped by the tray
   // "Show Lead only" menu item.
   show_lead_only?: boolean;
@@ -112,6 +114,16 @@ export default function DesktopDialog({
   const bustHeight = BUST_HEIGHTS[bustSize];
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
 
+  // Resolve the active agent's on-screen anchor + facing so the chat
+  // panel can attach itself to the selected bust rather than screen center.
+  const orderedForAnchor = buildOrderedAgents(agents, layout.agent_order);
+  const defaultPosForAnchor = generateDefaultPositions(orderedForAnchor, bustHeight);
+  const savedPosForAnchor = layout.desktop_positions || {};
+  const activeAnchorPct =
+    activeAgent && (savedPosForAnchor[activeAgent.id] || defaultPosForAnchor[activeAgent.id]);
+  const activeFacing: "left" | "right" =
+    (activeAgent && (layout.facing || {})[activeAgent.id]) || "right";
+
   function selectAgent(id: number, mode: PanelMode) {
     if (activeAgentId === id && panelMode === mode) {
       setActiveAgentId(null);
@@ -125,12 +137,26 @@ export default function DesktopDialog({
   return (
     <div className="desktop-root" style={{ pointerEvents: "none" }}>
       {activeAgent && panelMode === "chat" && (
-        <ChatPanel agent={activeAgent} me={me}
-          onClose={() => { setActiveAgentId(null); setPanelMode(null); }} />
+        <ChatPanel
+          agent={activeAgent}
+          me={me}
+          anchorXPct={activeAnchorPct?.xPct}
+          anchorYPct={activeAnchorPct?.yPct}
+          facing={activeFacing}
+          bustHeight={bustHeight}
+          onClose={() => { setActiveAgentId(null); setPanelMode(null); }}
+        />
       )}
       {activeAgent && (panelMode === "settings" || panelMode === "log") && (
-        <FloatingInfoPanel agent={activeAgent} kind={panelMode}
-          onClose={() => { setActiveAgentId(null); setPanelMode(null); }} />
+        <FloatingInfoPanel
+          agent={activeAgent}
+          kind={panelMode}
+          anchorXPct={activeAnchorPct?.xPct}
+          anchorYPct={activeAnchorPct?.yPct}
+          facing={activeFacing}
+          bustHeight={bustHeight}
+          onClose={() => { setActiveAgentId(null); setPanelMode(null); }}
+        />
       )}
 
       <CastBar
@@ -231,6 +257,7 @@ function CastBar({
   } | null>(null);
 
   const facing = layout.facing || {};
+  const colors = layout.colors || {};
   const hiddenAgents = new Set(layout.hidden_agents || []);
   // Show-lead-only mode (tray toggle): collapse the cast to just the
   // Lead agent. Non-lead agents get hidden from the bust row.
@@ -239,6 +266,12 @@ function CastBar({
   function setFacing(agentId: number, dir: "left" | "right") {
     const next = { ...facing, [agentId]: dir };
     onLayoutChange({ ...layout, facing: next });
+    setCtxMenu(null);
+  }
+
+  function setColor(agentId: number, color: BustColor) {
+    const next = { ...colors, [agentId]: color };
+    onLayoutChange({ ...layout, colors: next });
     setCtxMenu(null);
   }
 
@@ -328,6 +361,21 @@ function CastBar({
             {t("dialog.faceLeft")}
           </button>
           <div style={{ height: 1, background: "var(--desktop-border)", margin: "4px 0" }} />
+          <div className="cast-ctx-label">{t("dialog.color")}</div>
+          <div className="cast-ctx-colors">
+            {(["default", "black", "orange"] as BustColor[]).map((c) => {
+              const active = (colors[ctxMenu.agentId] || "default") === c;
+              return (
+                <button
+                  key={c}
+                  className={`cast-ctx-swatch cast-ctx-swatch-${c} ${active ? "active" : ""}`}
+                  onClick={() => setColor(ctxMenu.agentId, c)}
+                  title={t(`dialog.color_${c}`)}
+                />
+              );
+            })}
+          </div>
+          <div style={{ height: 1, background: "var(--desktop-border)", margin: "4px 0" }} />
           <button
             className="cast-ctx-item"
             onClick={() => toggleHidden(ctxMenu.agentId)}
@@ -383,19 +431,26 @@ function CastBar({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15 1.65 1.65 0 0 0 3.09 14H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9 1.65 1.65 0 0 0 4.27 7.18l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09c-.658.003-1.25.396-1.51 1z" /></svg>
               </button>
             </div>
-            <div
-              className="cast-bust"
-              style={{
-                height: bustHeight - 30,
-                transform: (facing[a.id] || "right") === "left" ? "scaleX(-1)" : undefined,
-              }}
-            >
-              <img
-                src={absoluteUrl(`/api/avatar/compose?body_type=body_bust&body=${encodeURIComponent(a.avatar_config?.body || "Shirt")}&hair=${encodeURIComponent(a.avatar_config?.hair || "Medium")}&face=${encodeURIComponent(a.avatar_config?.face || "Calm")}${a.avatar_config?.facial_hair ? `&facial_hair=${encodeURIComponent(a.avatar_config.facial_hair)}` : ""}${a.avatar_config?.accessory ? `&accessory=${encodeURIComponent(a.avatar_config.accessory)}` : ""}&vb=0,-200,850,1400`)}
-                alt={a.name}
-                draggable={false}
-              />
-            </div>
+            {(() => {
+              const color = colors[a.id] || "default";
+              const url = absoluteUrl(`/api/avatar/compose?body_type=body_bust&body=${encodeURIComponent(a.avatar_config?.body || "Shirt")}&hair=${encodeURIComponent(a.avatar_config?.hair || "Medium")}&face=${encodeURIComponent(a.avatar_config?.face || "Calm")}${a.avatar_config?.facial_hair ? `&facial_hair=${encodeURIComponent(a.avatar_config.facial_hair)}` : ""}${a.avatar_config?.accessory ? `&accessory=${encodeURIComponent(a.avatar_config.accessory)}` : ""}&vb=0,-200,850,1400`);
+              return (
+                <div
+                  className={`cast-bust cast-bust-color-${color}`}
+                  style={{
+                    height: bustHeight - 30,
+                    transform: (facing[a.id] || "right") === "left" ? "scaleX(-1)" : undefined,
+                    ["--bust-url" as any]: `url("${url}")`,
+                  }}
+                >
+                  {color === "default" ? (
+                    <img src={url} alt={a.name} draggable={false} />
+                  ) : (
+                    <div className="cast-bust-silhouette" aria-label={a.name} />
+                  )}
+                </div>
+              );
+            })()}
             <div className="cast-name">{a.name}</div>
             <div className={`cast-status ${a.status}`} />
           </div>
@@ -407,10 +462,83 @@ function CastBar({
 
 
 /* ============================================================================
+   Anchor-aware panel positioning
+   ============================================================================ */
+
+interface PanelAnchorProps {
+  anchorXPct?: number;
+  anchorYPct?: number;
+  facing: "left" | "right";
+  bustHeight: number;
+}
+
+// Produce an inline style that anchors a panel next to the selected
+// agent on screen. If `anchorXPct` is missing (e.g. agent just deleted)
+// we fall back to screen-centered positioning.
+function useAnchoredPanelStyle(
+  { anchorXPct, anchorYPct, facing, bustHeight }: PanelAnchorProps,
+  size: { width: number; height: number },
+): React.CSSProperties {
+  const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
+  const [vh, setVh] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 720));
+  useEffect(() => {
+    function onResize() { setVw(window.innerWidth); setVh(window.innerHeight); }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  if (anchorXPct == null || anchorYPct == null) {
+    return { left: "50%", top: "50%", transform: "translate(-50%, -50%)" };
+  }
+  const margin = 16;
+  const gap = 24;
+  const anchorPx = anchorXPct * vw;
+  const anchorY = anchorYPct * vh;
+
+  // Horizontal: if the agent faces right, the panel sits to the right
+  // of the bust (i.e. the chat's left edge anchors near the agent).
+  // If facing left, mirror that: panel sits to the left.
+  let left: number;
+  if (facing === "right") {
+    left = Math.min(Math.max(anchorPx + gap, margin), vw - size.width - margin);
+  } else {
+    left = Math.min(Math.max(anchorPx - size.width - gap, margin), vw - size.width - margin);
+  }
+
+  // Vertical: place the panel's bottom above the bust, clamped so the
+  // top never clips off-screen.
+  const bustTop = anchorY - bustHeight;
+  let top = bustTop - size.height - 12;
+  if (top < margin) {
+    // Not enough room above — try below the bust instead.
+    top = Math.min(anchorY + 12, vh - size.height - margin);
+  }
+  top = Math.max(margin, top);
+
+  return { left, top };
+}
+
+/* ============================================================================
    Chat Panel
    ============================================================================ */
 
-function ChatPanel({ agent, me, onClose }: { agent: Agent; me: MeInfo; onClose: () => void }) {
+function ChatPanel({
+  agent,
+  me,
+  anchorXPct,
+  anchorYPct,
+  facing,
+  bustHeight,
+  onClose,
+}: {
+  agent: Agent;
+  me: MeInfo;
+  anchorXPct?: number;
+  anchorYPct?: number;
+  facing: "left" | "right";
+  bustHeight: number;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [input, setInput] = useState("");
@@ -470,8 +598,24 @@ function ChatPanel({ agent, me, onClose }: { agent: Agent; me: MeInfo; onClose: 
     }
   }, [messages.length]);
 
+  // Compact when there is no conversation history yet; expand once
+  // the user actually has a thread going so replies have room to breathe.
+  const hasHistory = messages.length > 0;
+  const panelSize = hasHistory
+    ? { width: 520, height: 480 }
+    : { width: 380, height: 220 };
+  const anchorStyle = useAnchoredPanelStyle(
+    { anchorXPct, anchorYPct, facing, bustHeight },
+    panelSize,
+  );
+
   return (
-    <div className="chat-panel chat-panel-centered" data-interactive style={{ pointerEvents: "auto" }} onClick={(e) => e.stopPropagation()}>
+    <div
+      className={`chat-panel chat-panel-anchored ${hasHistory ? "chat-panel-expanded" : "chat-panel-compact"}`}
+      data-interactive
+      style={{ pointerEvents: "auto", ...anchorStyle, width: panelSize.width }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="chat-header">
         <Avatar cfg={agent.avatar_config} size={32} title={agent.name} />
         <div className="chat-header-name"><strong>{agent.name}</strong><span>{agent.role_title || ""}</span></div>
@@ -498,10 +642,36 @@ function ChatPanel({ agent, me, onClose }: { agent: Agent; me: MeInfo; onClose: 
    Floating Info Panel (Settings / Log)
    ============================================================================ */
 
-function FloatingInfoPanel({ agent, kind, onClose }: { agent: Agent; kind: "settings" | "log"; onClose: () => void }) {
+function FloatingInfoPanel({
+  agent,
+  kind,
+  anchorXPct,
+  anchorYPct,
+  facing,
+  bustHeight,
+  onClose,
+}: {
+  agent: Agent;
+  kind: "settings" | "log";
+  anchorXPct?: number;
+  anchorYPct?: number;
+  facing: "left" | "right";
+  bustHeight: number;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
+  const panelSize = { width: 380, height: 420 };
+  const anchorStyle = useAnchoredPanelStyle(
+    { anchorXPct, anchorYPct, facing, bustHeight },
+    panelSize,
+  );
   return (
-    <div className="chat-panel chat-panel-centered floating-info-panel" data-interactive style={{ pointerEvents: "auto" }} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="chat-panel chat-panel-anchored floating-info-panel"
+      data-interactive
+      style={{ pointerEvents: "auto", ...anchorStyle, width: panelSize.width }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="chat-header">
         <Avatar cfg={agent.avatar_config} size={32} title={agent.name} />
         <div className="chat-header-name"><strong>{agent.name}</strong><span>{kind === "settings" ? t("dialog.settings") : t("dialog.log")}</span></div>

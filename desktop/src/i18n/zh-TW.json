@@ -22,7 +22,14 @@
     "errCannotConnect": "無法連線: {{message}}",
     "errServerStatus": "伺服器回傳 {{status}}",
     "errStartTimeout": "後端 30 秒內未啟動",
-    "errStartFailed": "無法啟動本機後端"
+    "errStartFailed": "無法啟動本機後端",
+    "checking": "正在檢查本機資料庫…",
+    "upgradeNeededTitle": "本機資料庫需要升級",
+    "upgradeNeededDesc": "偵測到 {{n}} 張缺失的表、{{m}} 個缺失的欄位。目前資料庫大小：{{size}}。我們可以先幫你備份，再進行升級。",
+    "upgradeWithBackup": "備份後升級",
+    "upgradeWithoutBackup": "直接升級（不備份）",
+    "backingUp": "正在備份資料庫…",
+    "backupSavedAt": "備份已存於"
   },
   "login": {
     "title": "Holons",

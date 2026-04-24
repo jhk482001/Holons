@@ -146,6 +146,22 @@
   object-position: bottom center;
 }
 
+/* Silhouette fill for color modes: mask the composed avatar URL and paint solid. */
+.cast-bust-silhouette {
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: var(--bust-url);
+          mask-image: var(--bust-url);
+  -webkit-mask-size: contain;
+          mask-size: contain;
+  -webkit-mask-position: bottom center;
+          mask-position: bottom center;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+}
+.cast-bust-color-black .cast-bust-silhouette { background: #1c1a18; }
+.cast-bust-color-orange .cast-bust-silhouette { background: var(--desktop-accent); }
+
 .cast-name {
   font-size: 10px;
   color: var(--desktop-text);
@@ -206,6 +222,34 @@
   color: var(--desktop-accent);
   font-weight: 700;
 }
+.cast-ctx-label {
+  font-size: 10px;
+  color: var(--desktop-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 6px 12px 2px;
+}
+.cast-ctx-colors {
+  display: flex;
+  gap: 8px;
+  padding: 4px 12px 8px;
+}
+.cast-ctx-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+  padding: 0;
+}
+.cast-ctx-swatch:hover { transform: scale(1.1); }
+.cast-ctx-swatch.active { border-color: var(--desktop-text); }
+.cast-ctx-swatch-default {
+  background: linear-gradient(135deg, #e0c9a8 0%, #b78963 100%);
+}
+.cast-ctx-swatch-black { background: #1c1a18; }
+.cast-ctx-swatch-orange { background: var(--desktop-accent); }
 
 
 /* ============================================================================
@@ -234,8 +278,31 @@
   max-height: 70vh;
   z-index: 100;
 }
+/* Anchored mode: inline left/top/width come from the component. */
+.chat-panel-anchored {
+  z-index: 100;
+}
+/* Compact: for agents with no message history — just enough room for
+   the composer + greeting. */
+.chat-panel-compact {
+  max-height: 260px;
+}
+.chat-panel-compact .chat-messages {
+  min-height: 60px;
+}
+/* Expanded: once a thread exists, give the messages space to breathe. */
+.chat-panel-expanded {
+  max-height: min(70vh, 520px);
+}
 
 @keyframes panel-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chat-panel-centered {
+  animation: panel-in-centered 0.2s ease-out;
+}
+@keyframes panel-in-centered {
   from { opacity: 0; transform: translate(-50%, -50%) translateY(16px); }
   to   { opacity: 1; transform: translate(-50%, -50%) translateY(0); }
 }
@@ -533,6 +600,26 @@
   flex-direction: column;
   gap: 14px;
 }
+.setup-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.setup-brand-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(255, 138, 101, 0.35));
+}
+.setup-brand-name {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--desktop-text);
+}
+
 .setup-title {
   font-size: 22px;
   font-weight: 800;

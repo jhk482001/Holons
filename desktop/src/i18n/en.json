@@ -22,7 +22,14 @@
     "errCannotConnect": "Cannot connect: {{message}}",
     "errServerStatus": "Server returned {{status}}",
     "errStartTimeout": "Backend did not start within 30 seconds",
-    "errStartFailed": "Failed to start local backend"
+    "errStartFailed": "Failed to start local backend",
+    "checking": "Checking local database…",
+    "upgradeNeededTitle": "Your local database needs an upgrade",
+    "upgradeNeededDesc": "Found {{n}} missing table(s) and {{m}} missing column(s). Current DB size: {{size}}. We can back up first, then apply the upgrade.",
+    "upgradeWithBackup": "Back up and upgrade",
+    "upgradeWithoutBackup": "Upgrade without backup",
+    "backingUp": "Backing up database…",
+    "backupSavedAt": "Backup saved at"
   },
   "login": {
     "title": "Holons",

@@ -627,6 +627,7 @@ def _prepare_lead_call(
 def _finalise_lead_message(
     user_id: int, project_id: int | None,
     thread_id: str, response_text: str, result: dict,
+    lead_agent_id: int | None = None,
 ) -> dict:
     """Shared post-processing for batch and streaming Lead replies.
 
@@ -635,6 +636,9 @@ def _finalise_lead_message(
     the lead's message row with metadata, fires project_artifact rows
     for in-project chats, and returns the structured dict both entry
     points ship back to the caller.
+
+    `lead_agent_id` is the acting agent (Lead or project coordinator)
+    that produced this reply; needed for project_artifacts.agent_id.
     """
     proposed = _extract_workflow_proposal(response_text)
     proposed_hire = _extract_hire_proposal(response_text)
@@ -739,6 +743,7 @@ def chat(user_id: int, user_message: str, thread_id: str | None = None,
     response_text = result.get("text", "")
     return _finalise_lead_message(
         user_id, project_id, prep["thread_id"], response_text, result,
+        lead_agent_id=prep["lead_agent_id"],
     )
 
 
@@ -795,6 +800,7 @@ def chat_streaming(user_id: int, user_message: str,
     response_text = final_result.get("text") or "".join(full_text_parts)
     structured = _finalise_lead_message(
         user_id, project_id, prep["thread_id"], response_text, final_result,
+        lead_agent_id=prep["lead_agent_id"],
     )
     yield ("complete", structured)
 

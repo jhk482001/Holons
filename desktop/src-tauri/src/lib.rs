@@ -117,7 +117,11 @@ fn dirs_home() -> std::path::PathBuf {
 fn sidecar_bin(app_handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     let resource_dir = app_handle.path().resource_dir().ok()?;
     let bundled = resource_dir.join("agent-company-backend");
-    if bundled.exists() { Some(bundled) } else { None }
+    if bundled.exists() {
+        Some(bundled)
+    } else {
+        None
+    }
 }
 
 // ---------- DB preflight check --------------------------------------------

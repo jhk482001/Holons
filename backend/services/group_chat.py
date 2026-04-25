@@ -304,16 +304,19 @@ def send_user_message_streaming(user_id: int, group_id: int, thread_id: int,
     """
     group = _group(user_id, group_id)
     if not group:
-        yield ("error", {"error": "group not found"}); return
+        yield ("error", {"error": "group not found"})
+        return
     t = db.fetch_one(
         "SELECT id FROM group_chat_threads WHERE id = %s AND user_id = %s AND group_id = %s",
         (thread_id, user_id, group_id),
     )
     if not t:
-        yield ("error", {"error": "thread not found"}); return
+        yield ("error", {"error": "thread not found"})
+        return
     members = _members(group_id)
     if not members:
-        yield ("error", {"error": "group has no members"}); return
+        yield ("error", {"error": "group has no members"})
+        return
 
     user_msg_id = db.execute_returning(
         """INSERT INTO group_chat_messages (thread_id, role, content)
@@ -459,16 +462,19 @@ def continue_rounds_streaming(user_id: int, group_id: int, thread_id: int, round
     rounds = max(1, min(_MAX_CONTINUE_ROUNDS, int(rounds or 1)))
     group = _group(user_id, group_id)
     if not group:
-        yield ("error", {"error": "group not found"}); return
+        yield ("error", {"error": "group not found"})
+        return
     t = db.fetch_one(
         "SELECT id FROM group_chat_threads WHERE id = %s AND user_id = %s AND group_id = %s",
         (thread_id, user_id, group_id),
     )
     if not t:
-        yield ("error", {"error": "thread not found"}); return
+        yield ("error", {"error": "thread not found"})
+        return
     members = _members(group_id)
     if not members:
-        yield ("error", {"error": "group has no members"}); return
+        yield ("error", {"error": "group has no members"})
+        return
 
     try:
         for round_idx in range(rounds):

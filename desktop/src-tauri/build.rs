@@ -27,15 +27,24 @@ fn main() {
         .args(["rev-parse", "--short", "HEAD"])
         .output()
         .ok()
-        .and_then(|o| if o.status.success() { Some(o.stdout) } else { None })
+        .and_then(|o| {
+            if o.status.success() {
+                Some(o.stdout)
+            } else {
+                None
+            }
+        })
         .map(|b| String::from_utf8_lossy(&b).trim().to_string())
         .unwrap_or_else(|| "local".to_string());
 
+    // `trim_ascii()` requires Rust 1.80+, but our MSRV is 1.77.2 (set
+    // in Cargo.toml). Use the parsed-string trim() instead — same
+    // behaviour for our purposes since git output is always UTF-8.
     let dirty = Command::new("git")
         .args(["status", "--porcelain"])
         .output()
         .ok()
-        .map(|o| !o.stdout.trim_ascii().is_empty())
+        .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
         .unwrap_or(false);
     let dirty_tag = if dirty { "-dirty" } else { "" };
 

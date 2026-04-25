@@ -1185,24 +1185,16 @@ class TestUserQuotas:
     def test_check_dispatch_raises_when_over(self, user_id, agent_id):
         from backend.services import user_quotas
         user_quotas.set_quota(user_id, {"daily_cost_limit_usd": 1.0})
-        # Seed an expensive run_step to push spend over the limit
-        wid = db.execute_returning(
-            "INSERT INTO workflows (user_id, name) VALUES (%s, 'w') RETURNING id",
-            (user_id,),
-        )
-        rid = db.execute_returning(
-            "INSERT INTO runs (workflow_id, user_id, initial_input, status) "
-            "VALUES (%s, %s, '', 'done') RETURNING id",
-            (wid, user_id),
-        )
+        # Seed an expensive llm_calls row to push spend over the limit.
+        # Phase 6 swapped the quota source from run_steps to llm_calls
+        # (excluding kind='client_test') so non-agent paths now count too.
         db.execute(
             """
-            INSERT INTO run_steps
-              (run_id, iteration, agent_id, prompt, system_prompt, response,
-               model_id, input_tokens, output_tokens, cost_usd, duration_ms)
-            VALUES (%s, 1, %s, 'p', 's', 'r', 'm', 100, 200, %s, 10)
+            INSERT INTO llm_calls
+              (user_id, agent_id, kind, input_tokens, output_tokens, cost_usd)
+            VALUES (%s, %s, 'agent', 100, 200, %s)
             """,
-            (rid, agent_id, 5.0),
+            (user_id, agent_id, 5.0),
         )
         with pytest.raises(user_quotas.QuotaExceeded):
             user_quotas.check_dispatch(user_id)

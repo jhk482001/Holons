@@ -393,6 +393,20 @@
   color: var(--desktop-text);
   border-bottom-left-radius: 4px;
 }
+.chat-bubble.bot.streaming {
+  /* Slightly punchier border so the in-flight bubble stands out from
+     committed history while text is arriving. */
+  border: 1px solid rgba(255, 138, 101, 0.3);
+}
+.chat-bubble .streaming-cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--desktop-accent);
+  animation: stream-blink 1s steps(2, start) infinite;
+}
+@keyframes stream-blink {
+  to { visibility: hidden; }
+}
 
 .chat-composer {
   display: flex;

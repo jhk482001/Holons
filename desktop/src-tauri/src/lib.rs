@@ -124,6 +124,32 @@ fn sidecar_bin(app_handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     }
 }
 
+// Apply NSColor.clearColor to the NSWindow background + setOpaque(NO).
+// macOS otherwise paints its default dark windowBackgroundColor under
+// any non-fully-opaque webview pixels, which is exactly the black ring
+// users see around the transparent bust PNGs. Called once at app
+// startup; the effect persists for the window's lifetime.
+#[cfg(target_os = "macos")]
+fn clear_native_background(window: &tauri::WebviewWindow) {
+    use cocoa::base::{id, nil, NO};
+    use objc::{class, msg_send, sel, sel_impl};
+    unsafe {
+        let ns_window = match window.ns_window() {
+            Ok(p) => p as id,
+            Err(e) => {
+                log::warn!("ns_window unavailable for background clear: {e}");
+                return;
+            }
+        };
+        if ns_window == nil {
+            return;
+        }
+        let clear: id = msg_send![class!(NSColor), clearColor];
+        let _: () = msg_send![ns_window, setBackgroundColor: clear];
+        let _: () = msg_send![ns_window, setOpaque: NO];
+    }
+}
+
 // ---------- DB preflight check --------------------------------------------
 // Run the sidecar in --preflight mode so it can report whether the user's
 // ~/.agent_company/data.db has a schema older than the one this .app
@@ -394,9 +420,13 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Maximize on launch
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
+                // Kill the macOS default NSWindow background so transparent
+                // PNGs (the bust composites) don't ring with a dark halo
+                // against the system's default window background colour.
+                #[cfg(target_os = "macos")]
+                clear_native_background(&window);
             }
 
             Ok(())

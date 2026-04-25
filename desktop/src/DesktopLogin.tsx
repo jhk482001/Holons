@@ -56,7 +56,21 @@ export default function DesktopLogin({
 
   return (
     <div className="desktop-login-overlay" data-interactive>
-      <form className="desktop-login-card" onSubmit={handleSubmit}>
+      <form
+        className="desktop-login-card"
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          // Eat Enter while user is in IME composition (zhuyin / pinyin
+          // / kana etc.) so picking a candidate doesn't accidentally
+          // submit the login form. Native browser submit fires here too
+          // — without this guard each candidate-Enter logs in
+          // prematurely with whatever's typed so far.
+          if (e.key === "Enter" && (e.nativeEvent as any).isComposing) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+      >
         <LangSwitcher />
         <div className="desktop-login-title">{t("login.title")}</div>
         <div className="desktop-login-sub">{t("login.subtitle")}</div>

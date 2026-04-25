@@ -566,21 +566,48 @@ function ChatPanel({
   });
   const messages = Array.isArray(messagesData) ? messagesData : [];
 
+  // Live token buffer — populated chunk-by-chunk while a Lead streaming
+  // request is in flight, cleared once the final structured result has
+  // landed in the cache. Same pattern as the web DialogCenter.
+  const [streamingText, setStreamingText] = useState("");
+
   const send = useMutation({
     mutationFn: async () => {
       if (!input.trim()) return;
-      if (isLead) await LeadAPI.chat(input.trim()); else await AgentsAPI.chat(agent.id, input.trim());
+      if (isLead) {
+        // Streaming path — token-by-token rendering. Workflow / hire /
+        // project / artifact proposals are still parsed at stream close
+        // (handled server-side in chat_streaming) and surface via the
+        // refetch invalidation below.
+        setStreamingText("");
+        let buf = "";
+        await LeadAPI.chatStreaming(
+          input.trim(),
+          threadId || undefined,
+          {
+            onChunk: (delta) => { buf += delta; setStreamingText(buf); },
+            onError: (msg) => { console.warn("[lead-stream]", msg); },
+          },
+        );
+      } else {
+        // Agent direct chat — no streaming endpoint yet. Stay on batch.
+        await AgentsAPI.chat(agent.id, input.trim());
+      }
     },
     onSuccess: () => {
+      setStreamingText("");
       setInput("");
       qc.invalidateQueries({ queryKey: ["lead-threads"] });
       qc.invalidateQueries({ queryKey: ["lead-messages"] });
       qc.invalidateQueries({ queryKey: ["agent-threads", agent.id] });
       qc.invalidateQueries({ queryKey: ["agent-messages", agent.id] });
     },
+    onError: () => { setStreamingText(""); },
   });
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, streamingText]);
 
   // Dock bounce when an agent replies while the window isn't focused.
   // We watch for the message count to grow — if the tail message is
@@ -629,6 +656,14 @@ function ChatPanel({
           const isUser = m.role === "user" || m.sender === "user" || m.role === "human";
           return <div key={m.id || i} className={`chat-bubble ${isUser ? "user" : "bot"}`}>{m.content || m.text || m.message || ""}</div>;
         })}
+        {/* Live streaming bubble — only shown while Lead is mid-reply.
+            Clears as soon as onSuccess invalidates the messages query. */}
+        {streamingText && (
+          <div className="chat-bubble bot streaming">
+            {streamingText}
+            <span className="streaming-cursor" aria-hidden="true">▍</span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
       <div className="chat-composer">

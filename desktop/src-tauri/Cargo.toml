@@ -23,3 +23,11 @@ tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
 tauri-plugin-log = "2"
 open = "5"
+
+# Used on macOS to apply NSColor.clearColor + setOpaque(NO) to the
+# NSWindow at startup. macOS otherwise paints its dark default
+# windowBackgroundColor underneath any non-fully-opaque webview
+# pixels — exactly the black halo that ringed the bust PNGs.
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.25"
+objc = "0.2"

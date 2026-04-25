@@ -40,29 +40,69 @@ export default function GroupChat() {
   const [input, setInput] = useState("");
   const [rounds, setRounds] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // agent_id -> partial text, populated while a streaming chunk arrives
+  // and cleared on that member's complete event. Rendered as live
+  // bubbles after the committed messages.
+  const [streamingBuffers, setStreamingBuffers] = useState<Record<number, string>>({});
+  const [currentRound, setCurrentRound] = useState<{ round: number; of: number } | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages.length]);
+  }, [messages.length, streamingBuffers]);
+
+  function makeStreamHandlers() {
+    return {
+      onMemberStart: ({ agent_id }: { agent_id: number }) => {
+        setStreamingBuffers((b) => ({ ...b, [agent_id]: "" }));
+      },
+      onChunk: ({ agent_id, text }: { agent_id: number; text: string }) => {
+        setStreamingBuffers((b) => ({ ...b, [agent_id]: (b[agent_id] ?? "") + text }));
+      },
+      onMemberComplete: () => {
+        // Drop the streaming buffer in the next render so the persisted
+        // row from the messages query takes over without flicker.
+        qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
+      },
+      onUserMessage: () => {
+        qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
+      },
+      onRoundStart: (info: { round: number; of: number }) => setCurrentRound(info),
+      onError: (msg: string) => console.warn("[group-stream]", msg),
+    };
+  }
 
   const sending = useMutation({
     mutationFn: async (text: string) => {
       if (!threadId) return;
-      return GroupChatAPI.send(threadId, text);
+      setStreamingBuffers({});
+      try {
+        return await GroupChatAPI.sendStreaming(threadId, text, makeStreamHandlers());
+      } finally {
+        setStreamingBuffers({});
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
     },
+    onError: () => setStreamingBuffers({}),
   });
 
   const continuing = useMutation({
     mutationFn: async (n: number) => {
       if (!threadId) return;
-      return GroupChatAPI.continueRounds(threadId, n);
+      setStreamingBuffers({});
+      setCurrentRound(null);
+      try {
+        return await GroupChatAPI.continueRoundsStreaming(threadId, n, makeStreamHandlers());
+      } finally {
+        setStreamingBuffers({});
+        setCurrentRound(null);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
     },
+    onError: () => { setStreamingBuffers({}); setCurrentRound(null); },
   });
 
   const busy = sending.isPending || continuing.isPending;
@@ -90,7 +130,11 @@ export default function GroupChat() {
       if (aid) replied.add(aid);
     }
     for (const m of members) {
-      if (!replied.has(m.agent_id)) pendingAfterUser.add(m.agent_id);
+      // Hide the "thinking" pill for agents whose live bubble is
+      // already showing chunks — otherwise the user sees both at once.
+      if (!replied.has(m.agent_id) && streamingBuffers[m.agent_id] === undefined) {
+        pendingAfterUser.add(m.agent_id);
+      }
     }
   }
 
@@ -197,6 +241,35 @@ export default function GroupChat() {
         {messages.map((m) => (
           <MessageRow key={m.id} m={m} agent={m.agent_id ? agentById.get(m.agent_id) : undefined} />
         ))}
+        {/* Live streaming bubbles — one per active agent */}
+        {Object.entries(streamingBuffers).map(([aidStr, text]) => {
+          const aid = Number(aidStr);
+          const a = agentById.get(aid);
+          return (
+            <StreamingMessageRow
+              key={`stream-${aid}`}
+              agent={a}
+              agent_id={aid}
+              text={text}
+            />
+          );
+        })}
+        {currentRound && (
+          <div style={{
+            alignSelf: "center",
+            fontSize: 10,
+            color: "var(--ink-4)",
+            background: "var(--surface-2)",
+            padding: "2px 10px",
+            borderRadius: 999,
+          }}>
+            {t("groupChat.roundLabel", {
+              round: currentRound.round,
+              of: currentRound.of,
+              defaultValue: `Round ${currentRound.round} / ${currentRound.of}`,
+            })}
+          </div>
+        )}
         {busy && pendingAfterUser.size > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
             {[...pendingAfterUser].map((aid) => {
@@ -283,6 +356,51 @@ export default function GroupChat() {
           running={continuing.isPending}
           onClick={() => continuing.mutate(rounds)}
         />
+      </div>
+    </div>
+  );
+}
+
+// Live-streaming bubble shown for an agent whose chunks are arriving.
+// Visually mirrors a regular bot MessageRow plus a blinking cursor.
+function StreamingMessageRow({
+  agent,
+  agent_id,
+  text,
+}: {
+  agent?: GroupMember;
+  agent_id: number;
+  text: string;
+}) {
+  const name = agent?.agent_name || `agent#${agent_id}`;
+  const avatarCfg = agent?.avatar_config;
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+      <Avatar cfg={avatarCfg} size={32} title={name} />
+      <div style={{ maxWidth: "72%" }}>
+        <div style={{ fontSize: 10, color: "var(--ink-4)", marginBottom: 2 }}>
+          {name}
+        </div>
+        <div
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "8px 12px",
+            fontSize: 13,
+            lineHeight: 1.55,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {text || "…"}
+          <span style={{
+            display: "inline-block",
+            marginLeft: 2,
+            color: "var(--accent)",
+            animation: "stream-blink 1s steps(2, start) infinite",
+          }}>▍</span>
+        </div>
       </div>
     </div>
   );

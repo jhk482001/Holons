@@ -66,3 +66,10 @@ input, textarea, select { font: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
+
+/* Shared cursor-blink for streaming chat bubbles — both DialogCenter
+   and GroupChat reference `animation: stream-blink ...` so the keyframe
+   needs to live somewhere both pages always pick up. */
+@keyframes stream-blink {
+  to { visibility: hidden; }
+}

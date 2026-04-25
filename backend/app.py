@@ -3008,6 +3008,77 @@ def group_chat_continue(thread_id: int):
     return jsonify(result)
 
 
+def _group_sse(event: str, data) -> str:
+    import json as _json
+    return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.route("/api/group-chat/<int:thread_id>/send/stream", methods=["POST"])
+@login_required
+def group_chat_send_stream(thread_id: int):
+    """SSE variant of /send. Each member's reply streams chunk-by-chunk
+    so the user sees agents type one-by-one (even in parallel mode the
+    presentation is serialised — see _run_round_streaming for details
+    on how parallel mode preserves history-snapshot semantics)."""
+    d = request.get_json() or {}
+    msg = (d.get("message") or "").strip()
+    if not msg:
+        return jsonify({"error": "message required"}), 400
+    if not _chat_rate_ok(current_user_id(), f"group-chat-{thread_id}"):
+        return jsonify({"error": "too many messages — slow down for a minute"}), 429
+    t = db.fetch_one(
+        "SELECT id, group_id FROM group_chat_threads WHERE id = %s AND user_id = %s",
+        (thread_id, current_user_id()),
+    )
+    if not t:
+        return jsonify({"error": "not found"}), 404
+    uid, gid = current_user_id(), t["group_id"]
+
+    def _gen():
+        try:
+            for ev_kind, payload in _group_chat.send_user_message_streaming(
+                uid, gid, thread_id, msg,
+            ):
+                yield _group_sse(ev_kind, payload)
+        except Exception as e:  # noqa: BLE001
+            yield _group_sse("error", {"error": f"stream aborted: {e}"})
+
+    resp = Response(stream_with_context(_gen()), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
+
+
+@app.route("/api/group-chat/<int:thread_id>/continue/stream", methods=["POST"])
+@login_required
+def group_chat_continue_stream(thread_id: int):
+    """SSE variant of /continue. Emits a `round_start` event before each
+    round, then the same member events as the send stream."""
+    d = request.get_json() or {}
+    rounds = int(d.get("rounds") or 1)
+    t = db.fetch_one(
+        "SELECT id, group_id FROM group_chat_threads WHERE id = %s AND user_id = %s",
+        (thread_id, current_user_id()),
+    )
+    if not t:
+        return jsonify({"error": "not found"}), 404
+    uid, gid = current_user_id(), t["group_id"]
+
+    def _gen():
+        try:
+            for ev_kind, payload in _group_chat.continue_rounds_streaming(
+                uid, gid, thread_id, rounds,
+            ):
+                yield _group_sse(ev_kind, payload)
+        except Exception as e:  # noqa: BLE001
+            yield _group_sse("error", {"error": f"stream aborted: {e}"})
+
+    resp = Response(stream_with_context(_gen()), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
+
+
 # ============================================================================
 # Runs
 # ============================================================================

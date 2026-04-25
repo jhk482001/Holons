@@ -151,6 +151,191 @@ def _generate_reply(member: dict, history: list[dict], thread_id: int,
     }
 
 
+def _generate_reply_streaming(member: dict, history: list[dict], thread_id: int,
+                                *, role_hint: str = "member"):
+    """Streaming counterpart to _generate_reply. Yields:
+        ("chunk", str)              — incremental text from this member
+        ("final", dict)             — final {id,role,agent_id,agent_name,content}
+                                       once the row has been written.
+    """
+    base_prompt = (member.get("system_prompt") or "").strip()
+    system_prompt = base_prompt + _GROUP_SYSTEM_SUFFIX
+    custom = (member.get("custom_prompt") or "").strip()
+    if custom:
+        system_prompt += f"\n\nRole context: {custom}"
+    if role_hint == "aggregator":
+        system_prompt += (
+            "\n\n[You are the aggregator for this group — the other members "
+            "have each spoken above. Your job now is to synthesise their "
+            "perspectives into a single coherent answer for the user: "
+            "pull out the consensus, note any disagreements, and give a "
+            "concrete recommendation. Don't repeat them verbatim.]"
+        )
+
+    history_text = _format_history(history, own_agent_id=member["agent_id"])
+    turn_hint = (
+        "[It's your turn — respond in character, continuing the conversation.]"
+        if role_hint == "member"
+        else "[It's your turn as aggregator — synthesise what's above.]"
+    )
+    user_text = f"{history_text}\n\n{turn_hint}"
+
+    _owner = db.fetch_one(
+        "SELECT user_id FROM agents WHERE id = %s", (member["agent_id"],),
+    ) or {}
+
+    from ..llm_clients import invoke_streaming_for_agent
+    text_parts: list[str] = []
+    final_result: dict | None = None
+    for kind_tag, payload in invoke_streaming_for_agent(
+        agent_id=member["agent_id"],
+        model_key=member.get("primary_model_id"),
+        system_prompt=system_prompt,
+        user_text=user_text,
+        user_id=_owner.get("user_id"),
+        kind="group",
+    ):
+        if kind_tag == "chunk":
+            text_parts.append(payload)
+            yield ("chunk", payload)
+        elif kind_tag == "complete":
+            final_result = payload
+
+    text = ((final_result or {}).get("text") or "".join(text_parts)).strip()
+    new_id = db.execute_returning(
+        """
+        INSERT INTO group_chat_messages (thread_id, role, agent_id, content, metadata)
+        VALUES (%s, 'agent', %s, %s, %s::jsonb) RETURNING id
+        """,
+        (
+            thread_id,
+            member["agent_id"],
+            text,
+            json.dumps({
+                "tokens": (
+                    ((final_result or {}).get("input_tokens") or 0)
+                    + ((final_result or {}).get("output_tokens") or 0)
+                ),
+                "cost_usd": float((final_result or {}).get("cost_usd") or 0),
+                "model": (final_result or {}).get("model_id"),
+            }),
+        ),
+    )
+    yield ("final", {
+        "id": new_id,
+        "role": "agent",
+        "agent_id": member["agent_id"],
+        "agent_name": member["name"],
+        "content": text,
+    })
+
+
+def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
+                          *, history_limit: int):
+    """Streaming generator twin of _run_round. Yields per-member events:
+        ("member_start", {agent_id, agent_name})
+        ("chunk", {agent_id, text})
+        ("member_complete", {id, agent_id, agent_name, content})
+    Aggregator is run last (if set), with role_hint='aggregator'.
+
+    Note: even in parallel mode the user-visible stream is serialised
+    one agent at a time. The "parallel" semantic still holds in that
+    every regular member sees the SAME snapshot of history (taken
+    before the first reply is generated), so they don't read each
+    other's current-round output. Sequential mode reloads the history
+    between members so each one sees the prior reply.
+    """
+    aggregator_id = group.get("aggregator_agent_id")
+    regular = [m for m in members if m["agent_id"] != aggregator_id]
+    aggregator_member = next(
+        (m for m in members if m["agent_id"] == aggregator_id), None,
+    )
+
+    if group["mode"] == "parallel":
+        history_snapshot = _load_history(thread_id, limit=history_limit)
+        for m in regular:
+            yield ("member_start", {"agent_id": m["agent_id"], "agent_name": m["name"]})
+            for ev_kind, payload in _generate_reply_streaming(m, history_snapshot, thread_id):
+                if ev_kind == "chunk":
+                    yield ("chunk", {"agent_id": m["agent_id"], "text": payload})
+                elif ev_kind == "final":
+                    yield ("member_complete", payload)
+    else:
+        for m in regular:
+            history = _load_history(thread_id, limit=history_limit)
+            yield ("member_start", {"agent_id": m["agent_id"], "agent_name": m["name"]})
+            for ev_kind, payload in _generate_reply_streaming(m, history, thread_id):
+                if ev_kind == "chunk":
+                    yield ("chunk", {"agent_id": m["agent_id"], "text": payload})
+                elif ev_kind == "final":
+                    yield ("member_complete", payload)
+
+    # Aggregator turn — see _run_round for details.
+    if aggregator_id and aggregator_member is None:
+        row = db.fetch_one(
+            "SELECT id AS agent_id, name, system_prompt, primary_model_id "
+            "FROM agents WHERE id = %s", (aggregator_id,),
+        )
+        if row:
+            aggregator_member = {**row, "custom_prompt": None}
+    if aggregator_member:
+        history = _load_history(thread_id, limit=history_limit)
+        yield ("member_start", {
+            "agent_id": aggregator_member["agent_id"],
+            "agent_name": aggregator_member["name"],
+            "role": "aggregator",
+        })
+        for ev_kind, payload in _generate_reply_streaming(
+            aggregator_member, history, thread_id, role_hint="aggregator",
+        ):
+            if ev_kind == "chunk":
+                yield ("chunk", {"agent_id": aggregator_member["agent_id"], "text": payload})
+            elif ev_kind == "final":
+                yield ("member_complete", payload)
+
+
+def send_user_message_streaming(user_id: int, group_id: int, thread_id: int,
+                                  user_message: str):
+    """Streaming twin of send_user_message. Yields events in this order:
+        ("user_message", {id, content})
+        ("member_start", {...}) / ("chunk", {...}) / ("member_complete", {...})
+        ("complete", {mode}) — once every member finished
+        ("error", {error}) — on failure (terminal)
+    """
+    group = _group(user_id, group_id)
+    if not group:
+        yield ("error", {"error": "group not found"}); return
+    t = db.fetch_one(
+        "SELECT id FROM group_chat_threads WHERE id = %s AND user_id = %s AND group_id = %s",
+        (thread_id, user_id, group_id),
+    )
+    if not t:
+        yield ("error", {"error": "thread not found"}); return
+    members = _members(group_id)
+    if not members:
+        yield ("error", {"error": "group has no members"}); return
+
+    user_msg_id = db.execute_returning(
+        """INSERT INTO group_chat_messages (thread_id, role, content)
+           VALUES (%s, 'user', %s) RETURNING id""",
+        (thread_id, user_message),
+    )
+    yield ("user_message", {"id": user_msg_id, "role": "user", "content": user_message})
+
+    try:
+        for ev_kind, payload in _run_round_streaming(
+            group, members, thread_id, history_limit=_HISTORY_LIMIT,
+        ):
+            yield (ev_kind, payload)
+    except Exception as e:  # noqa: BLE001
+        yield ("error", {"error": str(e)})
+        return
+
+    db.execute("UPDATE group_chat_threads SET updated_at = NOW() WHERE id = %s",
+                (thread_id,))
+    yield ("complete", {"mode": group["mode"]})
+
+
 def _run_round(group: dict, members: list[dict], thread_id: int, *, history_limit: int) -> list[dict]:
     replies: list[dict] = []
     aggregator_id = group.get("aggregator_agent_id")
@@ -264,6 +449,41 @@ def send_user_message(user_id: int, group_id: int, thread_id: int, user_message:
         "replies": replies,
         "mode": group["mode"],
     }
+
+
+def continue_rounds_streaming(user_id: int, group_id: int, thread_id: int, rounds: int):
+    """Streaming twin of continue_rounds. Yields a `round_start` event
+    before each round so the UI can show round dividers, then the same
+    member_start / chunk / member_complete sequence as send_user_message_streaming
+    inside each round, then a final `complete` event."""
+    rounds = max(1, min(_MAX_CONTINUE_ROUNDS, int(rounds or 1)))
+    group = _group(user_id, group_id)
+    if not group:
+        yield ("error", {"error": "group not found"}); return
+    t = db.fetch_one(
+        "SELECT id FROM group_chat_threads WHERE id = %s AND user_id = %s AND group_id = %s",
+        (thread_id, user_id, group_id),
+    )
+    if not t:
+        yield ("error", {"error": "thread not found"}); return
+    members = _members(group_id)
+    if not members:
+        yield ("error", {"error": "group has no members"}); return
+
+    try:
+        for round_idx in range(rounds):
+            yield ("round_start", {"round": round_idx + 1, "of": rounds})
+            for ev_kind, payload in _run_round_streaming(
+                group, members, thread_id, history_limit=_CONTINUE_HISTORY_LIMIT,
+            ):
+                yield (ev_kind, payload)
+    except Exception as e:  # noqa: BLE001
+        yield ("error", {"error": str(e)})
+        return
+
+    db.execute("UPDATE group_chat_threads SET updated_at = NOW() WHERE id = %s",
+                (thread_id,))
+    yield ("complete", {"mode": group["mode"], "rounds": rounds})
 
 
 def continue_rounds(user_id: int, group_id: int, thread_id: int, rounds: int) -> dict:

@@ -432,6 +432,67 @@ export const UsageAPI = {
   },
 };
 
+export type GroupStreamHandlers = {
+  onUserMessage?: (m: GroupChatMessage) => void;
+  onMemberStart?: (info: { agent_id: number; agent_name?: string; role?: string }) => void;
+  onChunk?: (info: { agent_id: number; text: string }) => void;
+  onMemberComplete?: (m: GroupChatMessage) => void;
+  onRoundStart?: (info: { round: number; of: number }) => void;
+  onError?: (msg: string) => void;
+};
+
+async function consumeGroupSSE(
+  url: string,
+  body: any,
+  handlers: GroupStreamHandlers,
+  signal?: AbortSignal,
+): Promise<{ mode?: "parallel" | "sequential"; rounds?: number }> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let final: any = {};
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    while (true) {
+      const sep = buf.indexOf("\n\n");
+      if (sep < 0) break;
+      const raw = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      let ev = "", data = "";
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event: ")) ev = line.slice(7).trim();
+        else if (line.startsWith("data: ")) data += line.slice(6);
+      }
+      if (!ev) continue;
+      let parsed: any = null;
+      try { parsed = data ? JSON.parse(data) : null; } catch { parsed = null; }
+      switch (ev) {
+        case "user_message":   if (parsed) handlers.onUserMessage?.(parsed); break;
+        case "member_start":   if (parsed) handlers.onMemberStart?.(parsed); break;
+        case "chunk":          if (parsed) handlers.onChunk?.(parsed); break;
+        case "member_complete":if (parsed) handlers.onMemberComplete?.(parsed); break;
+        case "round_start":    if (parsed) handlers.onRoundStart?.(parsed); break;
+        case "complete":       final = parsed || {}; break;
+        case "error":          handlers.onError?.(parsed?.error || "stream error");
+                                throw new ApiError(500, parsed?.error || "stream error");
+      }
+    }
+  }
+  return final;
+}
+
 export const GroupChatAPI = {
   messages: (threadId: number) =>
     api.get<{ thread_id: number; group_id: number; messages: GroupChatMessage[] }>(
@@ -443,12 +504,16 @@ export const GroupChatAPI = {
       replies: GroupChatMessage[];
       mode: "parallel" | "sequential";
     }>(`/group-chat/${threadId}/send`, { message }),
+  sendStreaming: (threadId: number, message: string, handlers: GroupStreamHandlers, signal?: AbortSignal) =>
+    consumeGroupSSE(`/api/group-chat/${threadId}/send/stream`, { message }, handlers, signal),
   continueRounds: (threadId: number, rounds: number) =>
     api.post<{
       replies: GroupChatMessage[];
       rounds: number;
       mode: "parallel" | "sequential";
     }>(`/group-chat/${threadId}/continue`, { rounds }),
+  continueRoundsStreaming: (threadId: number, rounds: number, handlers: GroupStreamHandlers, signal?: AbortSignal) =>
+    consumeGroupSSE(`/api/group-chat/${threadId}/continue/stream`, { rounds }, handlers, signal),
 };
 
 export interface RunListItem extends Run {

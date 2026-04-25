@@ -356,6 +356,7 @@
     "newThread": "New Thread",
     "archived": "Archived",
     "archive": "Archive",
+    "afterHireApproved": "Approved — I've hired **{{name}}** ({{role}}). Please continue: if there are more candidates to propose, go ahead; otherwise help me plan the next step.",
     "composerPlaceholder": "Talk to {{name}}… (Enter to send / Shift+Enter for newline)",
     "composerPlaceholderLead": "Tell Lead what you need… (Enter to send / Shift+Enter for newline)",
     "composerPlaceholderNone": "Select an agent first (Enter to send / Shift+Enter for newline)",

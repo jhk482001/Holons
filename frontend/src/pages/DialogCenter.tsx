@@ -346,6 +346,27 @@ export default function DialogCenter() {
     }
   }
 
+  // After Hire is accepted on a Lead-proposal bubble, drop a canned
+  // "approved — please continue" turn into the thread so Lead picks
+  // up the conversation. Without this the user has to type their
+  // own ack between every hire when Lead proposes several candidates
+  // in a row, which is friction.
+  function handleHireAccepted(info: { agent_id: number; name: string; role_title: string }) {
+    // Defer the auto-send until the current send (if any) finishes —
+    // sendMutation only allows one in-flight call.
+    setTimeout(() => {
+      const canned = t("dialog.afterHireApproved", {
+        name: info.name,
+        role: info.role_title,
+      });
+      try {
+        sendMutation.mutate(canned);
+      } catch {
+        // Ignore — user can still type follow-up manually.
+      }
+    }, 250);
+  }
+
   const archiveThread = useMutation({
     mutationFn: (tid: string) => LeadAPI.archive(tid),
     onSuccess: () => {
@@ -625,7 +646,12 @@ export default function DialogCenter() {
                   </div>
                 )}
                 {messages.map((m) => (
-                  <MessageBubble key={m.id} msg={m} threadId={currentThreadId} />
+                  <MessageBubble
+                    key={m.id}
+                    msg={m}
+                    threadId={currentThreadId}
+                    onHireAccepted={isLeadActive ? handleHireAccepted : undefined}
+                  />
                 ))}
                 {sendMutation.isPending && (
                   streamingText ? (
@@ -1380,7 +1406,11 @@ function CastMember({
   );
 }
 
-function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string }) {
+function MessageBubble({ msg, threadId, onHireAccepted }: {
+  msg: LeadMessage;
+  threadId?: string;
+  onHireAccepted?: (info: { agent_id: number; name: string; role_title: string }) => void;
+}) {
   // Strip every fenced block that's rendered as its own card (workflow,
   // hire, project, and the three artifact kinds) from the prose.
   const cleanContent = msg.content
@@ -1415,6 +1445,7 @@ function MessageBubble({ msg, threadId }: { msg: LeadMessage; threadId?: string 
           messageId={msg.id}
           proposal={hireProposal}
           hiredAgentId={hiredAgentId}
+          onAccepted={onHireAccepted}
         />
       )}
       {artifacts.map((a, i) => (

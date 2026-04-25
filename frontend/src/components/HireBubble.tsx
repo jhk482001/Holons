@@ -18,10 +18,17 @@ export default function HireBubble({
   messageId,
   proposal,
   hiredAgentId,
+  onAccepted,
 }: {
   messageId: number;
   proposal: HireProposal;
   hiredAgentId?: number;
+  // Fired after a successful Hire so the parent (DialogCenter) can
+  // auto-send a "thanks, please continue" turn to Lead — without it
+  // the conversation stalls after one accept and the user is forced
+  // to type a manual "ok next" each time, which is awkward when Lead
+  // is proposing several candidates in a row.
+  onAccepted?: (info: { agent_id: number; name: string; role_title: string }) => void;
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -32,10 +39,17 @@ export default function HireBubble({
   const accept = useMutation({
     mutationFn: () =>
       LeadAPI.acceptHire(messageId, editing ? form : undefined),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["lead-messages"] });
       qc.invalidateQueries({ queryKey: ["agents"] });
       qc.invalidateQueries({ queryKey: ["lead-thread-messages"] });
+      if (onAccepted && data?.agent_id) {
+        onAccepted({
+          agent_id: data.agent_id,
+          name: data.name || (editing ? form.name : proposal.name),
+          role_title: data.role_title || (editing ? form.role_title : proposal.role_title),
+        });
+      }
     },
     onError: (e: Error) => setErr(e.message),
   });

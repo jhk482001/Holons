@@ -356,6 +356,7 @@
     "newThread": "新對話",
     "archived": "已存檔",
     "archive": "存檔",
+    "afterHireApproved": "好的，已僱用 **{{name}}**（{{role}}）。請繼續：如還有要招募的人選請繼續提案，否則幫我規劃下一步。",
     "composerPlaceholder": "對 {{name}} 說話…（Enter 送出 / Shift+Enter 換行）",
     "composerPlaceholderLead": "告訴 Lead 你想做什麼…（Enter 送出 / Shift+Enter 換行）",
     "composerPlaceholderNone": "先選一位 agent（Enter 送出 / Shift+Enter 換行）",

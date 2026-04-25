@@ -23,10 +23,3 @@ tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
 tauri-plugin-log = "2"
 open = "5"
-
-# Used on macOS to apply NSColor.clearColor to the window background and
-# force opaque=false — kills the dark halo macOS otherwise paints
-# underneath transparent webview content.
-[target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.25"
-objc = "0.2"

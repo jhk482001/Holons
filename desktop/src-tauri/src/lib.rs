@@ -199,74 +199,6 @@ fn set_click_through(window: tauri::WebviewWindow, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
 }
 
-// ---------- Window mode toggle --------------------------------------------
-// Two visual modes for the main window:
-//
-//   "normal"  — CleanMyMac-style decorated translucent floating window:
-//                 decorations on, traffic lights visible, resizable,
-//                 alwaysOnTop off, ~1200×760 centred. Body still uses
-//                 `transparent: true` so the warm-cream gradient blends
-//                 with whatever is behind, but click-through is OFF.
-//
-//   "overlay" — current dialog overlay: borderless, transparent,
-//                 always-on-top, maximised, click-through governed by
-//                 the JS useClickThrough hook so empty regions pass
-//                 clicks to apps below.
-//
-// The black-edge issue on macOS transparent windows is handled by
-// killing the NSWindow's backgroundColor (NSColor.clearColor) and
-// keeping `opaque = NO`. We do that on EVERY mode change so toggling
-// between modes never re-introduces the halo.
-#[tauri::command]
-fn set_window_mode(window: tauri::WebviewWindow, mode: String) -> Result<(), String> {
-    let normal = mode == "normal";
-    if normal {
-        let _ = window.set_decorations(true);
-        let _ = window.set_resizable(true);
-        let _ = window.set_always_on_top(false);
-        let _ = window.unmaximize();
-        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: 1200.0,
-            height: 760.0,
-        }));
-        let _ = window.center();
-    } else {
-        let _ = window.set_decorations(false);
-        let _ = window.set_always_on_top(true);
-        let _ = window.maximize();
-    }
-
-    #[cfg(target_os = "macos")]
-    clear_native_background(&window);
-
-    Ok(())
-}
-
-// Apply NSColor.clearColor to the window's NSWindow.backgroundColor and
-// flip `opaque` off. Without this, macOS paints the window's default
-// system background underneath any not-quite-fully-opaque CSS, which is
-// exactly the dark halo the user reported. Safe to call repeatedly.
-#[cfg(target_os = "macos")]
-fn clear_native_background(window: &tauri::WebviewWindow) {
-    use cocoa::base::{id, nil, NO};
-    use objc::{class, msg_send, sel, sel_impl};
-    unsafe {
-        let ns_window = match window.ns_window() {
-            Ok(p) => p as id,
-            Err(e) => {
-                log::warn!("ns_window unavailable for background clear: {e}");
-                return;
-            }
-        };
-        if ns_window == nil {
-            return;
-        }
-        let clear: id = msg_send![class!(NSColor), clearColor];
-        let _: () = msg_send![ns_window, setBackgroundColor: clear];
-        let _: () = msg_send![ns_window, setOpaque: NO];
-    }
-}
-
 #[tauri::command]
 fn focus_window(window: tauri::WebviewWindow) {
     let _ = window.show();
@@ -310,7 +242,6 @@ pub fn run() {
             check_db_upgrade,
             backup_personal_db,
             set_click_through,
-            set_window_mode,
             focus_window,
             open_url,
             request_attention,
@@ -359,20 +290,6 @@ pub fn run() {
             let lang_menu =
                 tauri::menu::Submenu::with_items(app, "Language", true, &[&lang_en, &lang_zh])?;
 
-            // Mode submenu — Normal (decorated translucent floating window
-            // with the full web UI) vs. Dialog only (existing transparent
-            // overlay with just the cast bar). Frontend listens for
-            // "set-mode" with payload "normal" / "overlay".
-            let mode_normal = MenuItem::with_id(app, "mode_normal", "Normal", true, None::<&str>)?;
-            let mode_overlay =
-                MenuItem::with_id(app, "mode_overlay", "Dialog only", true, None::<&str>)?;
-            let mode_menu = tauri::menu::Submenu::with_items(
-                app,
-                "Mode",
-                true,
-                &[&mode_normal, &mode_overlay],
-            )?;
-
             let sep = PredefinedMenuItem::separator(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
             // Show-lead-only: compact overlay that hides the full cast
@@ -393,7 +310,6 @@ pub fn run() {
                     &version_i,
                     &sep,
                     &show_i,
-                    &mode_menu,
                     &size_menu,
                     &reset_pos_i,
                     &lang_menu,
@@ -461,16 +377,6 @@ pub fn run() {
                             let _ = w.emit("toggle-show-lead-only", ());
                         }
                     }
-                    "mode_normal" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.emit("set-mode", "normal");
-                        }
-                    }
-                    "mode_overlay" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.emit("set-mode", "overlay");
-                        }
-                    }
                     "quit" => {
                         app.exit(0);
                     }
@@ -488,13 +394,8 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Initial window setup. The frontend will call set_window_mode
-            // shortly after boot once it knows the persisted preference.
-            // We still need to clear the macOS NSWindow background here
-            // so the very first paint isn't haloed in dark grey.
+            // Maximize on launch
             if let Some(window) = app.get_webview_window("main") {
-                #[cfg(target_os = "macos")]
-                clear_native_background(&window);
                 let _ = window.maximize();
             }
 

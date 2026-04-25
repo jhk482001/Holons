@@ -3,16 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Store } from "@tauri-apps/plugin-store";
 import { getConfig, getToken, setToken, setConnectionConfig, saveLang, DesktopLang, AppMode } from "./api-adapter";
 import ConnectionSetup from "./ConnectionSetup";
 import DesktopLogin from "./DesktopLogin";
 import DesktopDialog from "./DesktopDialog";
-import NormalModeApp from "./NormalModeApp";
 import "./desktop.css";
-
-type WindowMode = "normal" | "overlay";
-const MODE_STORE_KEY = "window_mode";
 
 export default function DesktopApp() {
   const { t, i18n } = useTranslation();
@@ -20,11 +15,6 @@ export default function DesktopApp() {
   const [token, setLocalToken] = useState<string | null>(getToken());
   const [sidecarReady, setSidecarReady] = useState(appMode !== "personal");
   const webOpenedRef = useRef(false);
-  // Window display mode — "normal" is the new CleanMyMac-style decorated
-  // floating window with the full web UI, "overlay" is the existing
-  // borderless transparent always-on-top dialog. Persisted via the
-  // tauri-plugin-store so it survives across launches.
-  const [windowMode, setWindowMode] = useState<WindowMode>("normal");
 
   // In personal mode the sidecar picks a fresh port on every launch. The
   // first-run ConnectionSetup saved an obsolete port; on every subsequent
@@ -97,57 +87,11 @@ export default function DesktopApp() {
         await saveLang(lang);
       }
     });
-    const u3 = listen<string>("set-mode", async (e) => {
-      const next = (e.payload as WindowMode) || "normal";
-      await applyWindowMode(next);
-    });
     return () => {
       u1.then((fn) => fn());
       u2.then((fn) => fn());
-      u3.then((fn) => fn());
     };
   }, [i18n]);
-
-  // Load + apply persisted window mode on first render. New installs land
-  // on "normal" (the CleanMyMac-style floating web UI). Existing users
-  // who picked "overlay" keep their preference across launches.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const store = await Store.load("holons-desktop.json");
-        const saved = (await store.get<WindowMode>(MODE_STORE_KEY)) || "normal";
-        if (cancelled) return;
-        await applyWindowMode(saved);
-      } catch {
-        // Plugin not available in dev or store corrupt → default to normal
-        if (!cancelled) await applyWindowMode("normal");
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  async function applyWindowMode(mode: WindowMode) {
-    setWindowMode(mode);
-    // Tell the document so desktop.css can pick the right body bg —
-    // overlay = fully transparent (no halo), normal = warm-cream
-    // translucent material.
-    if (typeof document !== "undefined") {
-      document.body.dataset.mode = mode;
-    }
-    try {
-      await invoke("set_window_mode", { mode });
-    } catch (e) {
-      console.warn("[set_window_mode]", e);
-    }
-    try {
-      const store = await Store.load("holons-desktop.json");
-      await store.set(MODE_STORE_KEY, mode);
-      await store.save();
-    } catch {
-      // ignore — preference will reset to default next launch
-    }
-  }
 
   // Open web UI in default browser once, right after first successful login.
   useEffect(() => {
@@ -160,11 +104,11 @@ export default function DesktopApp() {
     });
   }, [isLoggedIn]);
 
-  // Click-through is ONLY meaningful in overlay mode (transparent
-  // borderless always-on-top window where empty regions should pass
-  // clicks through to the desktop). In normal mode the window is a
-  // standard decorated window and we never want clicks to leak.
-  useClickThrough(windowMode !== "overlay");
+  // Click-through — this is the version that was working earlier.
+  // On macOS with transparent:true + macOSPrivateApi:true, mousemove
+  // events are still received even when ignoring cursor events, which
+  // lets us toggle back when the cursor enters an interactive zone.
+  useClickThrough();
 
   if (needsSetup) {
     return (
@@ -192,9 +136,6 @@ export default function DesktopApp() {
     return <DesktopLogin onLogin={handleLogin} />;
   }
 
-  if (windowMode === "normal") {
-    return <NormalModeApp />;
-  }
   return <DesktopDialog me={me} onLogout={handleLogout} />;
 }
 
@@ -208,19 +149,11 @@ export default function DesktopApp() {
  * mousemove events even when setIgnoreCursorEvents(true) is set,
  * thanks to macOSPrivateApi + transparent window mode.
  */
-function useClickThrough(disabled = false) {
+function useClickThrough() {
   const ignoring = useRef(false);
   const moveCount = useRef(0);
 
   useEffect(() => {
-    if (disabled) {
-      // Normal mode → never ignore cursor events; reset to default
-      // before bailing so the very first switch back to overlay starts
-      // from a known state.
-      invoke("set_click_through", { ignore: false }).catch(() => {});
-      ignoring.current = false;
-      return;
-    }
     function onMove(e: MouseEvent) {
       moveCount.current++;
       const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -249,5 +182,5 @@ function useClickThrough(disabled = false) {
 
     document.addEventListener("mousemove", onMove);
     return () => document.removeEventListener("mousemove", onMove);
-  }, [disabled]);
+  }, []);
 }

@@ -2,26 +2,6 @@
    Desktop App — transparent overlay + cast bar + chat panel
    ============================================================================ */
 
-/* Mode-aware body background. Set by JS via `document.body.dataset.mode`.
-   - "overlay" (default): fully transparent so the cast bar floats on
-     the desktop, no halo. macOS NSWindow.backgroundColor is also cleared
-     to NSColor.clearColor on the Rust side — without that, macOS paints
-     a dark default that bleeds round the edges of any non-fully-opaque
-     CSS region.
-   - "normal": warm-cream translucent material so the window has that
-     soft "floating polished" feel, tinted to match the existing web
-     palette (NOT the CleanMyMac purple-pink).
-*/
-html, body { background: transparent; }
-body[data-mode="normal"] {
-  background: rgba(250, 247, 241, 0.94);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-}
-body[data-mode="overlay"] {
-  background: transparent;
-}
-
 :root {
   --desktop-bg: rgba(30, 28, 25, 0.85);
   --desktop-glass: rgba(255, 255, 255, 0.08);

@@ -257,7 +257,11 @@ function EditableHeader({ agent }: { agent: Agent }) {
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          // Skip IME confirmation Enters so picking a candidate
+          // doesn't accidentally save a half-typed name.
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault(); commit();
+          }
           if (e.key === "Escape") { setDraft(agent.name); setEditing(false); }
         }}
         disabled={save.isPending}
@@ -317,7 +321,9 @@ function EditableRoleTitle({ agent }: { agent: Agent }) {
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault(); commit();
+          }
           if (e.key === "Escape") { setDraft(agent.role_title || ""); setEditing(false); }
         }}
         disabled={save.isPending}

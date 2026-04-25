@@ -239,7 +239,15 @@ export default function GroupChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Mirror DialogCenter: Enter sends, Shift+Enter inserts a
+            // newline. `isComposing` skips IME confirmation Enters
+            // (zhuyin / pinyin / kana etc.) so picking a candidate
+            // doesn't accidentally fire the message.
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               send();
             }

@@ -487,7 +487,13 @@ function ChatPane({
           value={composer}
           onChange={(e) => setComposer(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Skip IME confirmation Enters (zhuyin / pinyin / kana
+            // etc.) — same guard DialogCenter / GroupChat use.
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               if (composer.trim() && !pending && !disabled) onSend(composer.trim());
             }

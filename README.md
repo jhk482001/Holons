@@ -209,8 +209,12 @@ deep-dive doc, or both.
 |---|---|---|
 | 🗣️ **Natural-language → workflow** | 🧩 **Visual workflow editor** | 👥 **Named agents & roles** |
 | Talk to Lead; get a runnable flow. | Drag, swap, override per step. | Name, face, role, system prompt. |
-| 🧑‍💼 **Lead proposes hires** | 🗂️ **Lead proposes projects** | 🎬 **"Let them continue"** |
-| Missing a specialty → Lead drafts one. | Multi-phase work → a project, auto. | 1–10 autonomous rounds. |
+| ⚡ **Streaming chat (SSE)** | 🧑‍💼 **Lead proposes hires** | 🗂️ **Lead proposes projects** |
+| Lead + team-room replies arrive token-by-token. | One-click Hire auto-continues with Lead. | Multi-phase work → a project, auto. |
+| 🎬 **"Let them continue"** | 💬 **Group chat rooms** | 🔁 **Parallel / sequential groups** |
+| 1–10 autonomous rounds, streamed live. | Observable deliberation. | Fan-out, round-robin, aggregator synthesises. |
+| 🔄 **Review-loop workflows** | &nbsp; | &nbsp; |
+| N iterations, REVISE / APPROVE verdicts. | &nbsp; | &nbsp; |
 | 💬 **Group chat rooms** | 🔁 **Parallel / sequential groups** | 🔄 **Review-loop workflows** |
 | Observable deliberation. | Fan-out, round-robin, aggregator. | N iterations, REVISE / APPROVE verdicts. |
 | 🗂️ **Projects + quotas** | 📈 **Daily coordinator report** | 💰 **Per-user quota + warn_pct** |

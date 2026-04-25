@@ -58,25 +58,38 @@
 
 ## Data flow — typical chat turn
 
+The Lead chat endpoint has both a batch and a streaming variant. They
+share `_prepare_lead_call()` + `_finalise_lead_message()` so workflow /
+hire / project / artifact parsing can never drift between the two.
+
 ```
 User types in Dialog
     ↓
-POST /api/lead/chat  { message, thread_id? }
+POST /api/lead/chat            (batch)         OR
+POST /api/lead/chat/stream     (SSE)
     ↓
-backend/services/lead_agent.chat()
+backend/services/lead_agent.chat()  /  chat_streaming()
     ├─ resolve/create thread
     ├─ INSERT user message into lead_messages
     ├─ build system prompt = LEAD_SYSTEM_PROMPT + team roster
     ├─ load last 20 messages into history
-    ├─ invoke_for_agent(agent_id=lead, system_prompt, user_text)
+    ├─ invoke_for_agent / invoke_streaming_for_agent
     │    └─ llm_clients/{bedrock|claude_native|openai_compat|...}.py
-    ├─ parse ```workflow block (if present) → persist as draft
+    │       └─ records the call to llm_calls (kind='lead')
+    │       └─ stream variant yields ("chunk", text) events along the way
+    ├─ parse ```workflow / ```hire / ```project / ```artifact-* blocks
     └─ INSERT lead's reply into lead_messages
     ↓
-Response: { thread_id, response, proposed_workflow? }
+Batch:  Response: { thread_id, response, proposed_workflow?, ... }
+Stream: SSE events: thread → chunk × N → complete (same shape)
     ↓
 Frontend re-fetches messages (react-query invalidation)
 ```
+
+Group chat has analogous `/api/group-chat/<thread>/send` (batch) and
+`/send/stream` (SSE) plus `/continue` and `/continue/stream` for the
+"let them continue N rounds" loop. Stream events are tagged with
+`agent_id` so multiple member bubbles can render side-by-side.
 
 ## Data flow — workflow run
 

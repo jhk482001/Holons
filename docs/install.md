@@ -66,11 +66,27 @@ you upgraded if anything looks off.
 
 ### Uninstall
 
+Drag `/Applications/Holons.app` to Trash, plus optionally clear the
+support data the app leaves behind on macOS:
+
 ```bash
-sudo rm -rf /Applications/Holons.app
-rm -rf ~/Library/Application\ Support/holons
-rm -rf ~/Library/Preferences/com.holons.desktop.plist
+# 1. App bundle
+rm -rf /Applications/Holons.app
+
+# 2. Tauri-managed support data (window state, tray store, webview cache)
+rm -rf ~/Library/Application\ Support/com.holons.desktop
+rm -rf ~/Library/Caches/com.holons.desktop
+rm -rf ~/Library/WebKit/com.holons.desktop
+rm    ~/Library/Preferences/com.holons.desktop.plist 2>/dev/null
+
+# 3. Personal-mode SQLite data + first-run marker (your agents,
+#    threads, runs). Optional — keep it if you'll reinstall and want
+#    your demo team back without re-seeding.
+rm -rf ~/.agent_company
 ```
+
+To re-trigger first-run setup without losing the SQLite data, just
+delete the marker file: `rm ~/.agent_company/.seeded`.
 
 ## Windows
 

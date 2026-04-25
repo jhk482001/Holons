@@ -8,11 +8,20 @@ versions use [SemVer](https://semver.org/).
 
 ### Added
 
+- **Streaming chat (SSE)** — Lead chat (`/api/lead/chat/stream`) and
+  team-room chat (`/api/group-chat/<thread>/send/stream` +
+  `/continue/stream`) now stream tokens as they arrive. Workflow /
+  hire / project / artifact proposals are still parsed at stream
+  close, so the structured payload behaves identically to the batch
+  endpoint that callers already had. Web Dialog Center, web
+  GroupChat, and the desktop cast-bar chat panel all consume the
+  stream; batch endpoints stay available for CLI / SDK / CI.
 - **Unified LLM call ledger (`llm_calls`)** — every model invocation
   (agent run, Lead chat, Lead proxy, skill extraction, project report,
-  model-client test) writes one normalised row with user / agent /
-  run / model / cost / tokens / duration / error. Closes the
-  long-standing gap where only `run_steps` had reliable cost data.
+  model-client test, group chat) writes one normalised row with
+  user / agent / run / thread / kind / model / cost / tokens /
+  duration / error. Closes the long-standing gap where only
+  `run_steps` had reliable cost data.
 - **Admin → Usage tab** — cross-user report with 6 headline widgets,
   stacked-by-user daily cost chart, top users / top models lists,
   kind breakdown, and a filterable records pane. 30 s auto-refresh.
@@ -28,6 +37,19 @@ versions use [SemVer](https://semver.org/).
 - **Group chat aggregator** — sequential groups now honour
   `aggregator_agent_id`: members reply in order, then the aggregator
   synthesises into a single recommendation with a role-hint prompt.
+  Previously the field was silently ignored.
+- **Hire auto-continue** — clicking Hire on a Lead-proposed candidate
+  auto-sends an "ok continue" turn back to Lead, so multi-candidate
+  flows don't stall after every accept. The auto-message is i18n'd
+  and only fires inside Lead conversations.
+- **First-run marker file** — `~/.agent_company/.seeded` replaces the
+  old "is `as_users` empty?" gate. Delete the marker to force-re-seed
+  without surgical DB edits; combined `rm marker + rm data.db` is the
+  full reset recipe.
+- **IME-safe Enter** — composing-Enter (zhuyin / pinyin / kana) no
+  longer accidentally submits in web GroupChat / ProjectDetail / the
+  AgentDetail rename inputs / the desktop login form. Same guard the
+  web Dialog Center already had.
 - **Build-version badge** — `1.0.0+YYYYMMDD-HHMM.<sha>[-dirty]` baked
   into every desktop build; shown in the Setup/Login brand header,
   the overlay top-right pill, and the tray menu (disabled row).
@@ -54,11 +76,23 @@ versions use [SemVer](https://semver.org/).
   ALTERs that target later-defined CREATEs succeed on fresh installs.
 - `im_channels.manager.start_all` skips gracefully when the
   `im_bindings` table is missing instead of crashing the backend.
+- **Bust black halo** — macOS `NSWindow.backgroundColor` is now
+  cleared to `NSColor.clearColor` at startup so transparent bust
+  PNGs stop ringing with the system's default dark window background.
 
 ### Repo
 
 - `mcp_test/` and `rag_test/` moved to `.gitignore` — throwaway
   servers for local prototyping, not product surface.
+- **`tests/conftest.py` live-DB safety guard** — `pytest_configure`
+  refuses to run if `DATABASE_URL` matches the canonical dev
+  fingerprint (`agent_company:devpassword@localhost:5432/agent_company`)
+  unless `HOLONS_ALLOW_LIVE_DB=1` is set. The autouse `clean_state`
+  fixtures TRUNCATE ~25 tables and previously wiped demo data when
+  `pytest` was invoked without overriding `DATABASE_URL`.
+- Stale Chinese-only docs `docs/features.md`, `docs/implementation.md`,
+  `docs/design.md` removed — coverage merged into README +
+  ARCHITECTURE + this CHANGELOG.
 
 
 ## [0.5.0] — 2026-04-22

@@ -6,7 +6,7 @@ Working on Holons locally.
 
 ```bash
 git clone https://github.com/jhk482001/Holons.git
-cd agent-company
+cd Holons
 
 # Python
 python3 -m venv .venv && source .venv/bin/activate

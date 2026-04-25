@@ -340,10 +340,43 @@ def main():
         from backend import db
     _startup()
 
-    # First-run setup if DB is empty
-    existing = db.fetch_one("SELECT id FROM as_users LIMIT 1")
-    if not existing:
-        _first_run_setup()
+    # First-run setup gate. Backed by a user-visible marker file at
+    # ~/.agent_company/.seeded rather than a row count in the DB so the
+    # user can force a re-seed by deleting the file (without surgically
+    # clearing tables). Three cases:
+    #
+    #   marker present                 → skip, already seeded
+    #   marker missing, DB has users   → "lost marker", record + skip
+    #                                    (don't re-insert duplicates)
+    #   marker missing, DB empty       → fresh install: run the seed
+    #                                    + drop the marker
+    #
+    # If a user wants a complete clean reset they delete BOTH this
+    # marker AND ~/.agent_company/data.db; that combination is what
+    # the next launch interprets as "fresh install".
+    import datetime as _dt
+    marker = pathlib.Path.home() / ".agent_company" / ".seeded"
+    if marker.exists():
+        pass  # quiet — most launches go through this branch
+    else:
+        existing = db.fetch_one("SELECT id FROM as_users LIMIT 1")
+        if existing:
+            print(
+                "[first-run] marker missing but DB has users — "
+                "recording marker without re-seeding.",
+                flush=True,
+            )
+        else:
+            _first_run_setup()
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(
+                f"seeded {_dt.datetime.now(_dt.timezone.utc).isoformat()}\n"
+            )
+        except OSError as e:
+            # Don't crash boot just because we couldn't write the marker;
+            # next launch will simply re-run the same logic.
+            print(f"[first-run] failed to write marker: {e}", flush=True)
 
     print(f"Standalone server ready on http://localhost:{port}", flush=True)
     app.run(host="127.0.0.1", port=port, debug=False)

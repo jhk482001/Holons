@@ -7,6 +7,7 @@ import { getConfig, getToken, setToken, setConnectionConfig, saveLang, DesktopLa
 import ConnectionSetup from "./ConnectionSetup";
 import DesktopLogin from "./DesktopLogin";
 import DesktopDialog from "./DesktopDialog";
+import { useNotificationBridge } from "./useNotificationBridge";
 import "./desktop.css";
 
 export default function DesktopApp() {
@@ -109,6 +110,10 @@ export default function DesktopApp() {
   // events are still received even when ignoring cursor events, which
   // lets us toggle back when the cursor enters an interactive zone.
   useClickThrough();
+
+  // Mirror backend unread-count to dock badge + native notifications +
+  // dock bounce when the window isn't focused. Only runs once logged in.
+  useNotificationBridge(isLoggedIn);
 
   if (needsSetup) {
     return (

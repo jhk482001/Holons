@@ -245,6 +245,43 @@ fn request_attention(window: tauri::WebviewWindow) {
     let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
 }
 
+// Stronger version: bounce until the user clicks the dock icon. Useful
+// when a long-running workflow finishes while the user is in another app.
+#[tauri::command]
+fn request_attention_critical(window: tauri::WebviewWindow) {
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+}
+
+// Set the macOS Dock badge label (e.g. "3" for unread items, or empty
+// to clear). Tauri 2 doesn't expose NSDockTile directly, so we drop down
+// to objc. Pass `None` / empty string to clear.
+#[tauri::command]
+fn set_dock_badge(label: Option<String>) {
+    #[cfg(target_os = "macos")]
+    {
+        use cocoa::base::{id, nil};
+        use cocoa::foundation::NSString;
+        use objc::{class, msg_send, sel, sel_impl};
+        unsafe {
+            let app: id = msg_send![class!(NSApplication), sharedApplication];
+            if app == nil { return; }
+            let dock_tile: id = msg_send![app, dockTile];
+            if dock_tile == nil { return; }
+            let text = label.unwrap_or_default();
+            if text.is_empty() {
+                let _: () = msg_send![dock_tile, setBadgeLabel: nil];
+            } else {
+                let ns_str = NSString::alloc(nil).init_str(&text);
+                let _: () = msg_send![dock_tile, setBadgeLabel: ns_str];
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = label;
+    }
+}
+
 fn show_and_focus(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -263,6 +300,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
             check_db_upgrade,
@@ -271,6 +309,8 @@ pub fn run() {
             focus_window,
             open_url,
             request_attention,
+            request_attention_critical,
+            set_dock_badge,
         ])
         .setup(|app| {
             // Build-version display in the tray menu — disabled so it's

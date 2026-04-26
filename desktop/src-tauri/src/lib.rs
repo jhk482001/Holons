@@ -264,9 +264,13 @@ fn set_dock_badge(label: Option<String>) {
         use objc::{class, msg_send, sel, sel_impl};
         unsafe {
             let app: id = msg_send![class!(NSApplication), sharedApplication];
-            if app == nil { return; }
+            if app == nil {
+                return;
+            }
             let dock_tile: id = msg_send![app, dockTile];
-            if dock_tile == nil { return; }
+            if dock_tile == nil {
+                return;
+            }
             let text = label.unwrap_or_default();
             if text.is_empty() {
                 let _: () = msg_send![dock_tile, setBadgeLabel: nil];

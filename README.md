@@ -268,7 +268,7 @@ holons/
 
 - **Bugs / feature requests** → [GitHub Issues](https://github.com/jhk482001/Holons/issues)
 - **Questions / show & tell** → [GitHub Discussions](https://github.com/jhk482001/Holons/discussions)
-- **Security** — please email the maintainer rather than filing a public issue.
+- **Security** — please email **holons.agent@gmail.com** rather than filing a public issue. See [SECURITY.md](SECURITY.md) for the disclosure flow.
 
 ## 📝 License
 

@@ -1,0 +1,87 @@
+name: 🐛 Bug report
+description: Something is broken, crashing, or behaving wrong.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. The more concrete you can be,
+        the faster I can reproduce. If you're not sure whether it's a bug,
+        please open a [Q&A discussion](https://github.com/jhk482001/Holons/discussions/categories/q-a) first.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A short description of what went wrong, in your own words.
+      placeholder: e.g. "Clicking Run on a workflow returned a 500 instead of dispatching."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: e.g. "The run should appear in the Runs tab as 'queued'."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal numbered steps. If a workflow / agent config is needed, paste the smallest version that still reproduces.
+      placeholder: |
+        1. Log in as admin/admin
+        2. Open Workflows → New
+        3. Add an agent node, save
+        4. Click Run
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install mode
+      options:
+        - Personal desktop (.dmg / .msi / .AppImage)
+        - Self-hosted (Postgres + Docker)
+        - Self-hosted (SQLite, `python -m backend.standalone`)
+        - Local dev (cloned repo, `npm run dev`)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Holons version
+      description: Bottom of the tray menu (desktop) or `git rev-parse --short HEAD` (dev). "main" is fine if you're tracking the branch.
+      placeholder: e.g. v1.0.0 or 2d65f37 or main
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / browser
+      placeholder: e.g. macOS 15.2 (M-series) · Chrome 142
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Tail of `~/.agent_company/sidecar.log` (desktop), or the backend stderr if self-hosted. Redact tokens / API keys before pasting.
+      render: shell
+
+  - type: checkboxes
+    id: sanity
+    attributes:
+      label: Sanity checks
+      options:
+        - label: I searched [open + closed issues](https://github.com/jhk482001/Holons/issues?q=is%3Aissue) and didn't see this already filed.
+          required: true
+        - label: I'm not pasting any AWS / API keys / passwords in this report.
+          required: true

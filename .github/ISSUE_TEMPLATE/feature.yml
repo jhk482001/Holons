@@ -1,0 +1,63 @@
+name: ✨ Feature request
+description: Concrete, scoped feature you'd open a PR for. Half-formed ideas go in Discussions → Ideas.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. This template is for **scoped** feature
+        requests — a problem statement + a proposed shape. If your idea is
+        still half-formed ("what if Holons supported X?"), please open it
+        as a [💡 Idea discussion](https://github.com/jhk482001/Holons/discussions/categories/ideas) instead — it'll get more eyes there.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the real-world situation, not the feature. "I have N agents and can't see who's busy" is a problem; "add a Gantt chart" is a feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: What's your proposed shape?
+      description: How would the user interact with this? UI / API / both? Sketch in 5-10 lines.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What alternatives did you consider?
+      description: Even just "I tried doing X manually but it doesn't scale past 5 agents" is helpful.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope estimate
+      description: Rough sense of how big this is. (No commitment — just helps triage.)
+      options:
+        - Small (under a day, fits in one PR)
+        - Medium (a few days, multiple PRs)
+        - Large (architectural change, would need an RFC discussion first)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Are you willing to PR this?
+      options:
+        - label: I'd open the PR myself if the design is approved.
+        - label: I can help test once someone else PRs it.
+        - label: Just leaving the suggestion — happy if anyone picks it up.
+
+  - type: checkboxes
+    id: sanity
+    attributes:
+      label: Sanity checks
+      options:
+        - label: I searched [open + closed issues](https://github.com/jhk482001/Holons/issues?q=is%3Aissue) and the [Ideas discussions](https://github.com/jhk482001/Holons/discussions/categories/ideas) and didn't see this already.
+          required: true

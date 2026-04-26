@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Question / "How do I…?"
+    url: https://github.com/jhk482001/Holons/discussions/categories/q-a
+    about: Open a Q&A discussion instead — installation, configuration, "how do I write workflow X" — those belong in Discussions, not Issues.
+  - name: 💡 Feature idea (early-stage)
+    url: https://github.com/jhk482001/Holons/discussions/categories/ideas
+    about: Half-formed thoughts and "what if" feature wishes go in Discussions → Ideas. Open an Issue only when there's a concrete scope you'd PR.
+  - name: 🛡️ Security issue
+    url: https://github.com/jhk482001/Holons/security/policy
+    about: Please don't file vulnerabilities publicly. See SECURITY.md for the disclosure path.

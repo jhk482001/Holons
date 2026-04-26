@@ -1422,15 +1422,12 @@ def _notify_run_complete(run_id: int, final_output: str, *, failed: bool = False
             "label": "Open in Lead",
             "url": f"/dialog?thread_id={thread_id}",
         })
-    # Successful schedule-triggered runs are background noise — the user
-    # already gets a Lead chat bubble + a macOS native notification banner
-    # from the unread-count poll. Emitting a bell row for every minute of a
-    # `* * * * *` schedule just spams the dock badge with hundreds of
-    # unread items. Skip the bell for routine schedule successes; failures
-    # always notify (something needs attention) and manual / chat / lead-
-    # initiated runs always notify (user explicitly asked, wants the chip).
-    if not failed and trigger_source == "schedule":
-        return
+    # Note: we DO emit for schedule-triggered successes. The dock-badge
+    # spam concern is handled the other way around — `mark_thread_read`
+    # auto-flips notifications whose `action_payload.thread_id` matches
+    # the Lead thread the user just opened, so engaging with the source
+    # of truth clears the badge. Users who don't open Lead chat at all
+    # do see the count climb, which is correct: they have unread runs.
     notif_service.emit(
         user_id,
         "workflow_failed" if failed else "lead_proposal",

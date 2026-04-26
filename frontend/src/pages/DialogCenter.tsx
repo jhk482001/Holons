@@ -226,17 +226,35 @@ export default function DialogCenter() {
   }, [input]);
 
   // Mark a Lead thread as read whenever the user is actively viewing
-  // it. Without this the cast-bar unread badge would only clear after
-  // the user types a reply — broken for messages they can't naturally
-  // reply to (project reports, run-complete summaries). Re-fires when
-  // new messages arrive in the open thread so a streaming Lead reply
-  // doesn't leave a stale badge.
+  // it AND the window has focus. The focus check matters: if the user
+  // Cmd-Tabs away, we want the cast unread badge + dock badge to grow
+  // so they see what happened when they come back. Re-fires on each new
+  // message so a streaming Lead reply doesn't leave a stale badge while
+  // the user's actually looking.
   useEffect(() => {
     if (!isLeadActive || !currentThreadId) return;
+    const isFocused = typeof document !== "undefined" && document.hasFocus
+      ? document.hasFocus()
+      : true;
+    if (!isFocused) return;
     LeadAPI.markRead(currentThreadId)
       .then(() => qc.invalidateQueries({ queryKey: ["lead-pending"] }))
       .catch(() => { /* best-effort; the existing 8s poll catches up */ });
   }, [isLeadActive, currentThreadId, messages.length, qc]);
+
+  // Also re-mark-read when the window comes back to focus — covers the
+  // case "user was on the Lead chat, Cmd-Tabbed away (badge accumulated),
+  // came back" without making them click anything.
+  useEffect(() => {
+    if (!isLeadActive || !currentThreadId) return;
+    const onFocus = () => {
+      LeadAPI.markRead(currentThreadId)
+        .then(() => qc.invalidateQueries({ queryKey: ["lead-pending"] }))
+        .catch(() => {});
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [isLeadActive, currentThreadId, qc]);
 
   // ---- Expanded artifact-panel mode (Claude.ai-style) ----
   // `expanded` flips the layout: cast bar hidden, conversation column

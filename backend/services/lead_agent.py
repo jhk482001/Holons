@@ -488,7 +488,18 @@ def _build_project_context(user_id: int, project_id: int) -> tuple[str, str]:
 
 
 def _get_or_create_thread(user_id: int, thread_id: str | None = None) -> str:
-    """Find an existing thread or create a new one. Returns the thread_id (UUID-ish string)."""
+    """Resolve to a thread_id for posting Lead messages.
+
+    Semantics:
+      - If `thread_id` is given and exists for this user → return it.
+      - If `thread_id` is given but missing, OR not given at all → start a
+        new thread. (`chat()` callers want a fresh thread when they didn't
+        pass one — that's the user clicking "New Thread".)
+
+    Notifications that just need to land in the user's mailbox (project
+    reports, etc.) should call `latest_thread_or_create()` instead, which
+    reuses the user's most recently updated visible thread.
+    """
     if thread_id:
         row = db.fetch_one(
             "SELECT thread_id FROM lead_conversations WHERE user_id = %s AND thread_id = %s",
@@ -503,6 +514,39 @@ def _get_or_create_thread(user_id: int, thread_id: str | None = None) -> str:
         INSERT INTO lead_conversations (user_id, thread_id, status)
         VALUES (%s, %s, 'active')
         """,
+        (user_id, new_id),
+    )
+    return new_id
+
+
+def latest_thread_or_create(user_id: int) -> str:
+    """Pick the user's most-recently-updated visible Lead thread (the one
+    the dialog UI shows by default), or create a new one if none exists.
+
+    "Visible" excludes project-coordinator threads (`proj-<pid>-*`) since
+    those are filtered out of the main dialog list.
+
+    Used by background notifications (project reports, schedule alerts)
+    that should land where the user is already reading — not in a brand
+    new orphan thread.
+    """
+    row = db.fetch_one(
+        """
+        SELECT thread_id FROM lead_conversations
+        WHERE user_id = %s
+          AND status = 'active'
+          AND agent_id IS NULL
+          AND thread_id NOT LIKE 'proj-%%'
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+    if row:
+        return row["thread_id"]
+    new_id = uuid.uuid4().hex[:16]
+    db.execute(
+        "INSERT INTO lead_conversations (user_id, thread_id, status) VALUES (%s, %s, 'active')",
         (user_id, new_id),
     )
     return new_id

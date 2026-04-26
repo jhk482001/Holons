@@ -253,7 +253,7 @@ def _post_to_lead_thread(user_id: int, project_id: int, project_name: str,
     Reuses lead_agent's thread helpers so it shows up in the user's inbox.
     """
     from . import lead_agent
-    thread_id = lead_agent._get_or_create_thread(user_id, None)
+    thread_id = lead_agent.latest_thread_or_create(user_id)
     snippet = summary_md.splitlines()[0].strip() if summary_md else ""
     body = (
         f"📋 **Project update — {project_name}**\n\n"

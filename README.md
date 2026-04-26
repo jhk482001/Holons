@@ -31,7 +31,14 @@ swappable backing DB.
 > workflow, shows a cost estimate, and hands you **Edit / Save / Run
 > Now**. No YAML, no graph-coding, no framework to learn.
 >
-> 🎬 **[Watch the full walkthrough](docs/assets/demo-walkthrough.webm)** — login → dialog → groups → group chat → workflow editor → dashboard → library.
+> 🎬 **[Watch the full walkthrough](docs/assets/demo-walkthrough.mp4)** — login → dialog → groups → group chat → workflow editor → dashboard → library.
+
+<p align="center">
+  <a href="docs/assets/demo-walkthrough.mp4">
+    <img src="docs/assets/screenshots/02b-dialog-lead-response.png" alt="Demo walkthrough" width="720" />
+  </a>
+  <br/><sub><i>Click to play (≈ 1 min · 1080p · 8.5 MB)</i></sub>
+</p>
 
 ---
 
@@ -92,7 +99,7 @@ the GitHub Actions release pipeline.
 ## 🎯 Why this, instead of another framework
 
 Most multi-agent projects are **SDKs** (CrewAI, AutoGen, LangGraph) or
-**no-code canvases** (Dify, Langflow). Agent Company is neither — it's a
+**no-code canvases** (Dify, Langflow). Holons is neither — it's a
 **personal-scale management UI** that treats agents the way an operator
 treats a small team:
 

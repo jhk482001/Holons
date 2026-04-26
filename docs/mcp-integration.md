@@ -196,9 +196,9 @@ backend, and the agent gains `mcp__mcp-erp__get_inventory`.
 
 A fully worked example with seven mock servers (ERP, mail, CRM,
 market data, datacenter, accounting, Bedrock image generation) lives
-outside this repo at [Holons-demo](https://example.invalid/not-committed)
-— the `base_mcp.py` there handles the JSON-RPC envelope and lets each
-concrete mock register tools with a one-liner:
+in a sibling `Holons-demo` repo (not yet public) — the `base_mcp.py`
+there handles the JSON-RPC envelope and lets each concrete mock register
+tools with a one-liner:
 
 ```python
 s = McpServer("mcp-erp")

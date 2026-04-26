@@ -16,17 +16,28 @@ import "./ArtifactBubble.css";
  * markdown is rendered inline since the source is plain text we control
  * via react-markdown (no raw HTML pass-through, so no XSS surface).
  */
-export default function ArtifactBubble({ artifact }: { artifact: Artifact }) {
-  if (artifact.kind === "html") return <HtmlBubble artifact={artifact} />;
-  if (artifact.kind === "slides") return <SlidesBubble artifact={artifact} />;
-  if (artifact.kind === "markdown") return <MarkdownBubble artifact={artifact} />;
-  if (artifact.kind === "file") return <FileBubble artifact={artifact} />;
+type OpenArtifactFn = (target:
+  | { kind: "run"; runId: number; workflowName?: string }
+  | { kind: "html"; title: string; html: string }
+  | { kind: "markdown"; title: string; md: string }
+  | { kind: "file"; title: string; payload: any }
+) => void;
+
+export default function ArtifactBubble({ artifact, onOpenArtifact }: {
+  artifact: Artifact;
+  onOpenArtifact?: OpenArtifactFn;
+}) {
+  if (artifact.kind === "html") return <HtmlBubble artifact={artifact} onOpenArtifact={onOpenArtifact} />;
+  if (artifact.kind === "slides") return <SlidesBubble artifact={artifact} onOpenArtifact={onOpenArtifact} />;
+  if (artifact.kind === "markdown") return <MarkdownBubble artifact={artifact} onOpenArtifact={onOpenArtifact} />;
+  if (artifact.kind === "file") return <FileBubble artifact={artifact} onOpenArtifact={onOpenArtifact} />;
   return null;
 }
 
 
-function HtmlBubble({ artifact }: {
+function HtmlBubble({ artifact, onOpenArtifact }: {
   artifact: Extract<Artifact, { kind: "html" }>;
+  onOpenArtifact?: OpenArtifactFn;
 }) {
   const { t } = useTranslation();
   const [full, setFull] = useState(false);
@@ -36,6 +47,18 @@ function HtmlBubble({ artifact }: {
         <span className="artifact-badge">{t("artifactBubble.htmlBadge")}</span>
         <span className="artifact-title">{artifact.title || t("artifactBubble.untitled")}</span>
         <span className="artifact-actions">
+          {onOpenArtifact && (
+            <button
+              className="artifact-btn"
+              onClick={() => onOpenArtifact({
+                kind: "html",
+                title: artifact.title || t("artifactBubble.untitled"),
+                html: artifact.html,
+              })}
+            >
+              {t("artifactBubble.openInPanel", "Open in panel")}
+            </button>
+          )}
           <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
             {full ? t("artifactBubble.exitFullscreen") : t("artifactBubble.enterFullscreen")}
           </button>
@@ -62,8 +85,9 @@ function HtmlBubble({ artifact }: {
 }
 
 
-function SlidesBubble({ artifact }: {
+function SlidesBubble({ artifact, onOpenArtifact }: {
   artifact: Extract<Artifact, { kind: "slides" }>;
+  onOpenArtifact?: OpenArtifactFn;
 }) {
   const { t } = useTranslation();
   const [full, setFull] = useState(false);
@@ -74,6 +98,18 @@ function SlidesBubble({ artifact }: {
         <span className="artifact-badge">{t("artifactBubble.slidesBadge")}</span>
         <span className="artifact-title">{artifact.title || t("artifactBubble.untitled")}</span>
         <span className="artifact-actions">
+          {onOpenArtifact && (
+            <button
+              className="artifact-btn"
+              onClick={() => onOpenArtifact({
+                kind: "html",
+                title: artifact.title || t("artifactBubble.untitled"),
+                html: artifact.html,
+              })}
+            >
+              {t("artifactBubble.openInPanel", "Open in panel")}
+            </button>
+          )}
           <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
             {full ? t("artifactBubble.exitFullscreen") : t("artifactBubble.enterFullscreen")}
           </button>
@@ -98,8 +134,9 @@ function SlidesBubble({ artifact }: {
 }
 
 
-function MarkdownBubble({ artifact }: {
+function MarkdownBubble({ artifact, onOpenArtifact }: {
   artifact: Extract<Artifact, { kind: "markdown" }>;
+  onOpenArtifact?: OpenArtifactFn;
 }) {
   const { t } = useTranslation();
   const [full, setFull] = useState(false);
@@ -109,6 +146,18 @@ function MarkdownBubble({ artifact }: {
         <span className="artifact-badge">{t("artifactBubble.markdownBadge")}</span>
         <span className="artifact-title">{artifact.title || t("artifactBubble.untitled")}</span>
         <span className="artifact-actions">
+          {onOpenArtifact && (
+            <button
+              className="artifact-btn"
+              onClick={() => onOpenArtifact({
+                kind: "markdown",
+                title: artifact.title || t("artifactBubble.untitled"),
+                md: artifact.markdown,
+              })}
+            >
+              {t("artifactBubble.openInPanel", "Open in panel")}
+            </button>
+          )}
           <button className="artifact-btn" onClick={() => setFull((f) => !f)}>
             {full ? t("artifactBubble.exitFullscreen") : t("artifactBubble.enterFullscreen")}
           </button>
@@ -131,8 +180,9 @@ function MarkdownBubble({ artifact }: {
 }
 
 
-function FileBubble({ artifact }: {
+function FileBubble({ artifact, onOpenArtifact }: {
   artifact: Extract<Artifact, { kind: "file" }>;
+  onOpenArtifact?: OpenArtifactFn;
 }) {
   const { t } = useTranslation();
   // Build a data URL the browser can download directly. utf-8 text files
@@ -158,6 +208,19 @@ function FileBubble({ artifact }: {
           {artifact.mime} · {sizeLabel}
         </span>
       </span>
+      {onOpenArtifact && (
+        <button
+          type="button"
+          className="artifact-btn"
+          onClick={() => onOpenArtifact({
+            kind: "file",
+            title: artifact.filename,
+            payload: artifact,
+          })}
+        >
+          {t("artifactBubble.openInPanel", "Open in panel")}
+        </button>
+      )}
       <a className="artifact-btn primary" href={dataUrl} download={artifact.filename}>
         {t("btn.download")}
       </a>

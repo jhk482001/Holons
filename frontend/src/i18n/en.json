@@ -380,6 +380,8 @@
     "stop": "Stop",
     "send": "Send",
     "resizeHandle": "Drag to resize (up to enlarge, down to shrink)",
+    "expandPanel": "Expand to focus mode",
+    "collapsePanel": "Collapse focus mode",
     "recentTasks": "{{name}}'s recent tasks",
     "noTasks": "This agent hasn't run any tasks yet.",
     "mySteps": "my {{count}} steps",
@@ -948,6 +950,7 @@
     "markdownBadge": "Markdown",
     "enterFullscreen": "Fullscreen",
     "exitFullscreen": "Exit fullscreen",
+    "openInPanel": "Open in panel",
     "untitled": "Untitled"
   },
   "hireBubble": {

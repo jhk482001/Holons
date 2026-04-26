@@ -380,6 +380,8 @@
     "stop": "停止",
     "send": "送出",
     "resizeHandle": "拖曳改變角色大小（往上放大、往下縮小）",
+    "expandPanel": "展開為專注模式",
+    "collapsePanel": "收合專注模式",
     "recentTasks": "{{name}} 最近的任務",
     "noTasks": "這位 agent 還沒有執行過任何任務。",
     "mySteps": "我參與 {{count}} 步",
@@ -948,6 +950,7 @@
     "markdownBadge": "Markdown",
     "enterFullscreen": "全螢幕",
     "exitFullscreen": "結束全螢幕",
+    "openInPanel": "在側邊面板開啟",
     "untitled": "未命名"
   },
   "hireBubble": {

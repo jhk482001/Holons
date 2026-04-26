@@ -216,6 +216,58 @@ export default function DialogCenter() {
 
   const [input, setInput] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  // Auto-grow the composer textarea so multi-line drafts stay visible.
+  // CSS caps it at max-height; the textarea will scroll past that.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [input]);
+
+  // ---- Expanded artifact-panel mode (Claude.ai-style) ----
+  // `expanded` flips the layout: cast bar hidden, conversation column
+  // takes full height with its composer pinned at the bottom, and an
+  // optional artifact panel slides in from the right when the user
+  // clicks a run / artifact / proposal. Two entry points:
+  //   1. Expand-icon button on the chat header (composer-side toggle).
+  //   2. Clicking a RunStatusCard or ArtifactBubble — auto-opens the
+  //      panel with that target, and flips `expanded` on if it isn't.
+  const [expanded, setExpanded] = useState(false);
+  // What to show in the right artifact panel. `null` = panel closed.
+  // Discriminated by `kind`. We deliberately keep this shape extensible
+  // so future artifact types (slides, files) drop in here too.
+  type ArtifactTarget =
+    | { kind: "run"; runId: number; workflowName?: string }
+    | { kind: "html"; title: string; html: string }
+    | { kind: "markdown"; title: string; md: string }
+    | { kind: "file"; title: string; payload: any };
+  const [panelTarget, setPanelTarget] = useState<ArtifactTarget | null>(null);
+
+  function openInPanel(target: ArtifactTarget) {
+    setPanelTarget(target);
+    if (!expanded) setExpanded(true);
+  }
+  function closePanel() {
+    setPanelTarget(null);
+  }
+  function toggleExpanded() {
+    if (expanded) {
+      setPanelTarget(null);
+      setExpanded(false);
+    } else {
+      setExpanded(true);
+    }
+  }
+  // Safety: if the active chat ever clears while expanded (e.g. via a future
+  // codepath), collapse so the cast bar comes back — otherwise the user
+  // sees a blank screen with no way to recover.
+  useEffect(() => {
+    if (!activeId && expanded) {
+      setExpanded(false);
+      setPanelTarget(null);
+    }
+  }, [activeId, expanded]);
   // Live stream buffer — filled chunk-by-chunk while a Lead streaming
   // request is in flight, cleared when the final result has landed in
   // the cache. Rendered as a bubble below the committed messages so the
@@ -538,7 +590,7 @@ export default function DialogCenter() {
 
   return (
     <div
-      className={`dc ${isBadgeMode ? "badge-mode" : ""}`}
+      className={`dc ${isBadgeMode ? "badge-mode" : ""} ${expanded ? "dc-expanded" : ""} ${panelTarget ? "dc-panel-open" : ""}`}
       style={{ ["--cast-size" as any]: `${castSize}px` }}
     >
       {/* Thread drawer */}
@@ -608,7 +660,10 @@ export default function DialogCenter() {
         ref={stageRef}
         onClick={(e) => {
           // Click on stage empty area (not on focus-lane or any descendant)
-          // closes the message area.
+          // closes the message area. Disabled in expanded mode — the cast
+          // bar is hidden there, so closing would leave a blank screen
+          // with no way back in.
+          if (expanded) return;
           if (e.target === e.currentTarget) setActiveId(null);
         }}
       >
@@ -623,6 +678,62 @@ export default function DialogCenter() {
         >
           {activeTab === "chat" && (
             <>
+              <div className="focus-lane-toolbar">
+                {expanded && (activeAgent || leadAgent) && (
+                  <>
+                    <div className="focus-lane-agent">
+                      <img
+                        className="focus-lane-agent-avatar"
+                        src={headUrl(((activeAgent || leadAgent) as Agent).avatar_config as any)}
+                        alt=""
+                      />
+                      <div className="focus-lane-agent-text">
+                        <div className="focus-lane-agent-name">{(activeAgent || leadAgent)?.name}</div>
+                        {(activeAgent || leadAgent)?.role_title && (
+                          <div className="focus-lane-agent-role">{(activeAgent || leadAgent)?.role_title}</div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="focus-lane-threads"
+                      title={t("dialog.threads")}
+                      onClick={() => setDrawerOpen((v) => !v)}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="12" x2="21" y2="12" />
+                        <line x1="3" y1="18" x2="21" y2="18" />
+                      </svg>
+                      <span>{threads.length}</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="focus-lane-expand"
+                  data-testid="dialog-expand-toggle"
+                  title={expanded ? t("dialog.collapsePanel") : t("dialog.expandPanel")}
+                  aria-label={expanded ? t("dialog.collapsePanel") : t("dialog.expandPanel")}
+                  onClick={toggleExpanded}
+                >
+                  {expanded ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 14 10 14 10 20" />
+                      <polyline points="20 10 14 10 14 4" />
+                      <line x1="14" y1="10" x2="21" y2="3" />
+                      <line x1="3" y1="21" x2="10" y2="14" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 3 21 3 21 9" />
+                      <polyline points="9 21 3 21 3 15" />
+                      <line x1="21" y1="3" x2="14" y2="10" />
+                      <line x1="3" y1="21" x2="10" y2="14" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               <div
                 className="messages"
                 ref={messagesScrollRef}
@@ -651,6 +762,7 @@ export default function DialogCenter() {
                     msg={m}
                     threadId={currentThreadId}
                     onHireAccepted={isLeadActive ? handleHireAccepted : undefined}
+                    onOpenArtifact={openInPanel}
                   />
                 ))}
                 {sendMutation.isPending && (
@@ -731,6 +843,13 @@ export default function DialogCenter() {
         </div>
         )}
       </main>
+
+      {panelTarget && (
+        <ArtifactPanel
+          target={panelTarget}
+          onClose={closePanel}
+        />
+      )}
 
       <div
         className={`cast ${hasActive ? "has-active" : ""}`}
@@ -1406,11 +1525,20 @@ function CastMember({
   );
 }
 
-function MessageBubble({ msg, threadId, onHireAccepted }: {
+type OpenArtifactFn = (target:
+  | { kind: "run"; runId: number; workflowName?: string }
+  | { kind: "html"; title: string; html: string }
+  | { kind: "markdown"; title: string; md: string }
+  | { kind: "file"; title: string; payload: any }
+) => void;
+
+function MessageBubble({ msg, threadId, onHireAccepted, onOpenArtifact }: {
   msg: LeadMessage;
   threadId?: string;
   onHireAccepted?: (info: { agent_id: number; name: string; role_title: string }) => void;
+  onOpenArtifact?: OpenArtifactFn;
 }) {
+  const createdAtLabel = new Date(msg.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
   // Strip every fenced block that's rendered as its own card (workflow,
   // hire, project, and the three artifact kinds) from the prose.
   const cleanContent = msg.content
@@ -1419,7 +1547,21 @@ function MessageBubble({ msg, threadId, onHireAccepted }: {
     .replace(/```project\s*\n[\s\S]*?\n```/g, "")
     .replace(/```artifact-(?:html|slides|file|markdown)(?:\s+[^\n]+)?\s*\n[\s\S]*?\n```/g, "")
     .trim();
-  const isRunEvent = msg.metadata?.event === "run_event" && msg.metadata?.run_id;
+  // Run-completion messages — backend writes `event: "run_complete"`
+  // or `"run_failed"`. We also accept the legacy `"run_event"` tag, so
+  // older rows still render as the structured status card.
+  const isRunEvent = !!msg.metadata?.run_id && (
+    msg.metadata?.event === "run_event"
+    || msg.metadata?.event === "run_complete"
+    || msg.metadata?.event === "run_failed"
+  );
+  const runId = msg.metadata?.run_id as number | undefined;
+  // The run-event prose carries the workflow name as `**<name>**` in the
+  // first line. Extract it as a fallback for older rows that didn't include
+  // `workflow_name` in metadata.
+  const runWorkflowName =
+    (msg.metadata?.workflow_name as string | undefined)
+    ?? msg.content.match(/^The \*\*(.+?)\*\* run you dispatched/)?.[1];
   const hireProposal = msg.metadata?.proposed_hire;
   const hiredAgentId = msg.metadata?.hired_agent_id;
   const artifacts = msg.metadata?.artifacts || [];
@@ -1427,10 +1569,12 @@ function MessageBubble({ msg, threadId, onHireAccepted }: {
 
   return (
     <div className={`bubble ${msg.role === "user" ? "user" : "bot"} ${isWide ? "wide" : ""} ${isRunEvent ? "run-event" : ""}`}>
-      {isRunEvent && msg.metadata?.run_id ? (
+      {isRunEvent && runId ? (
         <RunStatusCard
-          runId={msg.metadata.run_id}
-          workflowName={msg.metadata.workflow_name}
+          runId={runId}
+          workflowName={runWorkflowName}
+          createdAtLabel={createdAtLabel}
+          onOpenArtifact={onOpenArtifact}
         />
       ) : (
         <div className="content markdown">
@@ -1449,14 +1593,21 @@ function MessageBubble({ msg, threadId, onHireAccepted }: {
         />
       )}
       {artifacts.map((a, i) => (
-        <ArtifactBubble key={i} artifact={a} />
+        <ArtifactBubble key={i} artifact={a} onOpenArtifact={onOpenArtifact} />
       ))}
-      <div className="meta">{new Date(msg.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div>
+      {!isRunEvent && (
+        <div className="meta">{createdAtLabel}</div>
+      )}
     </div>
   );
 }
 
-function RunStatusCard({ runId, workflowName }: { runId: number; workflowName?: string }) {
+function RunStatusCard({ runId, workflowName, createdAtLabel, onOpenArtifact }: {
+  runId: number;
+  workflowName?: string;
+  createdAtLabel?: string;
+  onOpenArtifact?: OpenArtifactFn;
+}) {
   const navigate = useNavigate();
   const { data: run } = useQuery({
     queryKey: ["run", runId],
@@ -1484,40 +1635,248 @@ function RunStatusCard({ runId, workflowName }: { runId: number; workflowName?: 
     error: "Failed",
   };
 
-  const stepCount = (run as any)?.steps?.length ?? 0;
-  // Postgres NUMERIC / BIGINT can come back as strings — coerce defensively.
-  const tokens = (Number(run?.total_input_tokens) || 0) + (Number(run?.total_output_tokens) || 0);
-  const cost = Number(run?.total_cost_usd) || 0;
-  const startedAt = run?.started_at ? new Date(run.started_at) : null;
-  const finishedAt = run?.finished_at ? new Date(run.finished_at) : null;
-  const seconds = startedAt && finishedAt
-    ? (finishedAt.getTime() - startedAt.getTime()) / 1000
-    : startedAt ? (Date.now() - startedAt.getTime()) / 1000 : 0;
-  const durationStr = seconds < 60 ? `${seconds.toFixed(1)}s` : `${(seconds / 60).toFixed(1)}m`;
+  const handleOpenInPanel = () => {
+    if (onOpenArtifact) {
+      onOpenArtifact({ kind: "run", runId, workflowName });
+    } else {
+      navigate(`/runs/${runId}`);
+    }
+  };
+
+  // Workflow name preference: explicit prop (parsed from metadata or
+  // content) → run row's `workflow_name` (returned by the runs endpoint
+  // alongside steps) → numeric fallback.
+  const displayName = workflowName || (run as any)?.workflow_name || `Workflow #${run?.workflow_id ?? ""}`;
 
   return (
-    <div className={`run-status-card ${cls}`}>
-      <div className="run-status-head">
-        <div className="run-status-title">
-          {isActive && <span className="spinner" />}
-          {workflowName || `Workflow #${run?.workflow_id ?? ""}`}
-        </div>
+    <div
+      className={`run-status-card ${cls} ${onOpenArtifact ? "clickable" : ""}`}
+      onClick={onOpenArtifact ? handleOpenInPanel : undefined}
+      role={onOpenArtifact ? "button" : undefined}
+      tabIndex={onOpenArtifact ? 0 : undefined}
+      onKeyDown={onOpenArtifact ? (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleOpenInPanel();
+        }
+      } : undefined}
+    >
+      <div className="run-status-row">
+        {isActive && <span className="spinner" />}
+        <svg className="run-status-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 11 12 14 22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
+        <span className="run-status-name" title={displayName}>{displayName}</span>
+        <span className="run-status-runid">#{runId}</span>
         <span className={`run-status-pill ${cls}`}>{STATUS_LABEL[status] || status}</span>
+        <span className="run-status-spacer" />
+        {createdAtLabel && (
+          <span className="run-status-time">{createdAtLabel}</span>
+        )}
+        {onOpenArtifact && (
+          <button
+            type="button"
+            className="run-status-open"
+            aria-label="Open in panel"
+            title="Open in panel"
+            onClick={(e) => { e.stopPropagation(); handleOpenInPanel(); }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        )}
       </div>
-      <div className="run-status-stats">
-        <div><strong>Run</strong>#{runId}</div>
-        <div><strong>Steps</strong>{stepCount}</div>
-        <div><strong>Tokens</strong>{tokens.toLocaleString()}</div>
-        <div><strong>Cost</strong>${cost.toFixed(4)}</div>
-        <div><strong>Duration</strong>{durationStr}</div>
+    </div>
+  );
+}
+
+function ArtifactPanel({ target, onClose }: {
+  target:
+    | { kind: "run"; runId: number; workflowName?: string }
+    | { kind: "html"; title: string; html: string }
+    | { kind: "markdown"; title: string; md: string }
+    | { kind: "file"; title: string; payload: any };
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  return (
+    <aside className="artifact-panel" data-testid="artifact-panel">
+      <header className="artifact-panel-head">
+        <div className="artifact-panel-title" title={
+          target.kind === "run"
+            ? (target.workflowName || `Run #${target.runId}`)
+            : target.title
+        }>
+          {target.kind === "run" && (
+            <span className="artifact-panel-kind">Run</span>
+          )}
+          {target.kind === "html" && (
+            <span className="artifact-panel-kind">HTML</span>
+          )}
+          {target.kind === "markdown" && (
+            <span className="artifact-panel-kind">Markdown</span>
+          )}
+          {target.kind === "file" && (
+            <span className="artifact-panel-kind">File</span>
+          )}
+          <span className="artifact-panel-name">
+            {target.kind === "run"
+              ? (target.workflowName || `Run #${target.runId}`)
+              : target.title}
+          </span>
+        </div>
+        {target.kind === "run" && (
+          <button
+            type="button"
+            className="artifact-panel-action"
+            title="Open full Run page"
+            onClick={() => navigate(`/runs/${target.runId}`)}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </button>
+        )}
+        <button
+          type="button"
+          className="artifact-panel-close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </header>
+      <div className="artifact-panel-body">
+        {target.kind === "run" && <RunPanelBody runId={target.runId} />}
+        {target.kind === "html" && (
+          <iframe
+            title={target.title || "HTML"}
+            sandbox="allow-scripts"
+            srcDoc={target.html}
+            className="artifact-panel-iframe"
+          />
+        )}
+        {target.kind === "markdown" && (
+          <div className="artifact-panel-md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{target.md}</ReactMarkdown>
+          </div>
+        )}
+        {target.kind === "file" && <FilePanelBody payload={target.payload} />}
       </div>
-      <button
-        type="button"
-        className="run-status-link"
-        onClick={() => navigate(`/runs/${runId}`)}
-      >
-        View Details
-      </button>
+    </aside>
+  );
+}
+
+function RunPanelBody({ runId }: { runId: number }) {
+  const { data: run } = useQuery({
+    queryKey: ["run", runId],
+    queryFn: () => RunsAPI.get(runId),
+    refetchInterval: (q) => {
+      const r = q.state.data as { status?: string } | undefined;
+      if (!r) return 3_000;
+      return ["running", "queued", "cancelling", "paused"].includes(r.status || "") ? 3_000 : false;
+    },
+  });
+
+  if (!run) {
+    return <div className="artifact-panel-empty">Loading run #{runId}…</div>;
+  }
+  const steps = (run as any).steps || [];
+  const status = run.status || "queued";
+  const tokens = (Number(run.total_input_tokens) || 0) + (Number(run.total_output_tokens) || 0);
+  const cost = Number(run.total_cost_usd) || 0;
+
+  return (
+    <div className="run-panel">
+      <div className="run-panel-summary">
+        <div className="run-panel-row">
+          <span className="run-panel-label">Status</span>
+          <span className={`run-panel-pill run-panel-pill-${status}`}>{status}</span>
+        </div>
+        <div className="run-panel-row">
+          <span className="run-panel-label">Run</span>
+          <span>#{run.id}</span>
+        </div>
+        <div className="run-panel-row">
+          <span className="run-panel-label">Steps</span>
+          <span>{steps.length}</span>
+        </div>
+        <div className="run-panel-row">
+          <span className="run-panel-label">Tokens</span>
+          <span>{tokens.toLocaleString()}</span>
+        </div>
+        <div className="run-panel-row">
+          <span className="run-panel-label">Cost</span>
+          <span>${cost.toFixed(4)}</span>
+        </div>
+        {run.final_output && (
+          <div className="run-panel-final">
+            <div className="run-panel-label">Final output</div>
+            <div className="run-panel-final-body markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{run.final_output}</ReactMarkdown>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="run-panel-steps">
+        <div className="run-panel-section-title">Steps</div>
+        {steps.length === 0 ? (
+          <div className="artifact-panel-empty">No steps yet.</div>
+        ) : (
+          steps.map((s: any, idx: number) => (
+            <div key={s.id ?? idx} className="run-panel-step">
+              <div className="run-panel-step-head">
+                <span className="run-panel-step-idx">#{idx + 1}</span>
+                <span className="run-panel-step-role">{s.role_label || `Agent ${s.agent_id ?? ""}`}</span>
+                {s.duration_ms != null && (
+                  <span className="run-panel-step-meta">{(s.duration_ms / 1000).toFixed(1)}s</span>
+                )}
+              </div>
+              {s.error ? (
+                <div className="run-panel-step-error">{s.error}</div>
+              ) : (
+                <div className="run-panel-step-body markdown">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.response || ""}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FilePanelBody({ payload }: { payload: any }) {
+  const isText = !payload?.encoding || payload.encoding !== "base64";
+  const dataUrl = payload?.encoding === "base64"
+    ? `data:${payload.mime || "application/octet-stream"};base64,${payload.content}`
+    : `data:${payload?.mime || "text/plain"};charset=utf-8,${encodeURIComponent(payload?.content || "")}`;
+  return (
+    <div className="run-panel">
+      <div className="run-panel-row">
+        <span className="run-panel-label">File</span>
+        <span>{payload?.filename || "(unnamed)"}</span>
+      </div>
+      <div className="run-panel-row">
+        <span className="run-panel-label">Type</span>
+        <span>{payload?.mime || "—"}</span>
+      </div>
+      <a className="run-status-link" href={dataUrl} download={payload?.filename || "download"}>
+        Download
+      </a>
+      {isText && payload?.content && (
+        <pre className="run-panel-step-body" style={{ whiteSpace: "pre-wrap", marginTop: 12 }}>
+          {payload.content}
+        </pre>
+      )}
     </div>
   );
 }

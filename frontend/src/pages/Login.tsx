@@ -38,16 +38,18 @@ export default function Login() {
         width: 380,
         boxShadow: "var(--shadow-md)",
       }}>
-        <h1 style={{ fontSize: 24, marginBottom: 4, fontWeight: 800 }}>
-          <span style={{
-            display: "inline-block",
-            width: 10, height: 10, borderRadius: "50%",
-            background: "var(--accent)", marginRight: 10,
-          }}></span>
-          {t("login.title")}
-        </h1>
-        <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 28 }}>
-          {t("login.subtitle")}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 24 }}>
+          <img
+            src="/logo.png"
+            alt="Holons"
+            style={{ width: 56, height: 56, marginBottom: 12 }}
+          />
+          <h1 style={{ fontSize: 22, margin: 0, fontWeight: 800 }}>
+            {t("login.title")}
+          </h1>
+          <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 4 }}>
+            {t("login.subtitle")}
+          </div>
         </div>
 
         <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>

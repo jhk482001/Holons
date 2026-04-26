@@ -4,11 +4,9 @@
 
 # Holons
 
-**Your AI company, on your own machine.**
+**Run your AI company, on your own machine.**
 Hire a team of AI agents, give each one a name and a role, assign work
 from a chat window, and watch the output land.
-A one-person shop today, a whole department tomorrow — same app,
-swappable backing DB.
 
 > *"A Holon is both a whole and a part. Each agent in Holons is autonomous
 > enough to handle its own work, yet composes cleanly into a larger team."*
@@ -44,9 +42,7 @@ swappable backing DB.
 
 ## ⚡ Quick start
 
-Pick one of three modes. Personal is by far the easiest.
-
-### Personal desktop (recommended)
+### Install the desktop app (recommended)
 
 Download the latest `.dmg` / `.msi` / `.AppImage` from
 [Releases](https://github.com/jhk482001/Holons/releases), install,
@@ -61,10 +57,9 @@ sidecar with SQLite — no Docker, no API keys to set up.
 > Dragging the `.app` to Trash alone leaves your login and local DB behind
 > in `~/Library/Application Support/com.holons.desktop/` and `~/.agent_company/`.
 
-### Self-host (local dev or server)
+### Run from source (local dev)
 
-Requires Python 3.9+, Node 18+, Rust (for the desktop build), Docker for
-the Postgres option.
+Requires Python 3.9+, Node 18+, Rust (for the desktop build).
 
 ```bash
 git clone https://github.com/jhk482001/Holons.git
@@ -74,25 +69,18 @@ cp .env.example .env
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
 
-# --- Backend ---
-# Easiest: SQLite, single binary, auto-provisions admin user.
+# Backend — single binary, SQLite, auto-provisions admin user.
 python -m backend.standalone --port 8087
-# Or: Postgres (docker compose up -d postgres first), multi-user ready.
-# python -m backend.app
 
-# --- Frontend (second shell) ---
+# Frontend (second shell)
 cd frontend && npm run dev        # http://localhost:5173
 
-# Optional: seed demo user + two showcase teams
+# Optional: seed a demo user + two showcase teams
 python -m demo.seed_demo
 ```
 
 Login: `admin` / `admin`, or `jay` / `demo` after running the seed.
-
-### Managed / production deploy
-
-See **[docs/BUILD.md](docs/BUILD.md)** for Docker, TLS, reverse proxy, and
-the GitHub Actions release pipeline.
+Other deploy options (Docker, Postgres) live in **[docs/BUILD.md](docs/BUILD.md)**.
 
 ---
 
@@ -109,9 +97,7 @@ treats a small team:
 - **Observe** — dashboard shows who's idle, who's busy, what today cost.
 - **Review** — open a group chat and sit in the room while they deliberate.
 
-The same app runs as a single binary + SQLite on your laptop, or as a
-Postgres-backed multi-user deploy on a server. Works on macOS, Windows,
-Linux.
+Single binary, single SQLite file, on your laptop. macOS, Windows, Linux.
 
 ---
 
@@ -237,9 +223,7 @@ deep-dive doc, or both.
 | 💸 **Unified LLM call ledger** | 📈 **Admin Usage report** | 🧰 **Per-user default client** |
 | Every call (agent / Lead / skill / report / proxy / test) in one table. | Cross-user cost / tokens / calls chart, filters, records. | Route background tasks (skill extract, reports) through a chosen client. |
 | 🛡️ **Preflight upgrade flow** | 🌐 **Pluggable LLMs** | 💾 **Swappable backends** |
-| New installs detect schema drift + offer backup before migrating. | Bedrock / Anthropic / OpenAI / Azure / Gemini / MiniMax / local. | SQLite (personal) or Postgres + pgvector. |
-| 🌍 **i18n (en / zh-TW)** | &nbsp; | &nbsp; |
-| Per-user locale. | &nbsp; | &nbsp; |
+| New installs detect schema drift + offer backup before migrating. | Bedrock / Anthropic / OpenAI / Azure / Gemini / MiniMax / local. | SQLite by default; Postgres + pgvector if you grow into one. |
 
 → Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Projects deep-dive: **[docs/PROJECTS.md](docs/PROJECTS.md)** · Development: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**
 

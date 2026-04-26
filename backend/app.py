@@ -4754,6 +4754,7 @@ def avatar_compose():
         "vb": request.args.get("vb") or None,
         "w": _int_or_none(request.args.get("w")),
         "h": _int_or_none(request.args.get("h")),
+        "line_color": request.args.get("line_color") or None,
     }
     if cfg["vb"]:
         cfg["vb"] = cfg["vb"].replace(",", " ")

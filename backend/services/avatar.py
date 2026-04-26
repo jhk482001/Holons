@@ -115,6 +115,7 @@ def compose_svg(
     width: int | None = None,
     height: int | None = None,
     view_box: str | None = None,
+    line_color: str | None = None,
 ) -> str:
     body_svg = read_part(body_category, body_name)
     hair_svg = read_part("hair", hair_name)
@@ -138,7 +139,7 @@ def compose_svg(
 
     w = width or 850
     h = height or 1200
-    return (
+    svg = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}"'
         ' width="{w}" height="{h}">\n'
@@ -169,6 +170,16 @@ def compose_svg(
         acc=acc_svg,
     )
 
+    # Peeps SVGs use `fill=""` (empty-string fill) for the black line-art
+    # paths — empty fill inherits to black at render time. To recolor only
+    # the lines (not the white body fills tagged `fill="#FFFFFF"`), swap
+    # the empty-fill markers to the requested colour. Both quote styles
+    # appear in the source SVGs, so handle both.
+    if line_color:
+        svg = svg.replace('fill=""', f'fill="{line_color}"')
+        svg = svg.replace("fill=''", f"fill='{line_color}'")
+    return svg
+
 
 def compose_from_config(cfg: dict) -> str:
     """Compose an avatar from a JSON config dict (as stored in agents.avatar_config)."""
@@ -183,6 +194,7 @@ def compose_from_config(cfg: dict) -> str:
         view_box=cfg.get("vb"),
         width=cfg.get("w"),
         height=cfg.get("h"),
+        line_color=cfg.get("line_color"),
     )
 
 

@@ -436,21 +436,22 @@ function CastBar({
             </div>
             {(() => {
               const color = colors[a.id] || "default";
-              const url = absoluteUrl(`/api/avatar/compose?body_type=body_bust&body=${encodeURIComponent(a.avatar_config?.body || "Shirt")}&hair=${encodeURIComponent(a.avatar_config?.hair || "Medium")}&face=${encodeURIComponent(a.avatar_config?.face || "Calm")}${a.avatar_config?.facial_hair ? `&facial_hair=${encodeURIComponent(a.avatar_config.facial_hair)}` : ""}${a.avatar_config?.accessory ? `&accessory=${encodeURIComponent(a.avatar_config.accessory)}` : ""}&vb=0,-200,850,1400`);
+              // Recolor at the source: backend swaps the SVGs' empty-fill
+              // line paths for the requested colour. Default keeps black.
+              const lineColorParam =
+                color === "orange" ? "&line_color=%23ff8a65"
+                : color === "black" ? "&line_color=%231c1a18"
+                : "";
+              const url = absoluteUrl(`/api/avatar/compose?body_type=body_bust&body=${encodeURIComponent(a.avatar_config?.body || "Shirt")}&hair=${encodeURIComponent(a.avatar_config?.hair || "Medium")}&face=${encodeURIComponent(a.avatar_config?.face || "Calm")}${a.avatar_config?.facial_hair ? `&facial_hair=${encodeURIComponent(a.avatar_config.facial_hair)}` : ""}${a.avatar_config?.accessory ? `&accessory=${encodeURIComponent(a.avatar_config.accessory)}` : ""}&vb=0,-200,850,1400${lineColorParam}`);
               return (
                 <div
                   className={`cast-bust cast-bust-color-${color}`}
                   style={{
                     height: bustHeight - 30,
                     transform: (facing[a.id] || "right") === "left" ? "scaleX(-1)" : undefined,
-                    ["--bust-url" as any]: `url("${url}")`,
                   }}
                 >
-                  {color === "default" ? (
-                    <img src={url} alt={a.name} draggable={false} />
-                  ) : (
-                    <div className="cast-bust-silhouette" aria-label={a.name} />
-                  )}
+                  <img src={url} alt={a.name} draggable={false} />
                 </div>
               );
             })()}

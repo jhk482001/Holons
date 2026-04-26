@@ -168,21 +168,10 @@
   object-position: bottom center;
 }
 
-/* Silhouette fill for color modes: mask the composed avatar URL and paint solid. */
-.cast-bust-silhouette {
-  width: 100%;
-  height: 100%;
-  -webkit-mask-image: var(--bust-url);
-          mask-image: var(--bust-url);
-  -webkit-mask-size: contain;
-          mask-size: contain;
-  -webkit-mask-position: bottom center;
-          mask-position: bottom center;
-  -webkit-mask-repeat: no-repeat;
-          mask-repeat: no-repeat;
-}
-.cast-bust-color-black .cast-bust-silhouette { background: #1c1a18; }
-.cast-bust-color-orange .cast-bust-silhouette { background: var(--desktop-accent); }
+/* Bust colour modes are now recoloured at the SVG level by the backend
+   (`line_color` query param on /api/avatar/compose) — the rendered
+   `<img>` tag just loads whichever recoloured SVG the cast member
+   asked for. No extra CSS needed for the line tint itself. */
 
 .cast-name {
   font-size: 10px;

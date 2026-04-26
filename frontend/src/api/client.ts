@@ -652,6 +652,7 @@ export const LeadAPI = {
     );
   },
   archive: (thread_id: string) => api.post<{ ok: true }>(`/lead/threads/${thread_id}/archive`),
+  markRead: (thread_id: string) => api.post<{ ok: true }>(`/lead/threads/${thread_id}/read`),
   pendingCount: () => api.get<{ count: number }>("/lead/pending_count"),
   acceptHire: (
     message_id: number,

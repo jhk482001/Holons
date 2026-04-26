@@ -636,6 +636,11 @@ DDL: list[str] = [
     "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS source_platform VARCHAR(30)",
     "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS source_external_id VARCHAR(200)",
     "CREATE INDEX IF NOT EXISTS idx_lead_conv_source ON lead_conversations(source_platform, source_external_id)",
+    # `last_read_at` — bumped when the user opens a Lead thread in the
+    # dialog UI. Folded into `lead_pending_count` so reading clears the
+    # cast-bar unread badge for messages the user can't naturally reply
+    # to (project_report, run_complete, …).
+    "ALTER TABLE lead_conversations ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ",
     # Model client health — populated by the per-client "Test" action in
     # Settings → Models. `last_test_status` is one of
     # 'ok' | 'fail' | NULL (= never tested).

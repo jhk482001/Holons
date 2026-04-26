@@ -161,6 +161,11 @@ def _translate_sql(sql: str, params: tuple | list | dict = ()) -> tuple[str, tup
     # Boolean: TRUE/FALSE → 1/0
     s = re.sub(r"\bTRUE\b", "1", s)
     s = re.sub(r"\bFALSE\b", "0", s)
+    # GREATEST(a, b, ...) → MAX(a, b, ...). SQLite's MAX is overloaded —
+    # scalar form when given multiple args, aggregate form when given a
+    # column. Postgres has separate names; just rewrite the keyword.
+    s = re.sub(r"\bGREATEST\b", "MAX", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bLEAST\b", "MIN", s, flags=re.IGNORECASE)
 
     # Handle named parameters: %(key)s → ? and collect values in order
     if isinstance(params, dict):

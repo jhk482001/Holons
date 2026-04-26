@@ -225,6 +225,18 @@ export default function DialogCenter() {
     ta.style.height = `${ta.scrollHeight}px`;
   }, [input]);
 
+  // Mark a Lead thread as read once the user opens it. Without this the
+  // cast-bar unread badge would only clear after the user types a reply
+  // — broken for messages they can't naturally reply to (project
+  // reports, run-complete summaries). The mutation also invalidates the
+  // pending-count query so the badge updates promptly.
+  useEffect(() => {
+    if (!isLeadActive || !currentThreadId) return;
+    LeadAPI.markRead(currentThreadId)
+      .then(() => qc.invalidateQueries({ queryKey: ["lead-pending"] }))
+      .catch(() => { /* best-effort; the existing 8s poll catches up */ });
+  }, [isLeadActive, currentThreadId, qc]);
+
   // ---- Expanded artifact-panel mode (Claude.ai-style) ----
   // `expanded` flips the layout: cast bar hidden, conversation column
   // takes full height with its composer pinned at the bottom, and an

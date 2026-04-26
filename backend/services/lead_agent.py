@@ -1332,11 +1332,14 @@ def chat_with_agent(
 
 
 def lead_pending_count(user_id: int) -> int:
-    """Count Lead conversations where the latest message is from Lead and
-    the user hasn't replied yet — i.e., Lead is "looking for" the user.
+    """Count Lead conversations where Lead has said something the user
+    hasn't seen — drives the cast-bar unread badge.
 
-    Used by the Dialog Center to surface a pending-message indicator on
-    the Lead cast member.
+    "Seen" means either the user replied since Lead's message, OR the
+    user opened the thread in the dialog UI (which bumps
+    `last_read_at` via `mark_thread_read`). The latter handles
+    project_report / run_complete style messages the user can't
+    meaningfully reply to.
     """
     row = db.fetch_one(
         """
@@ -1350,16 +1353,32 @@ def lead_pending_count(user_id: int) -> int:
               SELECT 1 FROM lead_messages m
               WHERE m.thread_id = c.thread_id
                 AND m.role = 'lead'
-                AND m.created_at > COALESCE(
-                    (SELECT MAX(created_at) FROM lead_messages
-                     WHERE thread_id = c.thread_id AND role = 'user'),
-                    '1970-01-01'::timestamptz
+                AND m.created_at > GREATEST(
+                    COALESCE(
+                        (SELECT MAX(created_at) FROM lead_messages
+                         WHERE thread_id = c.thread_id AND role = 'user'),
+                        '1970-01-01'::timestamptz
+                    ),
+                    COALESCE(c.last_read_at, '1970-01-01'::timestamptz)
                 )
           )
         """,
         (user_id,),
     )
     return int((row or {}).get("n") or 0)
+
+
+def mark_thread_read(user_id: int, thread_id: str) -> None:
+    """Bump `last_read_at = NOW()` for a thread the user just opened.
+    No-op if the thread doesn't belong to the user."""
+    db.execute(
+        """
+        UPDATE lead_conversations
+        SET last_read_at = NOW()
+        WHERE user_id = %s AND thread_id = %s
+        """,
+        (user_id, thread_id),
+    )
 
 
 def list_agent_threads(user_id: int, agent_id: int) -> list[dict]:

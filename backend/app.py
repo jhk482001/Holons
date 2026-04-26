@@ -3382,6 +3382,17 @@ def lead_archive(thread_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/lead/threads/<thread_id>/read", methods=["POST"])
+@login_required
+def lead_mark_read(thread_id):
+    """Bump `last_read_at` on a Lead thread the user just opened. Folds
+    into `lead_pending_count` so the cast-bar unread badge clears even
+    for messages the user can't naturally reply to (project_report,
+    run_complete, …)."""
+    lead_agent.mark_thread_read(current_user_id(), thread_id)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/lead/hire_proposals/<int:msg_id>/accept", methods=["POST"])
 @login_required
 def lead_accept_hire(msg_id: int):

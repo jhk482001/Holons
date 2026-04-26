@@ -227,6 +227,7 @@ SQLITE_DDL = [
     "ALTER TABLE as_users ADD COLUMN skills_auto_approve INTEGER DEFAULT 1",
     "ALTER TABLE lead_conversations ADD COLUMN source_platform TEXT",
     "ALTER TABLE lead_conversations ADD COLUMN source_external_id TEXT",
+    "ALTER TABLE lead_conversations ADD COLUMN last_read_at TEXT",
     "ALTER TABLE model_clients ADD COLUMN last_test_at TEXT",
     "ALTER TABLE model_clients ADD COLUMN last_test_status TEXT",
     "ALTER TABLE model_clients ADD COLUMN last_test_message TEXT",

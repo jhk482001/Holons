@@ -23,8 +23,14 @@ python3 -m PyInstaller --version >/dev/null 2>&1 || {
 # Build the web frontend first so the sidecar can serve SPA routes
 # (/settings, /projects, /dashboard, …) to anyone opening the sidecar's
 # port in a browser — including the desktop tray's "Open web settings".
+#
+# Always nuke the previous dist + Vite's persistent cache before building.
+# Without this Vite occasionally reuses a stale `frontend/dist/index.html`
+# that references hashed JS bundles built from earlier source — exactly
+# the failure mode that shipped a non-functional dialog page in 1.0.0
+# rebuilds.
 echo "--- Building frontend dist for inclusion in sidecar ---"
-(cd frontend && npm install --silent && npm run build)
+(cd frontend && rm -rf dist node_modules/.vite && npm install --silent && npm run build)
 
 FRONTEND_DIST_ARG=()
 if [ -d "frontend/dist" ]; then

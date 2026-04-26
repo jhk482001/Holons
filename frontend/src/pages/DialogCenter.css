@@ -999,6 +999,33 @@
 }
 .cast-member.has-ping:hover { animation: none; }
 
+/* Persistent unread badge on the bust — visible without hover, so users
+   know Lead has something to say even before they engage. Sits at the
+   top-right corner of the bust; renders the count (9+ for ≥10). */
+.cast-member .bust { position: relative; }
+.cast-unread-badge {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px white, 0 2px 6px rgba(232, 100, 80, 0.5);
+  z-index: 5;
+  animation: badge-pop 1.8s ease-in-out infinite;
+}
+@keyframes badge-pop {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+
 /* Hover icon row above the bust — calendar / chat / settings.
    Floats above the bust in a subtle arc (chat icon raised). Only visible
    on hover (not when active — the size change already signals selection). */

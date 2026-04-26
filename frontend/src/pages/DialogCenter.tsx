@@ -1513,6 +1513,15 @@ function CastMember({
             {t("dialog.busy")}<span className="bust-busy-dots"><span>.</span><span>.</span><span>.</span></span>
           </span>
         )}
+        {hasPending && !active && (
+          <span
+            className="cast-unread-badge"
+            data-testid={`unread-${id}`}
+            aria-label={`${pendingCount} unread`}
+          >
+            {(pendingCount ?? 0) > 9 ? "9+" : pendingCount}
+          </span>
+        )}
       </div>
       <div className="info">
         <div className="name-line">

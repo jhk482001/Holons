@@ -785,6 +785,57 @@ SQLITE_DDL = [
     "ALTER TABLE user_quotas ADD COLUMN daily_warn_pct INTEGER DEFAULT 80",
     "ALTER TABLE user_quotas ADD COLUMN monthly_warn_pct INTEGER DEFAULT 80",
 
+    # Heal SQLite DBs that shipped with v1.0.0 (4/18 build) but never got
+    # the schema additions that landed afterwards. SQLite doesn't have
+    # `ADD COLUMN IF NOT EXISTS`; the migration loop above tolerates the
+    # resulting "duplicate column" errors so these are safe no-ops on
+    # already-current DBs.
+    #
+    # `as_users` — multi-tenant + cast personalisation + queue cap.
+    "ALTER TABLE as_users ADD COLUMN tenant_id INTEGER",
+    "ALTER TABLE as_users ADD COLUMN max_total_queue_depth INTEGER DEFAULT 5000",
+    "ALTER TABLE as_users ADD COLUMN escalation_policy TEXT DEFAULT 'lead_first'",
+    "ALTER TABLE as_users ADD COLUMN escalation_timeout_seconds INTEGER DEFAULT 600",
+    "ALTER TABLE as_users ADD COLUMN cast_order TEXT DEFAULT '[]'",
+    "ALTER TABLE as_users ADD COLUMN last_cast_filter TEXT DEFAULT '{\"scope\":\"all\",\"status\":\"all\"}'",
+    "ALTER TABLE as_users ADD COLUMN notification_prefs TEXT DEFAULT '{}'",
+    # `user_quotas` — column was renamed `daily_cost_limit` → `daily_cost_limit_usd`
+    # (and same for monthly). The new code reads the `_usd` columns; old rows on
+    # 4/18 DBs end up orphaned in the unused columns, which is fine because
+    # quota rows are rebuilt by the admin UI anyway.
+    "ALTER TABLE user_quotas ADD COLUMN daily_cost_limit_usd REAL",
+    "ALTER TABLE user_quotas ADD COLUMN monthly_cost_limit_usd REAL",
+    # `runs` — split total_tokens into in/out, add duration, error_message,
+    # trigger_context, and rename iteration → iterations (we leave the old
+    # `iteration` column in place for SQLite simplicity; the new column is
+    # what the engine reads/writes).
+    "ALTER TABLE runs ADD COLUMN trigger_context TEXT DEFAULT '{}'",
+    "ALTER TABLE runs ADD COLUMN iterations INTEGER DEFAULT 1",
+    "ALTER TABLE runs ADD COLUMN total_input_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE runs ADD COLUMN total_output_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE runs ADD COLUMN total_duration_ms INTEGER DEFAULT 0",
+    "ALTER TABLE runs ADD COLUMN error_message TEXT",
+    # `agent_tasks` — task_type + parent linkage + finish/error fields.
+    "ALTER TABLE agent_tasks ADD COLUMN finished_at TEXT",
+    "ALTER TABLE agent_tasks ADD COLUMN error_message TEXT",
+    "ALTER TABLE agent_tasks ADD COLUMN parent_task_id INTEGER REFERENCES agent_tasks(id) ON DELETE SET NULL",
+    "ALTER TABLE agent_tasks ADD COLUMN task_type TEXT DEFAULT 'workflow_step'",
+    # `run_steps` — explicit started/finished timestamps (was created_at only).
+    "ALTER TABLE run_steps ADD COLUMN started_at TEXT",
+    "ALTER TABLE run_steps ADD COLUMN finished_at TEXT",
+    # `agent_quotas` — `window` was renamed to `window_type`; many new
+    # rate/window-tracking columns landed afterwards. Old `window` column
+    # is left orphaned (the new code reads `window_type`).
+    "ALTER TABLE agent_quotas ADD COLUMN window_type TEXT DEFAULT 'monthly'",
+    "ALTER TABLE agent_quotas ADD COLUMN window_start TEXT",
+    "ALTER TABLE agent_quotas ADD COLUMN window_end TEXT",
+    "ALTER TABLE agent_quotas ADD COLUMN max_tpm INTEGER",
+    "ALTER TABLE agent_quotas ADD COLUMN max_rpm INTEGER",
+    "ALTER TABLE agent_quotas ADD COLUMN current_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE agent_quotas ADD COLUMN current_cost_usd REAL DEFAULT 0",
+    "ALTER TABLE agent_quotas ADD COLUMN current_window_started_at TEXT",
+    "ALTER TABLE agent_quotas ADD COLUMN enabled INTEGER DEFAULT 1",
+
     # Indexes (subset — SQLite doesn't need as many)
     "CREATE INDEX IF NOT EXISTS idx_agents_user ON agents(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_queue ON agent_tasks(agent_id, status, priority_num DESC, created_at)",

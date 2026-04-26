@@ -36,6 +36,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://agent_company:devpassword@localhost:5432/agent_company
           DB_BACKEND: postgres
+          # The pytest_configure guard in tests/conftest.py refuses to run
+          # against the canonical dev DSN to keep someone from TRUNCATEing
+          # their working laptop DB. CI's Postgres is a throwaway service
+          # container even though the connection string happens to match —
+          # opt in explicitly so the suite can run.
+          HOLONS_ALLOW_LIVE_DB: "1"
         # Run unit-level tests only. test_e2e.py needs a live Flask server
         # + Playwright browsers and is exercised by the release pipeline.
         run: pytest tests/test_api_crud.py tests/test_projects.py tests/test_services.py tests/test_v2.py -v

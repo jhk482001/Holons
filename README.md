@@ -19,7 +19,10 @@ from a chat window, and watch the output land.
 
 </div>
 
-![Lead proposes a full workflow from a one-line request](docs/assets/screenshots/02b-dialog-lead-response.png)
+<p align="center">
+  <img src="docs/assets/holons-demo.gif" alt="Holons in action — dialog with Lead, workflow proposal, run, dashboard, library" width="820" />
+  <br/><sub><i>~20s loop · <a href="docs/assets/demo-walkthrough.mp4">click here for the full 1-min walkthrough</a></i></sub>
+</p>
 
 > ### Talk to Lead in your own words → get a runnable multi-agent workflow in seconds.
 >
@@ -28,15 +31,6 @@ from a chat window, and watch the output land.
 > consistency"*. Lead picks who on your team should do what, drafts the
 > workflow, shows a cost estimate, and hands you **Edit / Save / Run
 > Now**. No YAML, no graph-coding, no framework to learn.
->
-> 🎬 **[Watch the full walkthrough](docs/assets/demo-walkthrough.mp4)** — login → dialog → groups → group chat → workflow editor → dashboard → library.
-
-<p align="center">
-  <a href="docs/assets/demo-walkthrough.mp4">
-    <img src="docs/assets/screenshots/02b-dialog-lead-response.png" alt="Demo walkthrough" width="720" />
-  </a>
-  <br/><sub><i>Click to play (≈ 1 min · 1080p · 8.5 MB)</i></sub>
-</p>
 
 ---
 

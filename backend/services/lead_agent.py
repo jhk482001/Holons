@@ -1369,13 +1369,34 @@ def lead_pending_count(user_id: int) -> int:
 
 
 def mark_thread_read(user_id: int, thread_id: str) -> None:
-    """Bump `last_read_at = NOW()` for a thread the user just opened.
-    No-op if the thread doesn't belong to the user."""
+    """Bump `last_read_at = NOW()` for a thread the user just opened
+    AND mark the bell-notifications that surfaced messages in that
+    thread as read. The latter clears the macOS dock badge so the user
+    doesn't have to also click into the bell — opening the source of
+    truth (the Lead thread itself) counts as engagement.
+
+    No-op if the thread doesn't belong to the user.
+    """
     db.execute(
         """
         UPDATE lead_conversations
         SET last_read_at = NOW()
         WHERE user_id = %s AND thread_id = %s
+        """,
+        (user_id, thread_id),
+    )
+    # Notifications emitted by the engine on run-complete / run-failed
+    # carry `action_payload.thread_id = <this thread>`. Match on that to
+    # avoid touching unrelated bell items (escalations, budget warnings,
+    # share requests, …) that the user genuinely needs to acknowledge
+    # separately.
+    db.execute(
+        """
+        UPDATE notifications
+        SET status = 'read'
+        WHERE user_id = %s
+          AND status = 'unread'
+          AND action_payload ->> 'thread_id' = %s
         """,
         (user_id, thread_id),
     )

@@ -8,6 +8,11 @@ use std::io::BufRead;
 use std::sync::Mutex;
 
 static SIDECAR_PORT: Mutex<Option<u16>> = Mutex::new(None);
+// PID of the spawned sidecar process. Populated immediately after `spawn()`
+// so we can SIGTERM it on app exit (Tauri's default Drop on `std::process::Child`
+// does NOT kill the child — without this, every Quit leaves a zombie sidecar
+// running, all sharing the same SQLite DB and racing on schedule dispatches).
+static SIDECAR_PID: Mutex<Option<u32>> = Mutex::new(None);
 
 #[tauri::command]
 fn start_sidecar(app_handle: tauri::AppHandle) -> Result<u16, String> {
@@ -23,7 +28,7 @@ fn start_sidecar(app_handle: tauri::AppHandle) -> Result<u16, String> {
     let resource_dir = app_handle.path().resource_dir().unwrap_or_default();
     let bundled_sidecar = resource_dir.join("agent-company-backend");
 
-    let child = if bundled_sidecar.exists() {
+    let mut child = if bundled_sidecar.exists() {
         // Production: use bundled binary
         std::process::Command::new(&bundled_sidecar)
             .args(["--port", "0"])
@@ -51,6 +56,12 @@ fn start_sidecar(app_handle: tauri::AppHandle) -> Result<u16, String> {
             .map_err(|e| format!("Failed to start python sidecar: {}", e))?
     };
 
+    // Stash the PID so the on-exit handler can SIGTERM it. Must happen
+    // *before* we move `child.stdout` below or we lose access to `.id()`.
+    if let Ok(mut g) = SIDECAR_PID.lock() {
+        *g = Some(child.id());
+    }
+
     // Read stdout line by line to find PORT=XXXX. Tee everything (pre- and
     // post-PORT) to ~/.agent_company/sidecar.log so a user can see why the
     // backend is silent when the app misbehaves.
@@ -64,7 +75,7 @@ fn start_sidecar(app_handle: tauri::AppHandle) -> Result<u16, String> {
         .open(&log_path)
         .ok();
 
-    let stdout = child.stdout.ok_or("No stdout")?;
+    let stdout = child.stdout.take().ok_or("No stdout")?;
     let mut reader = std::io::BufReader::new(stdout);
     let mut line_buf = String::new();
     loop {
@@ -475,6 +486,20 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        // App is shutting down — SIGTERM the spawned sidecar so it doesn't
+        // outlive us as a zombie. Without this every Quit leaves a backend
+        // alive on the user's machine, all sharing the SQLite DB and racing
+        // on `schedules` dispatch (multiplying notifications).
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(pid) = SIDECAR_PID.lock().ok().and_then(|g| *g) {
+                    let _ = std::process::Command::new("kill")
+                        .arg("-TERM")
+                        .arg(pid.to_string())
+                        .status();
+                }
+            }
+        });
 }

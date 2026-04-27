@@ -36,6 +36,32 @@ def _tick() -> int:
 
     fired = 0
     for sched in due:
+        # Atomic claim: advance next_run_at *before* dispatching, gated on the
+        # row still being due. Multiple concurrent scheduler ticks (e.g. a
+        # zombie sidecar from a previous launch racing with the live one) all
+        # SELECT the same row; only the one whose UPDATE actually changes a
+        # row gets to dispatch. This trades an "occasional skipped fire on
+        # dispatch failure" for "no duplicate fires under contention" — the
+        # former is recoverable on the next tick, the latter spams runs and
+        # notifications.
+        next_at = _next_run_time(sched, now)
+        if sched["trigger_type"] == "once":
+            claimed = db.execute(
+                "UPDATE schedules SET enabled = FALSE, last_run_at = %s "
+                "WHERE id = %s AND enabled = TRUE",
+                (now, sched["id"]),
+            )
+        else:
+            claimed = db.execute(
+                "UPDATE schedules SET next_run_at = %s, last_run_at = %s "
+                "WHERE id = %s "
+                "AND (next_run_at IS NULL OR next_run_at <= %s)",
+                (next_at, now, sched["id"], now),
+            )
+        if not claimed:
+            # Another tick already claimed this fire — skip silently.
+            continue
+
         try:
             run_id = engine.dispatch_workflow(
                 workflow_id=sched["workflow_id"],
@@ -51,19 +77,6 @@ def _tick() -> int:
         except Exception as e:
             log.exception("schedule %s failed to dispatch: %s", sched["id"], e)
             continue
-
-        # Advance schedule
-        next_at = _next_run_time(sched, now)
-        if sched["trigger_type"] == "once":
-            db.execute(
-                "UPDATE schedules SET enabled = FALSE, last_run_at = %s WHERE id = %s",
-                (now, sched["id"]),
-            )
-        else:
-            db.execute(
-                "UPDATE schedules SET next_run_at = %s, last_run_at = %s WHERE id = %s",
-                (next_at, now, sched["id"]),
-            )
 
     return fired
 

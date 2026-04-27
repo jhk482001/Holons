@@ -3972,7 +3972,30 @@ def admin_create_user():
     # Auto-grant every default-for-new-users model client
     from .services import model_clients as mc
     mc.on_user_created(uid)
-    return jsonify({"id": uid, "username": username, "role": role})
+
+    # Provision a Lead agent ("Ava") for the new user. Without this they log
+    # in to a /dialog page that has nothing to talk to — the first-run seed
+    # in standalone.py creates a Lead for the admin row, but admin-created
+    # users never went through that path. Mirrors the seed logic 1:1 minus
+    # the welcome-thread copy.
+    from .standalone import _random_avatar
+    lead_id = db.execute_returning(
+        """INSERT INTO agents
+           (user_id, owner_user_id, name, role_title, description,
+            system_prompt, is_lead, avatar_config, status)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        (uid, uid, "Ava", "Secretary",
+         "Coordinates your agent team. Answers simple questions directly or proposes a workflow for complex tasks.",
+         "You are Ava, the user's personal secretary. Coordinate the agent team, answer quick questions "
+         "yourself, and propose workflow designs for more complex tasks. Be warm, clear, and concise.",
+         True,
+         json.dumps(_random_avatar()),
+         "active"),
+    )
+    db.execute("UPDATE as_users SET default_lead_agent_id = %s WHERE id = %s",
+               (lead_id, uid))
+
+    return jsonify({"id": uid, "username": username, "role": role, "lead_agent_id": lead_id})
 
 
 @app.route("/api/admin/users/<int:uid>", methods=["PUT"])

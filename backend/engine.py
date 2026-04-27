@@ -1145,15 +1145,25 @@ def _handle_group_member_done(task: dict, payload: dict, result: dict) -> None:
 
     advance_with: tuple | None = None
 
+    # Postgres uses a transactional advisory lock to serialise the multiple
+    # workers that finish a parallel group concurrently. SQLite has no such
+    # function — and doesn't need one: the database file itself serialises
+    # writes via a single global writer lock, so the idempotency check below
+    # ("aggregator already enqueued?") is sufficient. Skip the PG-only path
+    # when running personal mode so the call doesn't blow up with
+    # `no such function: pg_try_advisory_xact_lock`.
+    _is_sqlite = getattr(db, "_BACKEND", "postgres") == "sqlite"
+
     with db.get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT pg_try_advisory_xact_lock(%s, %s) AS got",
-                (run_id, lock_key2),
-            )
-            got = cur.fetchone()["got"]
-            if not got:
-                return  # another thread is handling this group's completion
+            if not _is_sqlite:
+                cur.execute(
+                    "SELECT pg_try_advisory_xact_lock(%s, %s) AS got",
+                    (run_id, lock_key2),
+                )
+                got = cur.fetchone()["got"]
+                if not got:
+                    return  # another thread is handling this group's completion
 
             # Check if there are still pending siblings
             cur.execute(

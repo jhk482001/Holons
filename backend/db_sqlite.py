@@ -152,8 +152,12 @@ def _translate_sql(sql: str, params: tuple | list | dict = ()) -> tuple[str, tup
         r"datetime(\2, 'start of \1')",
         s, flags=re.IGNORECASE,
     )
-    # JSONB ->> 'key' → json_extract(col, '$.key')
-    s = re.sub(r"(\w+)\s*->>\s*'(\w+)'", r"json_extract(\1, '$.\2')", s)
+    # JSONB ->> 'key' → json_extract(col, '$.key'). Column reference may
+    # include a table-qualifier prefix (e.g. `t.payload->>'kind'`), so allow
+    # optional dot-segments. Without this, the previous `(\w+)` only ate
+    # `payload`, leaving the `t.` outside as a stray identifier prefix and
+    # producing the syntactically invalid `t.json_extract(payload, '$.kind')`.
+    s = re.sub(r"(\w+(?:\.\w+)?)\s*->>\s*'(\w+)'", r"json_extract(\1, '$.\2')", s)
     # JSONB @> containment → instr() approximation
     # Handle dotted names like a.visible_user_ids @> %(uid_arr)s
     s = re.sub(r"([\w.]+)\s*@>\s*(\S+)", r"instr(\1, \2) > 0", s)
@@ -322,6 +326,20 @@ class _TranslatingCursor:
         self._conn = conn
         self._cur = conn.cursor()
         self.description = None
+
+    # psycopg cursors are usable as context managers
+    # (`with conn.cursor() as cur:`). Engine code relies on that idiom, so
+    # mirror it here — without these, SQLite backend explodes the moment
+    # any module tries `with cur:`.
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            self._cur.close()
+        except Exception:
+            pass
+        return False
 
     def execute(self, sql, params=()):
         translated, positional = _translate_sql(sql, params)

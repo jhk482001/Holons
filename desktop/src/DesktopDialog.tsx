@@ -7,6 +7,7 @@ import { AgentsAPI, LeadAPI, Agent } from "@shared/api/client";
 import { absoluteUrl } from "./api-adapter";
 import Avatar from "@shared/components/Avatar";
 import "@shared/components/Avatar.css";
+import DesktopMessageBubble from "./DesktopMessageBubble";
 import "./desktop.css";
 
 interface MeInfo {
@@ -610,6 +611,24 @@ function ChatPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streamingText]);
 
+  // Mark Lead thread as read whenever the panel is open with a thread
+  // bound. Backend's `mark_thread_read` also flips notifications whose
+  // `action_payload.thread_id` matches — so opening a Lead thread clears
+  // the dock badge / bell counts that surfaced run-complete events for
+  // it. The web DialogCenter does the same thing; the desktop overlay
+  // was missing this call entirely, which is why notifications never
+  // cleared even after you opened the chat.
+  //
+  // We don't gate on `document.hasFocus()` here (web does) because the
+  // desktop overlay is always-on-top and the user often reads without
+  // giving it window focus — opening the panel *is* the engagement.
+  useEffect(() => {
+    if (!isLead || !threadId) return;
+    LeadAPI.markRead(threadId).catch(() => {
+      // Best-effort; useNotificationBridge re-polls every 15s anyway.
+    });
+  }, [isLead, threadId, messages.length]);
+
   // Dock bounce when an agent replies while the window isn't focused.
   // We watch for the message count to grow — if the tail message is
   // from the assistant (role !== "user") and document.hasFocus() is
@@ -653,15 +672,14 @@ function ChatPanel({
         <button className="chat-close" onClick={onClose}>&times;</button>
       </div>
       <div className="chat-messages">
-        {messages.map((m: any, i: number) => {
-          const isUser = m.role === "user" || m.sender === "user" || m.role === "human";
-          return <div key={m.id || i} className={`chat-bubble ${isUser ? "user" : "bot"}`}>{m.content || m.text || m.message || ""}</div>;
-        })}
+        {messages.map((m: any, i: number) => (
+          <DesktopMessageBubble key={m.id || i} msg={m} />
+        ))}
         {/* Live streaming bubble — only shown while Lead is mid-reply.
             Clears as soon as onSuccess invalidates the messages query. */}
         {streamingText && (
           <div className="chat-bubble bot streaming">
-            {streamingText}
+            <div className="chat-bubble-content">{streamingText}</div>
             <span className="streaming-cursor" aria-hidden="true">▍</span>
           </div>
         )}

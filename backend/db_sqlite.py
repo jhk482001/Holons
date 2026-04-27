@@ -105,6 +105,12 @@ def _translate_sql(sql: str, params: tuple | list | dict = ()) -> tuple[str, tup
     Handles both positional (%s) and named (%(key)s) placeholders.
     """
     s = sql
+    # Postgres `= ANY(%s::TYPE[])` → SQLite `IN (?, ?, …)` with the
+    # corresponding positional list param flattened. Must run *before* the
+    # cast-strip rule below, otherwise `::bigint` gets removed first and
+    # leaves `ANY(%s[])` which the regex won't recognise.
+    if isinstance(params, (list, tuple)):
+        s, params = _expand_any_arrays(s, params)
     # Cast operators (::jsonb, ::text, etc.)
     s = re.sub(r"::\w+", "", s)
     # NOW() → datetime('now')
@@ -188,6 +194,52 @@ def _translate_sql(sql: str, params: tuple | list | dict = ()) -> tuple[str, tup
         for v in (params if isinstance(params, (list, tuple)) else ())
     )
     return s, positional
+
+
+_ANY_RE = re.compile(r"=\s*ANY\s*\(\s*%s(?:::\w+\[\])?\s*\)", re.IGNORECASE)
+_PH_RE = re.compile(r"%s")
+
+
+def _expand_any_arrays(sql: str, params: tuple | list) -> tuple[str, tuple]:
+    """Walk every `%s` in `sql`, paired with its positional param.
+    Replace each `= ANY(%s)` (with or without an array cast) with an
+    in-line `IN (?, ?, …)` of the right cardinality, flattening the
+    corresponding list param. Plain `%s` tokens pass through unchanged.
+
+    Empty arrays become `IN (NULL)` — never matches, which is the same
+    result Postgres gives for `= ANY(ARRAY[]::bigint[])`.
+    """
+    out_chunks: list[str] = []
+    out_params: list = []
+    pos = 0
+    pi = 0
+    while pos < len(sql):
+        m_any = _ANY_RE.search(sql, pos)
+        m_ph = _PH_RE.search(sql, pos)
+        if not m_ph:
+            out_chunks.append(sql[pos:])
+            break
+        if m_any and m_any.start() <= m_ph.start() < m_any.end():
+            out_chunks.append(sql[pos:m_any.start()])
+            arr = params[pi] if pi < len(params) else None
+            if isinstance(arr, (list, tuple)) and len(arr) > 0:
+                out_chunks.append(" IN (" + ",".join(["%s"] * len(arr)) + ")")
+                out_params.extend(arr)
+            else:
+                out_chunks.append(" IN (NULL)")
+            pos = m_any.end()
+            pi += 1
+        else:
+            out_chunks.append(sql[pos:m_ph.end()])
+            if pi < len(params):
+                out_params.append(params[pi])
+            pos = m_ph.end()
+            pi += 1
+    # Tail: copy any remaining positional params (none if walking was clean)
+    while pi < len(params):
+        out_params.append(params[pi])
+        pi += 1
+    return "".join(out_chunks), tuple(out_params)
 
 
 # ============================================================================

@@ -1107,7 +1107,16 @@
     "continue": "Let them continue",
     "rounds_one": "{{count}} round",
     "rounds_other": "{{count}} rounds",
-    "groupNotFound": "Group not found."
+    "groupNotFound": "Group not found.",
+    "addMember": "+ Add member",
+    "addMemberTooltip": "Bring more agents into this group",
+    "addMembersTitle": "Add members",
+    "addMembersSubtitle": "Pick agents to add to this group. Existing members are hidden.",
+    "addMembersSubmit": "Add {{count}}",
+    "noEligibleAgents": "No agents to add — every agent you own is already in this group.",
+    "includeHistoryOn": "Include prior conversation (default)",
+    "includeHistoryOff": "Fresh context — ignore prior conversation",
+    "includeHistoryTooltip": "When checked, agents see this thread's previous messages as context. Uncheck to start a fresh exchange where they only see your latest message (the message is still saved to the thread)."
   },
   "chart": {
     "noUsageData": "No usage data yet."

@@ -338,10 +338,17 @@ export default function DialogCenter() {
       }
     },
     // Optimistic update — drop the user's message into the cache right
-    // away + add a "thinking" assistant placeholder so the chat feels
-    // responsive. The mutation still roundtrips to the server; onSuccess
-    // collapses the cache + invalidates so the real rows overwrite
-    // these placeholders. onError rolls back.
+    // away so the chat feels responsive. We deliberately do NOT add a
+    // "thinking" assistant placeholder: the dedicated streaming bubble
+    // (rendered when sendMutation.isPending) already shows a thinking
+    // state until the first chunk arrives, then transitions in place to
+    // the streamed text. Adding a separate optimistic lead row caused a
+    // duplicate bubble during streaming — the placeholder kept rendering
+    // alongside the live one, and on completion the persisted row would
+    // re-render in the placeholder's slot while the streaming bubble
+    // briefly appeared further down, producing a visible reorder.
+    // onSuccess collapses + invalidates so the real user row overwrites
+    // the optimistic one. onError rolls back.
     onMutate: async (text: string) => {
       const threadId = currentThreadId;
       if (!threadId) return { rollback: false };
@@ -360,30 +367,25 @@ export default function DialogCenter() {
         created_at: now,
         metadata: { optimistic: true } as any,
       };
-      const optimisticThinking: LeadMessage = {
-        id: -(Date.now() + 1),
-        role: "lead",
-        content: "…",
-        proposed_workflow_id: null,
-        cancelled: false,
-        created_at: now,
-        metadata: { optimistic: true, thinking: true } as any,
-      };
       qc.setQueryData(["messages", threadId], (old: any) => {
         if (!old) {
           return {
-            pages: [{ messages: [optimisticUser, optimisticThinking], has_more: false }],
+            pages: [{ messages: [optimisticUser], has_more: false }],
             pageParams: [undefined],
           };
         }
-        const lastPage = old.pages[old.pages.length - 1] ?? { messages: [], has_more: false };
-        const newLast = {
-          ...lastPage,
-          messages: [...lastPage.messages, optimisticUser, optimisticThinking],
+        // Append to the newest page (pages[0]) — `messages` flattens
+        // pages oldest→newest, so optimistic lands at the visible tail.
+        // Appending to pages[length-1] would put it BEFORE older pages
+        // once the user has scrolled back and loaded history.
+        const newestPage = old.pages[0] ?? { messages: [], has_more: false };
+        const updatedNewest = {
+          ...newestPage,
+          messages: [...newestPage.messages, optimisticUser],
         };
         return {
           ...old,
-          pages: [...old.pages.slice(0, -1), newLast],
+          pages: [updatedNewest, ...old.pages.slice(1)],
         };
       });
       return { previous, threadId, rollback: true };

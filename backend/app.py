@@ -2985,7 +2985,12 @@ def group_chat_send(thread_id: int):
     )
     if not t:
         return jsonify({"error": "not found"}), 404
-    result = _group_chat.send_user_message(current_user_id(), t["group_id"], thread_id, msg)
+    include_history = d.get("include_history")
+    include_history = True if include_history is None else bool(include_history)
+    result = _group_chat.send_user_message(
+        current_user_id(), t["group_id"], thread_id, msg,
+        include_history=include_history,
+    )
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -3033,11 +3038,13 @@ def group_chat_send_stream(thread_id: int):
     if not t:
         return jsonify({"error": "not found"}), 404
     uid, gid = current_user_id(), t["group_id"]
+    include_history = d.get("include_history")
+    include_history = True if include_history is None else bool(include_history)
 
     def _gen():
         try:
             for ev_kind, payload in _group_chat.send_user_message_streaming(
-                uid, gid, thread_id, msg,
+                uid, gid, thread_id, msg, include_history=include_history,
             ):
                 yield _group_sse(ev_kind, payload)
         except Exception as e:  # noqa: BLE001

@@ -1107,7 +1107,16 @@
     "continue": "讓他們繼續",
     "rounds_one": "{{count}} 輪",
     "rounds_other": "{{count}} 輪",
-    "groupNotFound": "找不到這個團隊。"
+    "groupNotFound": "找不到這個團隊。",
+    "addMember": "+ 加入成員",
+    "addMemberTooltip": "把更多 agent 加進這個團隊",
+    "addMembersTitle": "加入成員",
+    "addMembersSubtitle": "選擇要加進此團隊的 agent。已是成員者不會列出。",
+    "addMembersSubmit": "加入 {{count}} 位",
+    "noEligibleAgents": "沒有可加入的 agent — 你的所有 agent 都已是這個團隊的成員。",
+    "includeHistoryOn": "帶入前文(預設)",
+    "includeHistoryOff": "忽略前文,重新對話",
+    "includeHistoryTooltip": "勾選時, agent 會收到此 thread 先前的訊息作為脈絡; 取消勾選會視為全新對話, 只看到你這一則訊息(訊息仍會保存)。"
   },
   "chart": {
     "noUsageData": "尚無用量資料。"

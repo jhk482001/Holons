@@ -3,12 +3,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
+  Agent,
+  AgentsAPI,
   GroupChatAPI,
   GroupChatMessage,
   GroupMember,
   GroupsAPI,
 } from "../api/client";
 import Avatar from "../components/Avatar";
+import Modal from "../components/Modal";
 
 export default function GroupChat() {
   const { t } = useTranslation();
@@ -46,6 +49,21 @@ export default function GroupChat() {
   const [streamingBuffers, setStreamingBuffers] = useState<Record<number, string>>({});
   const [currentRound, setCurrentRound] = useState<{ round: number; of: number } | null>(null);
 
+  // "Include previous conversation" toggle. Sticky per group via
+  // localStorage so toggling once carries over to the user's next
+  // visit. Default ON — the LLM sees prior history just like before
+  // this checkbox existed.
+  const includeHistoryKey = `holons.group.includeHistory.${groupId}`;
+  const [includeHistory, setIncludeHistory] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem(includeHistoryKey);
+    return stored === null ? true : stored === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(includeHistoryKey, includeHistory ? "1" : "0");
+  }, [includeHistoryKey, includeHistory]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages.length, streamingBuffers]);
@@ -58,9 +76,36 @@ export default function GroupChat() {
       onChunk: ({ agent_id, text }: { agent_id: number; text: string }) => {
         setStreamingBuffers((b) => ({ ...b, [agent_id]: (b[agent_id] ?? "") + text }));
       },
-      onMemberComplete: () => {
-        // Drop the streaming buffer in the next render so the persisted
-        // row from the messages query takes over without flicker.
+      onMemberComplete: (msg: GroupChatMessage) => {
+        // Inject the persisted row directly into the cache so the live
+        // bubble can hand off to the real one in a single render. Without
+        // this, the buffer-drop happens before the refetch lands and the
+        // user briefly sees a gap; or — if we kept the buffer until the
+        // mutation's `finally` — the same agent's bubble appears twice
+        // (live buffer + persisted row) until the whole round completes.
+        if (msg && typeof msg.id === "number" && threadId) {
+          qc.setQueryData<{ thread_id: number; group_id: number; messages: GroupChatMessage[] } | undefined>(
+            ["group-chat-messages", threadId],
+            (old) => {
+              if (!old) return old;
+              if (old.messages.some((m) => m.id === msg.id)) return old;
+              const created_at = msg.created_at || new Date().toISOString();
+              return { ...old, messages: [...old.messages, { ...msg, created_at }] };
+            },
+          );
+        }
+        // Drop this agent's live buffer now that the persisted row owns
+        // its slot. Other agents in the same round keep streaming.
+        setStreamingBuffers((b) => {
+          if (msg?.agent_id == null) return b;
+          if (!(msg.agent_id in b)) return b;
+          const next = { ...b };
+          delete next[msg.agent_id];
+          return next;
+        });
+        // Eventually-consistent reconciliation in case the optimistic
+        // injection drifted from the server's canonical row (metadata,
+        // avatar_config, etc.).
         qc.invalidateQueries({ queryKey: ["group-chat-messages", threadId] });
       },
       onUserMessage: () => {
@@ -76,7 +121,13 @@ export default function GroupChat() {
       if (!threadId) return;
       setStreamingBuffers({});
       try {
-        return await GroupChatAPI.sendStreaming(threadId, text, makeStreamHandlers());
+        return await GroupChatAPI.sendStreaming(
+          threadId,
+          text,
+          makeStreamHandlers(),
+          undefined,
+          { includeHistory },
+        );
       } finally {
         setStreamingBuffers({});
       }
@@ -145,6 +196,8 @@ export default function GroupChat() {
     sending.mutate(t);
   };
 
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+
   if (loadingGroup) {
     return <div className="page" style={{ padding: 40, textAlign: "center", color: "var(--ink-3)" }}>{t("btn.loading")}</div>;
   }
@@ -191,19 +244,31 @@ export default function GroupChat() {
             </div>
           </div>
         </div>
-        <span
-          style={{
-            fontSize: 9,
-            fontWeight: 800,
-            letterSpacing: 1.2,
-            background: group.mode === "parallel" ? "var(--accent-soft)" : "var(--surface-2)",
-            color: group.mode === "parallel" ? "var(--accent)" : "var(--ink-3)",
-            padding: "3px 10px",
-            borderRadius: 999,
-          }}
-        >
-          {group.mode === "parallel" ? t("groupChat.parallel") : t("groupChat.sequential")}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            className="mbtn"
+            data-testid="group-chat-add-member"
+            onClick={() => setAddMemberOpen(true)}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+            title={t("groupChat.addMemberTooltip")}
+          >
+            {t("groupChat.addMember")}
+          </button>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: 1.2,
+              background: group.mode === "parallel" ? "var(--accent-soft)" : "var(--surface-2)",
+              color: group.mode === "parallel" ? "var(--accent)" : "var(--ink-3)",
+              padding: "3px 10px",
+              borderRadius: 999,
+            }}
+          >
+            {group.mode === "parallel" ? t("groupChat.parallel") : t("groupChat.sequential")}
+          </span>
+        </div>
       </div>
 
       {/* Friendly hint */}
@@ -304,6 +369,38 @@ export default function GroupChat() {
           borderTop: "1px solid var(--border)",
           paddingTop: 10,
           display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}
+      >
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 11,
+            color: includeHistory ? "var(--ink-3)" : "var(--accent)",
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+          title={t("groupChat.includeHistoryTooltip")}
+        >
+          <input
+            type="checkbox"
+            data-testid="group-include-history"
+            checked={includeHistory}
+            onChange={(e) => setIncludeHistory(e.target.checked)}
+            style={{ margin: 0, cursor: "pointer" }}
+          />
+          <span>
+            {includeHistory
+              ? t("groupChat.includeHistoryOn")
+              : t("groupChat.includeHistoryOff")}
+          </span>
+        </label>
+      <div
+        style={{
+          display: "flex",
           gap: 8,
           alignItems: "flex-end",
         }}
@@ -357,7 +454,150 @@ export default function GroupChat() {
           onClick={() => continuing.mutate(rounds)}
         />
       </div>
+      </div>
+
+      <AddMemberModal
+        open={addMemberOpen}
+        onClose={() => setAddMemberOpen(false)}
+        groupId={groupId}
+        currentMemberIds={members.map((m) => m.agent_id)}
+        onSaved={() => {
+          setAddMemberOpen(false);
+          qc.invalidateQueries({ queryKey: ["group", groupId] });
+        }}
+      />
     </div>
+  );
+}
+
+function AddMemberModal({
+  open,
+  onClose,
+  groupId,
+  currentMemberIds,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  groupId: number;
+  currentMemberIds: number[];
+  onSaved: () => void;
+}) {
+  const { t } = useTranslation();
+  const { data: agents = [] } = useQuery({
+    queryKey: ["agents"],
+    queryFn: AgentsAPI.list,
+    enabled: open,
+  });
+  const [picked, setPicked] = useState<number[]>([]);
+
+  // Reset selection each time the modal opens so reopening after a save
+  // doesn't replay the previous picks.
+  useEffect(() => {
+    if (open) setPicked([]);
+  }, [open]);
+
+  const eligible = useMemo<Agent[]>(() => {
+    const taken = new Set(currentMemberIds);
+    return agents.filter((a) => !a.is_lead && !taken.has(a.id));
+  }, [agents, currentMemberIds]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      // The PUT endpoint replaces the member list wholesale, so we send
+      // the existing members merged with the newly picked ones in one
+      // shot rather than calling N times.
+      const merged = Array.from(new Set([...currentMemberIds, ...picked]));
+      await GroupsAPI.update(groupId, { member_agent_ids: merged });
+    },
+    onSuccess: onSaved,
+  });
+
+  const toggle = (id: number) =>
+    setPicked((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  const canSubmit = picked.length > 0 && !save.isPending;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t("groupChat.addMembersTitle")}
+      subtitle={t("groupChat.addMembersSubtitle")}
+      size="md"
+      footer={
+        <>
+          <button className="mbtn" onClick={onClose} disabled={save.isPending}>
+            {t("btn.cancel")}
+          </button>
+          <button
+            className="mbtn primary"
+            data-testid="add-members-submit"
+            onClick={() => save.mutate()}
+            disabled={!canSubmit}
+          >
+            {save.isPending
+              ? t("btn.saving")
+              : t("groupChat.addMembersSubmit", { count: picked.length })}
+          </button>
+        </>
+      }
+    >
+      {eligible.length === 0 ? (
+        <div style={{ padding: 20, textAlign: "center", color: "var(--ink-4)", fontSize: 12 }}>
+          {t("groupChat.noEligibleAgents")}
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: 8,
+            maxHeight: 320,
+            overflowY: "auto",
+          }}
+        >
+          {eligible.map((a) => {
+            const selected = picked.includes(a.id);
+            return (
+              <button
+                key={a.id}
+                type="button"
+                data-testid={`add-member-toggle-${a.id}`}
+                onClick={() => toggle(a.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 8,
+                  background: selected ? "var(--accent-soft)" : "white",
+                  border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <Avatar cfg={a.avatar_config} size={32} title={a.name} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800 }}>{a.name}</div>
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: "var(--ink-3)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {a.role_title || "—"}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
   );
 }
 

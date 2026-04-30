@@ -493,19 +493,44 @@ async function consumeGroupSSE(
   return final;
 }
 
+export type GroupSendOptions = {
+  // When false, prior conversation context is NOT sent to the LLM —
+  // each member only sees the user's just-sent message (and, in
+  // sequential mode, the in-round replies above them). The user
+  // message is still persisted to the thread.
+  includeHistory?: boolean;
+};
+
 export const GroupChatAPI = {
   messages: (threadId: number) =>
     api.get<{ thread_id: number; group_id: number; messages: GroupChatMessage[] }>(
       `/group-chat/${threadId}/messages`,
     ),
-  send: (threadId: number, message: string) =>
+  send: (threadId: number, message: string, opts?: GroupSendOptions) =>
     api.post<{
       user_message: GroupChatMessage;
       replies: GroupChatMessage[];
       mode: "parallel" | "sequential";
-    }>(`/group-chat/${threadId}/send`, { message }),
-  sendStreaming: (threadId: number, message: string, handlers: GroupStreamHandlers, signal?: AbortSignal) =>
-    consumeGroupSSE(`/api/group-chat/${threadId}/send/stream`, { message }, handlers, signal),
+    }>(`/group-chat/${threadId}/send`, {
+      message,
+      ...(opts?.includeHistory === false ? { include_history: false } : {}),
+    }),
+  sendStreaming: (
+    threadId: number,
+    message: string,
+    handlers: GroupStreamHandlers,
+    signal?: AbortSignal,
+    opts?: GroupSendOptions,
+  ) =>
+    consumeGroupSSE(
+      `/api/group-chat/${threadId}/send/stream`,
+      {
+        message,
+        ...(opts?.includeHistory === false ? { include_history: false } : {}),
+      },
+      handlers,
+      signal,
+    ),
   continueRounds: (threadId: number, rounds: number) =>
     api.post<{
       replies: GroupChatMessage[];

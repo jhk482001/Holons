@@ -53,19 +53,44 @@ def _members(group_id: int) -> list[dict]:
     )
 
 
-def _load_history(thread_id: int, limit: int = _HISTORY_LIMIT) -> list[dict]:
-    rows = db.fetch_all(
-        """
-        SELECT m.id, m.role, m.agent_id, m.content, m.created_at,
-               a.name AS agent_name
-        FROM group_chat_messages m
-        LEFT JOIN agents a ON a.id = m.agent_id
-        WHERE m.thread_id = %s
-        ORDER BY m.created_at DESC, m.id DESC
-        LIMIT %s
-        """,
-        (thread_id, limit),
-    )
+def _load_history(thread_id: int, limit: int = _HISTORY_LIMIT,
+                   *, since_msg_id: int | None = None) -> list[dict]:
+    """Pull the most-recent `limit` messages for `thread_id`.
+
+    `since_msg_id` clips the window to messages with id >= since_msg_id —
+    used by the "fresh context" toggle (see send_user_message_streaming):
+    when the user unticks "include previous conversation", we still need
+    them to see their just-sent message and (in sequential mode) replies
+    from agents already taking their turn in the current round, but
+    nothing prior. Passing the user-message row id as the cutoff achieves
+    exactly that.
+    """
+    if since_msg_id is not None:
+        rows = db.fetch_all(
+            """
+            SELECT m.id, m.role, m.agent_id, m.content, m.created_at,
+                   a.name AS agent_name
+            FROM group_chat_messages m
+            LEFT JOIN agents a ON a.id = m.agent_id
+            WHERE m.thread_id = %s AND m.id >= %s
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT %s
+            """,
+            (thread_id, since_msg_id, limit),
+        )
+    else:
+        rows = db.fetch_all(
+            """
+            SELECT m.id, m.role, m.agent_id, m.content, m.created_at,
+                   a.name AS agent_name
+            FROM group_chat_messages m
+            LEFT JOIN agents a ON a.id = m.agent_id
+            WHERE m.thread_id = %s
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT %s
+            """,
+            (thread_id, limit),
+        )
     return list(reversed(rows))
 
 
@@ -231,7 +256,8 @@ def _generate_reply_streaming(member: dict, history: list[dict], thread_id: int,
 
 
 def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
-                          *, history_limit: int):
+                          *, history_limit: int,
+                          since_msg_id: int | None = None):
     """Streaming generator twin of _run_round. Yields per-member events:
         ("member_start", {agent_id, agent_name})
         ("chunk", {agent_id, text})
@@ -244,6 +270,12 @@ def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
     before the first reply is generated), so they don't read each
     other's current-round output. Sequential mode reloads the history
     between members so each one sees the prior reply.
+
+    `since_msg_id` clips every history load to messages with id >=
+    since_msg_id. When the user opts out of carrying prior context,
+    callers pass the just-inserted user-message id; the round still
+    sees that message (and any in-round agent replies for sequential
+    mode) but nothing earlier.
     """
     aggregator_id = group.get("aggregator_agent_id")
     regular = [m for m in members if m["agent_id"] != aggregator_id]
@@ -252,7 +284,9 @@ def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
     )
 
     if group["mode"] == "parallel":
-        history_snapshot = _load_history(thread_id, limit=history_limit)
+        history_snapshot = _load_history(
+            thread_id, limit=history_limit, since_msg_id=since_msg_id,
+        )
         for m in regular:
             yield ("member_start", {"agent_id": m["agent_id"], "agent_name": m["name"]})
             for ev_kind, payload in _generate_reply_streaming(m, history_snapshot, thread_id):
@@ -262,7 +296,9 @@ def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
                     yield ("member_complete", payload)
     else:
         for m in regular:
-            history = _load_history(thread_id, limit=history_limit)
+            history = _load_history(
+                thread_id, limit=history_limit, since_msg_id=since_msg_id,
+            )
             yield ("member_start", {"agent_id": m["agent_id"], "agent_name": m["name"]})
             for ev_kind, payload in _generate_reply_streaming(m, history, thread_id):
                 if ev_kind == "chunk":
@@ -279,7 +315,9 @@ def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
         if row:
             aggregator_member = {**row, "custom_prompt": None}
     if aggregator_member:
-        history = _load_history(thread_id, limit=history_limit)
+        history = _load_history(
+            thread_id, limit=history_limit, since_msg_id=since_msg_id,
+        )
         yield ("member_start", {
             "agent_id": aggregator_member["agent_id"],
             "agent_name": aggregator_member["name"],
@@ -295,12 +333,19 @@ def _run_round_streaming(group: dict, members: list[dict], thread_id: int,
 
 
 def send_user_message_streaming(user_id: int, group_id: int, thread_id: int,
-                                  user_message: str):
+                                  user_message: str,
+                                  *, include_history: bool = True):
     """Streaming twin of send_user_message. Yields events in this order:
         ("user_message", {id, content})
         ("member_start", {...}) / ("chunk", {...}) / ("member_complete", {...})
         ("complete", {mode}) — once every member finished
         ("error", {error}) — on failure (terminal)
+
+    `include_history=False` ("fresh context" toggle in the UI) restricts
+    each member's view to messages from this turn onward — the user's
+    just-sent message and, in sequential mode, replies from earlier
+    members of the current round. Prior conversation is omitted from
+    the prompt but remains persisted in the thread.
     """
     group = _group(user_id, group_id)
     if not group:
@@ -328,6 +373,7 @@ def send_user_message_streaming(user_id: int, group_id: int, thread_id: int,
     try:
         for ev_kind, payload in _run_round_streaming(
             group, members, thread_id, history_limit=_HISTORY_LIMIT,
+            since_msg_id=None if include_history else user_msg_id,
         ):
             yield (ev_kind, payload)
     except Exception as e:  # noqa: BLE001
@@ -339,7 +385,9 @@ def send_user_message_streaming(user_id: int, group_id: int, thread_id: int,
     yield ("complete", {"mode": group["mode"]})
 
 
-def _run_round(group: dict, members: list[dict], thread_id: int, *, history_limit: int) -> list[dict]:
+def _run_round(group: dict, members: list[dict], thread_id: int, *,
+                history_limit: int,
+                since_msg_id: int | None = None) -> list[dict]:
     replies: list[dict] = []
     aggregator_id = group.get("aggregator_agent_id")
     # Aggregator is pulled out of `members` so it doesn't also reply as a
@@ -350,13 +398,17 @@ def _run_round(group: dict, members: list[dict], thread_id: int, *, history_limi
     if group["mode"] == "parallel":
         # Snapshot once — within a parallel round, agents don't see each other's
         # current-round replies. History is shared (prior rounds + user message).
-        history = _load_history(thread_id, limit=history_limit)
+        history = _load_history(
+            thread_id, limit=history_limit, since_msg_id=since_msg_id,
+        )
         for m in regular:
             replies.append(_generate_reply(m, history, thread_id))
     else:
         # Sequential — reload after each member so the next one sees the prior.
         for m in regular:
-            history = _load_history(thread_id, limit=history_limit)
+            history = _load_history(
+                thread_id, limit=history_limit, since_msg_id=since_msg_id,
+            )
             replies.append(_generate_reply(m, history, thread_id))
 
     # Aggregator turn — always runs with the freshest history so it can
@@ -373,7 +425,9 @@ def _run_round(group: dict, members: list[dict], thread_id: int, *, history_limi
             aggregator_member = {**row, "custom_prompt": None}
 
     if aggregator_member:
-        history = _load_history(thread_id, limit=history_limit)
+        history = _load_history(
+            thread_id, limit=history_limit, since_msg_id=since_msg_id,
+        )
         replies.append(_generate_reply(
             aggregator_member, history, thread_id, role_hint="aggregator",
         ))
@@ -416,7 +470,8 @@ def list_messages(thread_id: int) -> list[dict]:
     return rows
 
 
-def send_user_message(user_id: int, group_id: int, thread_id: int, user_message: str) -> dict:
+def send_user_message(user_id: int, group_id: int, thread_id: int, user_message: str,
+                       *, include_history: bool = True) -> dict:
     group = _group(user_id, group_id)
     if not group:
         return {"error": "group not found"}
@@ -439,7 +494,10 @@ def send_user_message(user_id: int, group_id: int, thread_id: int, user_message:
         (thread_id, user_message),
     )
 
-    replies = _run_round(group, members, thread_id, history_limit=_HISTORY_LIMIT)
+    replies = _run_round(
+        group, members, thread_id, history_limit=_HISTORY_LIMIT,
+        since_msg_id=None if include_history else user_msg_id,
+    )
 
     db.execute("UPDATE group_chat_threads SET updated_at = NOW() WHERE id = %s", (thread_id,))
 

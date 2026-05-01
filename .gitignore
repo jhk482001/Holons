@@ -17,6 +17,16 @@ mcp_test/
 rag_test/
 
 # ============================================================================
+# One-off shell scripts (deploys, host-side ops, throwaway helpers). We've
+# had two incidents where deploy hostnames + internal repo names landed
+# in public history because someone (me, Claude) wrote them under
+# scripts/. The Python tools in scripts/ stay tracked; .sh under scripts/
+# is assumed disposable and must opt back in via `git add -f` on a
+# case-by-case basis.
+# ============================================================================
+scripts/*.sh
+
+# ============================================================================
 # Python
 # ============================================================================
 __pycache__/

@@ -1116,7 +1116,12 @@
     "noEligibleAgents": "No agents to add — every agent you own is already in this group.",
     "includeHistoryOn": "Include prior conversation (default)",
     "includeHistoryOff": "Fresh context — ignore prior conversation",
-    "includeHistoryTooltip": "When checked, agents see this thread's previous messages as context. Uncheck to start a fresh exchange where they only see your latest message (the message is still saved to the thread)."
+    "includeHistoryTooltip": "When checked, agents see this thread's previous messages as context. Uncheck to start a fresh exchange where they only see your latest message (the message is still saved to the thread).",
+    "layoutVertical": "Vertical",
+    "layoutHorizontal": "Side-by-side",
+    "layoutVerticalTooltip": "Chronological feed — every message stacked top-to-bottom (default).",
+    "layoutHorizontalTooltip": "One column per member; each round renders as a side-by-side row so you can compare replies.",
+    "layoutToggleAriaLabel": "Switch chat layout"
   },
   "chart": {
     "noUsageData": "No usage data yet."

@@ -64,6 +64,24 @@ export default function GroupChat() {
     window.localStorage.setItem(includeHistoryKey, includeHistory ? "1" : "0");
   }, [includeHistoryKey, includeHistory]);
 
+  // Layout toggle for parallel groups. "vertical" is the original
+  // chronological-bubble layout; "horizontal" lays each round out as a
+  // single grid row with one column per agent so users can compare
+  // replies side-by-side. Sticky per group via localStorage. Only
+  // surfaced when group.mode === "parallel" — sequential groups have
+  // an inherently chronological flow that horizontal layout would
+  // misrepresent.
+  const layoutKey = `holons.group.layout.${groupId}`;
+  const [layout, setLayout] = useState<"vertical" | "horizontal">(() => {
+    if (typeof window === "undefined") return "vertical";
+    const stored = window.localStorage.getItem(layoutKey);
+    return stored === "horizontal" ? "horizontal" : "vertical";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(layoutKey, layout);
+  }, [layoutKey, layout]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages.length, streamingBuffers]);
@@ -165,6 +183,38 @@ export default function GroupChat() {
     return m;
   }, [members]);
 
+  // Derive rounds from the flat message list — each round is a user
+  // message followed by everyone's replies until the next user message.
+  // Used by the horizontal layout to render side-by-side comparison
+  // grids; ignored in vertical mode but cheap enough to compute always.
+  // Named `messageRounds` to avoid clashing with the `rounds` state
+  // that controls the "let them continue N rounds" button below.
+  const messageRounds = useMemo(() => {
+    const out: Array<{
+      userMsg: GroupChatMessage | null;
+      byAgent: Record<number, GroupChatMessage[]>;
+    }> = [];
+    let cur: { userMsg: GroupChatMessage | null; byAgent: Record<number, GroupChatMessage[]> } | null = null;
+    for (const m of messages) {
+      if (m.role === "user") {
+        cur = { userMsg: m, byAgent: {} };
+        out.push(cur);
+      } else if (m.role === "agent" && m.agent_id != null) {
+        if (!cur) {
+          cur = { userMsg: null, byAgent: {} };
+          out.push(cur);
+        }
+        const arr = cur.byAgent[m.agent_id] ?? [];
+        arr.push(m);
+        cur.byAgent[m.agent_id] = arr;
+      }
+    }
+    return out;
+  }, [messages]);
+
+  const showLayoutToggle = group?.mode === "parallel" && members.length >= 2;
+  const isHorizontal = showLayoutToggle && layout === "horizontal";
+
   // Show a "waiting to reply" indicator for each member whose last contribution
   // in the current round hasn't arrived yet after the user's latest turn.
   const lastUserIdx = (() => {
@@ -217,8 +267,9 @@ export default function GroupChat() {
         display: "flex",
         flexDirection: "column",
         height: "calc(100vh - 40px)",
-        maxWidth: 900,
+        maxWidth: isHorizontal ? "none" : 900,
         margin: "0 auto",
+        width: isHorizontal ? "100%" : undefined,
       }}
     >
       {/* Header */}
@@ -245,6 +296,54 @@ export default function GroupChat() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {showLayoutToggle && (
+            <div
+              role="group"
+              aria-label={t("groupChat.layoutToggleAriaLabel")}
+              style={{
+                display: "inline-flex",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                overflow: "hidden",
+              }}
+            >
+              <button
+                type="button"
+                data-testid="group-layout-vertical"
+                onClick={() => setLayout("vertical")}
+                title={t("groupChat.layoutVerticalTooltip")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  border: "none",
+                  cursor: "pointer",
+                  background: layout === "vertical" ? "var(--accent-soft)" : "transparent",
+                  color: layout === "vertical" ? "var(--accent)" : "var(--ink-3)",
+                  fontWeight: layout === "vertical" ? 700 : 500,
+                }}
+              >
+                {t("groupChat.layoutVertical")}
+              </button>
+              <button
+                type="button"
+                data-testid="group-layout-horizontal"
+                onClick={() => setLayout("horizontal")}
+                title={t("groupChat.layoutHorizontalTooltip")}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  border: "none",
+                  borderLeft: "1px solid var(--border)",
+                  cursor: "pointer",
+                  background: layout === "horizontal" ? "var(--accent-soft)" : "transparent",
+                  color: layout === "horizontal" ? "var(--accent)" : "var(--ink-3)",
+                  fontWeight: layout === "horizontal" ? 700 : 500,
+                }}
+              >
+                {t("groupChat.layoutHorizontal")}
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className="mbtn"
@@ -303,22 +402,33 @@ export default function GroupChat() {
             {t("groupChat.empty")}
           </div>
         )}
-        {messages.map((m) => (
-          <MessageRow key={m.id} m={m} agent={m.agent_id ? agentById.get(m.agent_id) : undefined} />
-        ))}
-        {/* Live streaming bubbles — one per active agent */}
-        {Object.entries(streamingBuffers).map(([aidStr, text]) => {
-          const aid = Number(aidStr);
-          const a = agentById.get(aid);
-          return (
-            <StreamingMessageRow
-              key={`stream-${aid}`}
-              agent={a}
-              agent_id={aid}
-              text={text}
-            />
-          );
-        })}
+        {!isHorizontal && (
+          <>
+            {messages.map((m) => (
+              <MessageRow key={m.id} m={m} agent={m.agent_id ? agentById.get(m.agent_id) : undefined} />
+            ))}
+            {/* Live streaming bubbles — one per active agent */}
+            {Object.entries(streamingBuffers).map(([aidStr, text]) => {
+              const aid = Number(aidStr);
+              const a = agentById.get(aid);
+              return (
+                <StreamingMessageRow
+                  key={`stream-${aid}`}
+                  agent={a}
+                  agent_id={aid}
+                  text={text}
+                />
+              );
+            })}
+          </>
+        )}
+        {isHorizontal && (
+          <HorizontalRounds
+            rounds={messageRounds}
+            members={members}
+            streamingBuffers={streamingBuffers}
+          />
+        )}
         {currentRound && (
           <div style={{
             alignSelf: "center",
@@ -775,5 +885,175 @@ function ContinueButton({
         ))}
       </select>
     </div>
+  );
+}
+
+// Side-by-side parallel layout. Each round is one block: the user's
+// message centered above (full width), then a single grid row with one
+// column per group member, each cell holding that agent's reply for
+// the round (plus the live streaming bubble if it belongs to the
+// last/active round).
+function HorizontalRounds({
+  rounds,
+  members,
+  streamingBuffers,
+}: {
+  rounds: Array<{
+    userMsg: GroupChatMessage | null;
+    byAgent: Record<number, GroupChatMessage[]>;
+  }>;
+  members: GroupMember[];
+  streamingBuffers: Record<number, string>;
+}) {
+  const { t } = useTranslation();
+  const cols = members.length || 1;
+  const lastRoundIdx = rounds.length - 1;
+  return (
+    <>
+      {rounds.map((round, idx) => {
+        const isLast = idx === lastRoundIdx;
+        return (
+          <div
+            key={`round-${idx}-${round.userMsg?.id ?? "none"}`}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              padding: "10px 4px 14px",
+              borderBottom: idx < lastRoundIdx ? "1px dashed var(--border)" : "none",
+            }}
+          >
+            {round.userMsg && (
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <div
+                  style={{
+                    background: "var(--accent-soft)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    maxWidth: "70%",
+                  }}
+                >
+                  <div style={{ fontSize: 10, color: "var(--ink-4)", marginBottom: 2, textAlign: "center" }}>
+                    {t("groupChat.you")}
+                  </div>
+                  {round.userMsg.content}
+                </div>
+              </div>
+            )}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                gap: 10,
+                alignItems: "stretch",
+              }}
+            >
+              {members.map((m) => {
+                const replies = round.byAgent[m.agent_id] ?? [];
+                const live = isLast ? streamingBuffers[m.agent_id] : undefined;
+                const hasContent = replies.length > 0 || typeof live === "string";
+                return (
+                  <div
+                    key={`${idx}-${m.agent_id}`}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 2,
+                      }}
+                    >
+                      <Avatar cfg={m.avatar_config} size={24} title={m.agent_name} />
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "var(--ink-2)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {m.agent_name}
+                      </div>
+                    </div>
+                    {!hasContent && (
+                      <div
+                        style={{
+                          background: "var(--surface-2)",
+                          border: "1px dashed var(--border)",
+                          borderRadius: 12,
+                          padding: "8px 12px",
+                          fontSize: 12,
+                          color: "var(--ink-4)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        —
+                      </div>
+                    )}
+                    {replies.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 12,
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          lineHeight: 1.55,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {r.content}
+                      </div>
+                    ))}
+                    {typeof live === "string" && (
+                      <div
+                        style={{
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--accent)",
+                          borderRadius: 12,
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          lineHeight: 1.55,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {live || "…"}
+                        <span
+                          style={{
+                            display: "inline-block",
+                            marginLeft: 2,
+                            color: "var(--accent)",
+                            animation: "stream-blink 1s steps(2, start) infinite",
+                          }}
+                        >
+                          ▍
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </>
   );
 }

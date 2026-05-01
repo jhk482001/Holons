@@ -1116,7 +1116,12 @@
     "noEligibleAgents": "沒有可加入的 agent — 你的所有 agent 都已是這個團隊的成員。",
     "includeHistoryOn": "帶入前文(預設)",
     "includeHistoryOff": "忽略前文,重新對話",
-    "includeHistoryTooltip": "勾選時, agent 會收到此 thread 先前的訊息作為脈絡; 取消勾選會視為全新對話, 只看到你這一則訊息(訊息仍會保存)。"
+    "includeHistoryTooltip": "勾選時, agent 會收到此 thread 先前的訊息作為脈絡; 取消勾選會視為全新對話, 只看到你這一則訊息(訊息仍會保存)。",
+    "layoutVertical": "縱向",
+    "layoutHorizontal": "平行展開",
+    "layoutVerticalTooltip": "依時間先後順序縱向排列每一則訊息(預設)。",
+    "layoutHorizontalTooltip": "每一輪對話橫向展開, 每位成員一欄, 方便比較各 agent 的回應。",
+    "layoutToggleAriaLabel": "切換對話排版"
   },
   "chart": {
     "noUsageData": "尚無用量資料。"

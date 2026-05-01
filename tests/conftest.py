@@ -131,23 +131,28 @@ def _abort_message(source: str, url: str) -> str:
 
 def pytest_configure(config: pytest.Config) -> None:
     """Hard-stop before any test runs if we'd be TRUNCATEing the live
-    dev Postgres. Checked sources:
-
-      - shell env DATABASE_URL (the original check)
-      - the project's .env file (which backend.db.init() reads via
-        python-dotenv) — this is the source the previous guard missed
+    dev Postgres. The check resolves the *effective* URL the way
+    backend.db will: shell env DATABASE_URL wins (python-dotenv's
+    default `load_dotenv()` does not override existing env vars), then
+    falls back to the .env file if the shell didn't set one.
     """
     if _allowed_to_truncate():
         return
 
     shell_url = os.environ.get("DATABASE_URL", "")
-    if _looks_like_live_dev_db(shell_url):
-        pytest.exit(_abort_message("shell env DATABASE_URL", shell_url), returncode=2)
+    if shell_url:
+        # Shell env wins — only block if THIS is the live DB. A test
+        # run with shell DATABASE_URL pointing at a throwaway DB
+        # should proceed even when .env still names the live DB.
+        if _looks_like_live_dev_db(shell_url):
+            pytest.exit(_abort_message("shell env DATABASE_URL", shell_url), returncode=2)
+        return
 
+    # No shell override → backend.db will pick up whatever .env has.
     file_url = _read_env_file_database_url()
     if _looks_like_live_dev_db(file_url):
         pytest.exit(
-            _abort_message(".env file DATABASE_URL", file_url),
+            _abort_message(".env file DATABASE_URL (no shell override)", file_url),
             returncode=2,
         )
 
